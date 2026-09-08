@@ -1,0 +1,14 @@
+.app-zeus .op-brand-symbol{
+  width:38px;
+  height:38px;
+  min-width:38px;
+  display:block;
+  overflow:hidden;
+  color:transparent;
+  font-size:0;
+  background:url('/brand/zeus/zeus-mark.svg') center/contain no-repeat;
+}
+
+.app-zeus.theme-dark .op-brand-symbol{
+  filter:brightness(1.55) contrast(.95);
+}

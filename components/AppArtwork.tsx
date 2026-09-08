@@ -1,13 +1,22 @@
 import type { AppTone } from '@/lib/catalog';
 
 export function AppArtwork({tone,compact=false}:{tone:AppTone;compact?:boolean}){
-  if(tone==='zeus' || tone==='artemis'){
+  if(tone==='zeus'){
+    const src=compact?'/brand/zeus/zeus-cover-solid.webp':'/brand/zeus/zeus-cover-app.webp';
     return (
-      <div className={`artwork artwork-photo artwork-${tone} ${compact?'artwork-compact':''}`} aria-hidden="true">
+      <div className={`artwork artwork-photo artwork-zeus ${compact?'artwork-compact':''}`} aria-hidden="true">
+        <img src={src} alt="" draggable={false} style={{width:'100%',height:'100%',display:'block',objectFit:'cover'}} />
+      </div>
+    );
+  }
+
+  if(tone==='artemis'){
+    return (
+      <div className={`artwork artwork-photo artwork-artemis ${compact?'artwork-compact':''}`} aria-hidden="true">
         <div className="app-photo"/>
         <div className="photo-vignette"/>
-        <div className="art-title">{tone==='zeus'?'OFICINA':'RESTAURANTE'}</div>
-        <div className="art-caption">{tone==='zeus'?'OS · FLUXO · HISTÓRICO':'PEDIDOS · COZINHA · CAIXA'}</div>
+        <div className="art-title">RESTAURANTE</div>
+        <div className="art-caption">PEDIDOS · COZINHA · CAIXA</div>
       </div>
     );
   }

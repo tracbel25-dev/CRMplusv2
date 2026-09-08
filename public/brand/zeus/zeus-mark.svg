@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Zeus">
+  <g fill="#767b82">
+    <rect x="224" y="28" width="64" height="92" rx="10"/>
+    <rect x="224" y="392" width="64" height="92" rx="10"/>
+    <rect x="392" y="224" width="92" height="64" rx="10"/>
+    <rect x="28" y="224" width="92" height="64" rx="10"/>
+    <rect x="354" y="74" width="64" height="92" rx="10" transform="rotate(45 386 120)"/>
+    <rect x="94" y="334" width="64" height="92" rx="10" transform="rotate(45 126 380)"/>
+    <rect x="334" y="354" width="92" height="64" rx="10" transform="rotate(45 380 386)"/>
+    <rect x="74" y="94" width="92" height="64" rx="10" transform="rotate(45 120 126)"/>
+    <circle cx="256" cy="256" r="168"/>
+  </g>
+  <circle cx="256" cy="256" r="108" fill="transparent" stroke="#0f1012" stroke-width="70"/>
+  <path d="M307 36 154 245h88l-61 231 178-241h-95z" fill="#161719"/>
+</svg>

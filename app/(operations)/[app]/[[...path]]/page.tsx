@@ -5,6 +5,7 @@ import { appPages, isApp, navigation } from '@/lib/operations/navigation';
 import './operations.css';
 import './configuration.css';
 import './access-control.css';
+import './zeus-brand.css';
 
 export const dynamicParams = true;
 
