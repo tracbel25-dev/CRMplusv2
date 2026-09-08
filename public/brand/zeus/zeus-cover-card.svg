@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" role="img" aria-label="Zeus — Gestão para oficinas">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#050505"/>
+      <stop offset=".58" stop-color="#0a0b0c"/>
+      <stop offset="1" stop-color="#121417"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".48" stop-color="#c7cbd0"/>
+      <stop offset="1" stop-color="#757b82"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <g opacity=".12" fill="none" stroke="#aab0b6" stroke-width="3">
+    <path d="M0 175h250l105-105h190"/>
+    <path d="M1080 955H860l-120 120H560"/>
+  </g>
+  <g opacity=".08" fill="#8a9097" transform="translate(815 -70) scale(.82)">
+    <circle cx="210" cy="210" r="166"/>
+    <circle cx="210" cy="210" r="103" fill="#08090a"/>
+  </g>
+  <g transform="translate(105 205)">
+    <g transform="scale(.94)" fill="url(#metal)">
+      <rect x="174" y="0" width="72" height="118" rx="10"/>
+      <rect x="174" y="302" width="72" height="118" rx="10"/>
+      <rect x="302" y="174" width="118" height="72" rx="10"/>
+      <rect x="0" y="174" width="118" height="72" rx="10"/>
+      <rect x="286" y="42" width="72" height="118" rx="10" transform="rotate(45 322 101)"/>
+      <rect x="62" y="260" width="72" height="118" rx="10" transform="rotate(45 98 319)"/>
+      <rect x="260" y="286" width="118" height="72" rx="10" transform="rotate(45 319 322)"/>
+      <rect x="42" y="62" width="118" height="72" rx="10" transform="rotate(45 101 98)"/>
+      <circle cx="210" cy="210" r="166"/>
+      <circle cx="210" cy="210" r="103" fill="#08090a"/>
+      <path d="M260 20 112 208h86l-60 192 173-222h-92z" fill="#f7f7f7"/>
+    </g>
+  </g>
+  <g transform="translate(545 310)">
+    <text x="0" y="95" fill="#f8f8f8" font-family="Arial,Helvetica,sans-serif" font-size="128" font-weight="800" letter-spacing="4">ZEUS</text>
+    <text x="4" y="158" fill="#c7c9cc" font-family="Arial,Helvetica,sans-serif" font-size="34" letter-spacing="2">Gestão para oficinas</text>
+  </g>
+  <g opacity=".22" fill="#838990" transform="translate(-160 940) scale(.9)">
+    <circle cx="210" cy="210" r="166"/>
+    <circle cx="210" cy="210" r="103" fill="#08090a"/>
+  </g>
+</svg>
