@@ -15,9 +15,12 @@ import { useWorkspace, WorkspaceContext } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import './lean-operations.css';
+import './zeus-enhancements.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
+const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.ZeusBudgets));
+const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const Artemis = dynamic(() => import('./Artemis').then(module => module.Artemis));
@@ -26,6 +29,7 @@ const Budgets = dynamic(() => import('./Athena').then(module => module.Budgets))
 const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
 
 import { AppSettings } from './Settings';
+import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
 
@@ -52,6 +56,19 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   });
 
   const pageLabel = page === 'configuracoes' ? 'Configurações' : nav.find(section => section.path === page)?.label || 'Área do aplicativo';
+
+  const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
+    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? <><AppSettings key={app} w={w} app={app} />{app === 'zeus' && <ZeusSettingsExtras w={w} />}</> : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele. O restante do aplicativo continua acessível sem login nesta fase.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
+    : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
+    : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
+    : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
+    : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
+    : app === 'artemis' && recordId ? <LeanArtemisOrderDetail key={recordId} w={w} recordId={recordId} />
+    : app === 'zeus' ? <Zeus key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+    : app === 'artemis' ? <Artemis key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+    : app === 'kronos' ? <Kronos key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+    : app === 'athena-pesquisa' ? <Research key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+    : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />;
 
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={w.error}>
@@ -95,18 +112,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
           {help && <div className="op-help"><strong>Configuração por aplicativo.</strong><span>O aplicativo continua aberto nesta fase. Configurações só aparece quando a conta central identifica o titular ou um usuário com permissão para configurar este aplicativo específico. O histórico operacional e as sugestões aprendidas também ficam isolados pela conta.</span><button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button></div>}
 
-          <main id="op-main" className="op-main">
-            {!w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
-              : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? <AppSettings key={app} w={w} app={app} /> : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele. O restante do aplicativo continua acessível sem login nesta fase.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
-              : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
-              : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
-              : app === 'artemis' && recordId ? <LeanArtemisOrderDetail key={recordId} w={w} recordId={recordId} />
-              : app === 'zeus' ? <Zeus key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
-              : app === 'artemis' ? <Artemis key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
-              : app === 'kronos' ? <Kronos key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
-              : app === 'athena-pesquisa' ? <Research key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
-              : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />}
-          </main>
+          <main id="op-main" className="op-main">{body}</main>
 
           <footer className="op-local-status"><span>{access.account ? 'Dados e sugestões isolados nesta conta · salvos neste navegador' : 'Dados operacionais locais deste acesso'}</span>{canConfigure && <Link href={`/${app}/configuracoes`}>Configurar aplicativo <ArrowUpRight size={13} /></Link>}</footer>
         </div>
