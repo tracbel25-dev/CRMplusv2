@@ -1,5 +1,7 @@
 /* Lean operation styles: keep work-in-progress and next action visually dominant. */
-.op-workflow-control{display:grid;gap:14px}
+.op-workflow-control{display:grid;gap:14px;margin-bottom:22px;padding:18px 20px;border:1px solid var(--op-line);background:var(--op-paper);border-radius:var(--op-radius)}
+.op-workflow-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}.op-workflow-heading>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.op-workflow-heading strong{font-size:19px}.op-workflow-heading .op-kicker{flex-basis:100%}
+.op-workflow-steps{display:flex;align-items:stretch;overflow:auto;border:1px solid var(--op-line);background:var(--op-soft)}.op-workflow-steps span{display:grid;gap:2px;min-width:118px;flex:1;padding:10px 12px;border-right:1px solid var(--op-line);color:var(--op-muted)}.op-workflow-steps span:last-child{border-right:0}.op-workflow-steps b{font-size:10px;font-weight:600}.op-workflow-steps em{font-style:normal;font-size:12px}.op-workflow-steps span.complete{color:var(--op-accent);background:var(--op-tint)}.op-workflow-steps span.current{color:var(--op-on-accent);background:var(--op-accent)}
 .op-workflow-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:14px;border-top:1px solid var(--op-line)}
 .op-workflow-next{display:flex;align-items:center;gap:14px;min-width:0}.op-workflow-next>div{display:grid;gap:2px;min-width:0}.op-workflow-next span{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--op-muted)}.op-workflow-next strong{font-size:14px;overflow-wrap:anywhere}
 .op-workflow-secondary{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
