@@ -10,10 +10,11 @@ import {
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace } from '@/lib/operations/storage';
 import {
-  Badge, Button, Confirm, Modal, QuoteDocument, QuoteEditor,
+  Badge, Button, Confirm, Modal, QuoteDocument,
   RecordForm, Section, Timeline, Title
 } from './ui';
 import { WorkflowControl } from './WorkflowControl';
+import { LeanInlineQuoteEditor } from './LeanInlineQuoteEditor';
 
 export function LeanBudgetDetail({ w, recordId }: { w: Workspace; recordId: string }) {
   const router = useRouter();
@@ -71,7 +72,7 @@ export function LeanBudgetDetail({ w, recordId }: { w: Workspace; recordId: stri
     {status === 'Expirado' && <p className="op-callout">A validade terminou. Esta versão ficou bloqueada para decisão; abra uma nova versão para revisar prazo ou valores.</p>}
 
     {quote.status === 'Rascunho' ? <Section title="Montar proposta">
-      <QuoteEditor app="athena-orcamentos" quote={quote} onClose={() => {}} onSave={saveDraft} onSaveAndSend={saveAndSend} />
+      <LeanInlineQuoteEditor quote={quote} onSave={saveDraft} onSaveAndSend={saveAndSend} />
     </Section> : <div className="budget-workspace">
       <Section title="Proposta comercial">
         <div className="op-document-lines">{quote.lines.map(line => <div key={line.id}><span><strong>{line.description}</strong><small>{line.kind}{line.brand ? ` · ${line.brand}` : ''} · {line.quantity} × {money(line.price)}</small></span><b>{money(Math.round(line.quantity * line.price))}</b></div>)}</div>
