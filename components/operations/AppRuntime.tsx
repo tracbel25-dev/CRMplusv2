@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  ArrowLeft, ArrowUpRight, BarChart3, BookOpen, Box, CalendarDays, ChefHat,
+  ArrowUpRight, BarChart3, BookOpen, Box, CalendarDays, ChefHat,
   CircleHelp, FileText, History, Home, Inbox, Menu, MessageSquareText, Moon,
   PanelLeftClose, PanelLeftOpen, Settings2, ShoppingBag, Sun, Target, Users,
   UtensilsCrossed, Wallet, Wrench, X
@@ -92,13 +92,12 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
           <Link href={`/${app}/configuracoes`} title="Configurações" className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}>
             <Settings2 size={20} /><span>Configurações</span>
           </Link>
-          <Link href="/entrar" title="Trocar aplicativo"><ArrowLeft size={19} /><span>Trocar aplicativo</span></Link>
           <button onClick={() => w.mutate(data => { data.settings.collapsed = !data.settings.collapsed; }, '')} aria-label={w.data.settings.collapsed ? 'Expandir menu' : 'Recolher menu'}>
             {w.data.settings.collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
             <span>Recolher menu</span>
           </button>
         </div>
-        <div className="op-sidebar-credit">CRM PLUS <span>Store</span></div>
+        <Link className="op-sidebar-credit" href="/" aria-label="Ir para a home da CRM PLUS">CRM PLUS <span>Store</span></Link>
       </aside>
 
       <div className="op-workspace">
