@@ -31,7 +31,7 @@ const icons = {
   inbox: Inbox, target: Target, file: FileText
 };
 
-export function AppRuntime({ app, page }: { app: AppId; page: string }) {
+export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: string; recordId?: string }) {
   const w = useWorkspace(app);
   const operation = useOperationPreferences(app);
   const access = useStoreAccess();
@@ -76,7 +76,7 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
       <div className="op-workspace">
         <header className="op-header">
           <button className="op-icon op-mobile-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir navegação"><Menu size={22} /></button>
-          <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong></div>
+          <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong>{recordId && <><i>/</i><span>registro</span></>}</div>
           <div className="op-header-tools">
             <span className="op-business-name">{w.data.settings.business}</span>
             <button className="op-icon" onClick={() => setHelp(!help)} aria-label="Sobre os dados deste aplicativo" aria-expanded={help}><CircleHelp size={19} /></button>
@@ -90,11 +90,11 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
         <main id="op-main" className="op-main">
           {!w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
             : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? <AppSettings key={app} w={w} app={app} /> : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele. O restante do aplicativo continua acessível sem login nesta fase.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
-            : app === 'zeus' ? <Zeus key={page} w={w} page={page} />
-            : app === 'artemis' ? <Artemis key={page} w={w} page={page} />
-            : app === 'kronos' ? <Kronos key={page} w={w} page={page} />
-            : app === 'athena-pesquisa' ? <Research key={page} w={w} page={page} />
-            : <Budgets key={page} w={w} page={page} />}
+            : app === 'zeus' ? <Zeus key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+            : app === 'artemis' ? <Artemis key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+            : app === 'kronos' ? <Kronos key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+            : app === 'athena-pesquisa' ? <Research key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+            : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />}
         </main>
 
         <footer className="op-local-status"><span>Dados operacionais salvos neste navegador</span>{canConfigure && <Link href={`/${app}/configuracoes`}>Configurar aplicativo <ArrowUpRight size={13} /></Link>}</footer>
