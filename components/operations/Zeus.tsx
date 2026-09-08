@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileDown, Plus, Wrench, X } from 'lucide-react';
 import {
   Appointment, Asset, Job, activeJob, advanceJob, customValues, date, effectiveQuoteStatus,
-  event, localDay, matches, newJob, setCustomValues, stages, uid
+  event, localDay, matches, money, newJob, setCustomValues, stages, uid
 } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
