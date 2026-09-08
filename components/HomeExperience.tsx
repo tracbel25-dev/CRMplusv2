@@ -59,6 +59,7 @@ export function HomeExperience() {
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroInteracting, setHeroInteracting] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const heroCount = featured.length + 1;
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -70,9 +71,9 @@ export function HomeExperience() {
 
   useEffect(() => {
     if (heroPaused || heroInteracting || reducedMotion) return;
-    const id = setInterval(() => setHero((value) => (value + 1) % featured.length), 5000);
+    const id = setInterval(() => setHero((value) => (value + 1) % heroCount), 5000);
     return () => clearInterval(id);
-  }, [heroPaused, heroInteracting, reducedMotion]);
+  }, [heroPaused, heroInteracting, reducedMotion, heroCount]);
 
   useEffect(() => {
     const id = setInterval(() => setImpact((value) => (value + 1) % impacts.length), 6500);
@@ -92,6 +93,7 @@ export function HomeExperience() {
     [query, segment],
   );
 
+  const isEditorialHero = hero === featured.length;
   const current = featured[hero];
   const currentImpact = impacts[impact];
 
@@ -116,7 +118,7 @@ export function HomeExperience() {
 
       <section
         className="store-featured"
-        aria-label="Aplicativos em destaque"
+        aria-label="Aplicativos e proposta em destaque"
         aria-roledescription="carrossel"
         onMouseEnter={() => setHeroInteracting(true)}
         onMouseLeave={() => setHeroInteracting(false)}
@@ -125,7 +127,7 @@ export function HomeExperience() {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHeroInteracting(false);
         }}
       >
-        <div className={`product-spotlight product-spotlight-${current.tone}`}>
+        <div className={`product-spotlight product-spotlight-${current?.tone ?? 'editorial'}`}>
           <div className="spotlight-images" aria-hidden="true">
             {featured.map((app, index) => (
               <Image
@@ -139,32 +141,35 @@ export function HomeExperience() {
             ))}
           </div>
           <div className="spotlight-body">
-            <span className="eyebrow">{hero === 0 ? 'Em destaque agora' : 'Descubra agora'}</span>
-            <div className="spotlight-copy">
-              <span className="spotlight-kind">{current.short}</span>
-              <h2>{current.name}</h2>
-              <ul>{current.features.slice(0, 3).map((feature) => <li key={feature}>{feature}</li>)}</ul>
-              <Link className="primary" href={`/aplicativos/${current.slug}`}>Conheça agora <ArrowRight size={17} /></Link>
-            </div>
+            <span className="eyebrow">
+              {isEditorialHero ? 'Como desenvolvemos' : hero === 0 ? 'Em destaque agora' : 'Descubra agora'}
+            </span>
+
+            {isEditorialHero ? (
+              <div className="spotlight-copy spotlight-copy-editorial">
+                <span className="spotlight-kind">CRM PLUS Store</span>
+                <h2>Menos burocracia.</h2>
+                <p>Estudamos cada segmento para transformar processos do dia a dia em ações mais simples, com menos etapas e menos cliques, contando também com o auxílio da inteligência artificial onde ela realmente agrega valor.</p>
+              </div>
+            ) : current ? (
+              <div className="spotlight-copy">
+                <span className="spotlight-kind">{current.short}</span>
+                <h2>{current.name}</h2>
+                <ul>{current.features.slice(0, 3).map((feature) => <li key={feature}>{feature}</li>)}</ul>
+                <Link className="primary" href={`/aplicativos/${current.slug}`}>Conheça agora <ArrowRight size={17} /></Link>
+              </div>
+            ) : null}
           </div>
           <div className="spotlight-controls">
-            <span className="spotlight-position">{String(hero + 1).padStart(2, '0')} / {String(featured.length).padStart(2, '0')}</span>
+            <span className="spotlight-position">{String(hero + 1).padStart(2, '0')} / {String(heroCount).padStart(2, '0')}</span>
             {!reducedMotion && (
               <button onClick={() => setHeroPaused((value) => !value)} aria-label={heroPaused ? 'Retomar destaques automáticos' : 'Pausar destaques automáticos'}>
                 {heroPaused ? <Play size={16} /> : <Pause size={16} />}
               </button>
             )}
-            <button onClick={() => setHero((value) => (value - 1 + featured.length) % featured.length)} aria-label="Destaque anterior"><ArrowLeft size={19} /></button>
-            <button onClick={() => setHero((value) => (value + 1) % featured.length)} aria-label="Próximo destaque"><ArrowRight size={19} /></button>
+            <button onClick={() => setHero((value) => (value - 1 + heroCount) % heroCount)} aria-label="Destaque anterior"><ArrowLeft size={19} /></button>
+            <button onClick={() => setHero((value) => (value + 1) % heroCount)} aria-label="Próximo destaque"><ArrowRight size={19} /></button>
           </div>
-        </div>
-      </section>
-
-      <section className="process-note" aria-labelledby="process-note-title">
-        <span className="eyebrow">Como desenvolvemos</span>
-        <div className="process-note-grid">
-          <h2 id="process-note-title">Menos burocracia.</h2>
-          <p>Estudamos cada segmento para transformar processos do dia a dia em ações mais simples, com menos etapas e menos cliques, contando também com o auxílio da inteligência artificial onde ela realmente agrega valor.</p>
         </div>
       </section>
 
