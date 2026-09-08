@@ -133,7 +133,7 @@ export function HomeExperience() {
               <Image
                 key={app.slug}
                 className={`spotlight-image spotlight-image-${app.tone}${hero === index ? ' is-active' : ''}`}
-                src={`/images/${app.slug}-cover.webp`}
+                src={app.slug === 'artemis' ? '/brand/artemis/artemis-cover-app.svg' : `/images/${app.slug}-cover.webp`}
                 alt=""
                 fill
                 sizes="(max-width: 1360px) 100vw, 1304px"
