@@ -4,6 +4,7 @@ import { OperationAccessGate } from '@/components/operations/OperationAccessGate
 import { appPages, isApp, navigation } from '@/lib/operations/navigation';
 import './operations.css';
 import './configuration.css';
+import './access-control.css';
 export const dynamicParams=false;
 export function generateStaticParams(){return Object.keys(navigation).flatMap(app=>isApp(app)?[{app,path:[]},...appPages(app).map(page=>({app,path:[page]})),{app,path:['login']},{app,path:['cadastro']}]:[])}
 export async function generateMetadata({params}:{params:Promise<{app:string}>}){const {app}=await params;return {title:isApp(app)?`${navigation[app].name} — ${navigation[app].subtitle} | CRM PLUS`:'Aplicativo não encontrado',robots:{index:false,follow:false}}}

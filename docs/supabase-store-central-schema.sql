@@ -1,0 +1,53 @@
+-- CRM PLUS Store — Supabase central
+-- Projeto: sodcfarvfhkdjecjmdwc
+-- Status: schema aplicado diretamente no projeto e versionado no histórico de migrations do Supabase.
+--
+-- ESTE ARQUIVO É DOCUMENTAÇÃO. NÃO EXECUTAR COMO MIGRATION.
+-- Fonte de verdade do banco em produção: histórico de migrations do projeto Supabase.
+--
+-- Migrations aplicadas em 2026-09-08:
+-- 20260908155806 store_central_foundation
+-- 20260908155846 harden_account_creation
+-- 20260908155913 optimize_store_foundation
+-- 20260908160010 secure_self_service_account_bootstrap
+-- 20260908160551 require_active_app_for_configuration
+-- 20260908160615 account_profile_visibility_and_access_privacy
+-- 20260908160649 idempotent_account_bootstrap
+--
+-- RESPONSABILIDADE DESTE PROJETO CENTRAL
+-- - Supabase Auth: cadastro, login, sessão e recuperação de senha
+-- - profiles: dados básicos de identidade do usuário
+-- - accounts / account_members: empresa e membros
+-- - apps / plans: catálogo e preços da CRM PLUS Store
+-- - account_apps: aplicativos contratados/ativos pela conta
+-- - member_app_access: acesso POR APLICATIVO e can_configure POR APLICATIVO
+-- - member_permissions: permissões administrativas da conta
+--   (manage_members, manage_apps, manage_billing)
+-- - private.stripe_* / billing_subscriptions: metadados de cobrança e idempotência de webhook
+-- - private.account_invitations / audit_logs: convites e auditoria
+--
+-- REGRA DE AUTORIZAÇÃO
+-- - Owner pode acessar/configurar todo aplicativo ativo da própria conta.
+-- - Member só acessa um app quando existe member_app_access para ele.
+-- - Member só configura esse app quando member_app_access.can_configure = true.
+-- - Poder configurar Zeus NÃO concede configuração do Artemis, Kronos ou Athena.
+-- - Configuração de app e gestão da conta são permissões diferentes.
+--
+-- FRONTEIRA OBRIGATÓRIA
+-- PROIBIDO armazenar neste Supabase central qualquer dado operacional dos apps:
+-- OS, veículos/equipamentos, diagnósticos, pedidos, mesas, caixa, oportunidades,
+-- pesquisas, respostas, orçamentos, anexos ou configurações operacionais persistentes.
+-- Cada aplicativo terá projeto Supabase próprio e chaves próprias.
+-- account_apps.tenant_key servirá apenas como correlação futura entre a conta central
+-- e o tenant no banco isolado do aplicativo.
+--
+-- SEGURANÇA VALIDADA
+-- - RLS habilitado nas tabelas públicas.
+-- - helpers SECURITY DEFINER ficam no schema private e com EXECUTE restrito.
+-- - public.create_account(text) é SECURITY INVOKER e idempotente.
+-- - secret/service-role não é usado no navegador.
+-- - Supabase Security Advisor: 0 avisos após as migrations acima.
+--
+-- CATÁLOGO ATUAL
+-- Zeus / Artemis / Kronos: R$ 50 mensal, R$ 250 semestral, R$ 500 anual.
+-- Athena Orçamentos / Athena Pesquisa: R$ 20 mensal, R$ 100 semestral, R$ 250 anual.

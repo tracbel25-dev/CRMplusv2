@@ -133,7 +133,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       <Section title="Campos e nomes">
-        <p className="op-muted">Escolha o nome em uma lista preparada para o seu segmento. Se a sua operação usa outro termo, selecione “Adicionar outro nome…”. Campos essenciais continuam ativos para não quebrar os registros.</p>
+        <p className="op-muted">Digite o nome que a sua operação usa. O campo sugere termos comuns do segmento enquanto você escreve; se criar um termo novo, use “Incluir opção” para deixá-lo disponível nas próximas configurações. Campos essenciais continuam ativos para não quebrar os registros.</p>
         <div className="op-config-groups">
           {fieldGroups.map(group => <div className="op-config-group" key={group}>
             <div className="op-config-group-title"><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></div>
@@ -165,7 +165,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       <Section title="Adicionar mais um campo">
-        <p className="op-muted">Quando o seu segmento usa uma informação que não existe na lista de campos, adicione uma nova. Isso cria outro campo; para apenas mudar um nome, use “Adicionar outro nome…” na lista acima.</p>
+        <p className="op-muted">Use esta área somente quando a sua operação precisa de uma informação que ainda não existe. Para apenas renomear um campo existente, digite diretamente no campo acima; para guardar uma nova sugestão, use “Incluir opção”.</p>
         <div className="op-config-add">
           <label className="op-field">
             <span>Nome do novo campo</span>
@@ -215,7 +215,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       {app === 'zeus' && <Section title="Prévia do fluxo da oficina">
-        <p className="op-muted">A sequência se recompõe automaticamente quando Diagnóstico, Orçamento ou Agendamento não fazem parte da operação. “Tipo de atendimento” também faz parte da área Atendimento acima e pode receber o nome usado pela oficina.</p>
+        <p className="op-muted">A sequência se recompõe automaticamente quando Diagnóstico, Orçamento ou Agendamento não fazem parte da operação. “Tipo de atendimento” também faz parte da área Atendimento acima: você pode digitar um tipo, usar uma sugestão ou incluir outro tipo para a oficina.</p>
         <div className="zeus-settings-preview">
           <span className="op-kicker">Prévia da identificação</span>
           <div>
@@ -274,8 +274,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </div>
     </Section>
 
-    <Section title="Próxima etapa de persistência">
-      <p>Conta, permissões e registros continuam locais neste esboço. A experiência está sendo validada primeiro; Supabase, autenticação real e sincronização entre dispositivos ficam deliberadamente fora desta rodada.</p>
+    <Section title="Persistência e acesso">
+      <p>A CRM PLUS Store centralizará login, conta, assinatura e permissões no Supabase central. Os dados operacionais deste aplicativo continuarão separados e serão ligados depois ao projeto Supabase próprio do app.</p>
     </Section>
 
     {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => {

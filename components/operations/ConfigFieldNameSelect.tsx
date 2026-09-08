@@ -1,62 +1,87 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import { fieldLabelOptions } from '@/lib/operations/configurationLabels';
 import { saveZeusServiceTypes, useZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
 
-const customValue='__crmplus_custom_label__';
-const customTypeValue='__crmplus_custom_service_type__';
+const optionEvent='crmplus:field-label-options';
+const optionStorageKey=(app:AppId,fieldKey:string)=>`crmplus:${app}:field-label-options:${fieldKey}:v1`;
+
+function normalize(values:string[]){
+  const seen=new Set<string>();
+  return values.map(value=>value.trim()).filter(value=>{
+    const key=value.toLocaleLowerCase('pt-BR');
+    if(!value||seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function readExtraOptions(app:AppId,fieldKey:string){
+  if(typeof window==='undefined')return [] as string[];
+  try{
+    const parsed=JSON.parse(localStorage.getItem(optionStorageKey(app,fieldKey))||'[]');
+    return Array.isArray(parsed)?normalize(parsed.map(String)):[];
+  }catch{return [] as string[]}
+}
+
+function saveExtraOption(app:AppId,fieldKey:string,value:string){
+  const next=normalize([...readExtraOptions(app,fieldKey),value]);
+  localStorage.setItem(optionStorageKey(app,fieldKey),JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent(optionEvent,{detail:{app,fieldKey}}));
+}
 
 function ZeusServiceTypesConfigurator(){
   const types=useZeusServiceTypes();
-  const [choice,setChoice]=useState('');
-  const [custom,setCustom]=useState(false);
-  const [customType,setCustomType]=useState('');
-  const suggestions=zeusServiceTypeSuggestions.filter(value=>!types.includes(value));
-  const add=(value:string)=>{
-    const normalized=value.trim();
-    if(!normalized)return;
+  const listId=useId();
+  const [draft,setDraft]=useState('');
+  const suggestions=normalize([...types,...zeusServiceTypeSuggestions]);
+  const exists=types.some(value=>value.toLocaleLowerCase('pt-BR')===draft.trim().toLocaleLowerCase('pt-BR'));
+  const add=()=>{
+    const normalized=draft.trim();
+    if(!normalized||exists)return;
     saveZeusServiceTypes([...types,normalized]);
-    setChoice('');
-    setCustom(false);
-    setCustomType('');
+    setDraft('');
   };
   return <div className="op-config-option-list">
     <span>Tipos disponíveis</span>
     <div className="op-config-option-chips">{types.map(type=><span key={type}>{type}<button type="button" aria-label={`Remover ${type}`} disabled={types.length===1} onClick={()=>saveZeusServiceTypes(types.filter(value=>value!==type))}><X size={13}/></button></span>)}</div>
     <div className="op-config-option-add">
-      <select value={custom?customTypeValue:choice} onChange={event=>{
-        const value=event.target.value;
-        if(value===customTypeValue){setCustom(true);setChoice('');return;}
-        setChoice(value);
-        if(value)add(value);
-      }} aria-label="Adicionar tipo de atendimento">
-        <option value="">Adicionar tipo…</option>
-        {suggestions.map(value=><option key={value} value={value}>{value}</option>)}
-        <option value={customTypeValue}>Adicionar outro tipo…</option>
-      </select>
-      {custom&&<div className="op-config-option-custom"><input autoFocus value={customType} onChange={event=>setCustomType(event.target.value)} placeholder="Nome do tipo usado pela oficina"/><button type="button" className="op-icon" aria-label="Adicionar tipo personalizado" onClick={()=>add(customType)}><Plus size={15}/></button></div>}
+      <input list={listId} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="Digite ou escolha um tipo de atendimento" aria-label="Adicionar tipo de atendimento"/>
+      <datalist id={listId}>{suggestions.map(value=><option key={value} value={value}/>)}</datalist>
+      <button type="button" className="op-button secondary" disabled={!draft.trim()||exists} onClick={add}><Plus size={15}/>Incluir tipo</button>
     </div>
-    <small>Essa lista aparece no agendamento e na abertura da OS. Registros antigos mantêm o tipo já gravado.</small>
+    <small>Você pode digitar livremente ou aproveitar uma sugestão. “Incluir tipo” salva a nova opção para os próximos atendimentos.</small>
   </div>;
 }
 
 export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void}){
-  const options=useMemo(()=>fieldLabelOptions(app,fieldKey,fallback),[app,fieldKey,fallback]);
-  const [custom,setCustom]=useState(()=>!options.includes(value));
-  const selectValue=custom||!options.includes(value)?customValue:value;
+  const listId=useId();
+  const defaults=useMemo(()=>fieldLabelOptions(app,fieldKey,fallback),[app,fieldKey,fallback]);
+  const [extras,setExtras]=useState<string[]>([]);
+  useEffect(()=>{
+    const sync=()=>setExtras(readExtraOptions(app,fieldKey));
+    sync();
+    const custom=(event:Event)=>{
+      const detail=(event as CustomEvent<{app?:AppId;fieldKey?:string}>).detail;
+      if(detail?.app===app&&detail.fieldKey===fieldKey)sync();
+    };
+    window.addEventListener('storage',sync);
+    window.addEventListener(optionEvent,custom);
+    return()=>{window.removeEventListener('storage',sync);window.removeEventListener(optionEvent,custom)};
+  },[app,fieldKey]);
+  const options=useMemo(()=>normalize([...defaults,...extras]),[defaults,extras]);
+  const typed=value.trim();
+  const exists=options.some(option=>option.toLocaleLowerCase('pt-BR')===typed.toLocaleLowerCase('pt-BR'));
   return <div className="op-config-name-control">
-    <select value={selectValue} onChange={event=>{
-      if(event.target.value===customValue){setCustom(true);return;}
-      setCustom(false);
-      onChange(event.target.value);
-    }} aria-label={`Nome de ${fallback} no aplicativo`}>
-      {options.map(option=><option key={option} value={option}>{option}</option>)}
-      <option value={customValue}>Adicionar outro nome…</option>
-    </select>
-    {custom&&<input autoFocus value={value} onChange={event=>onChange(event.target.value)} placeholder="Digite o nome usado pela sua operação" aria-label={`Outro nome para ${fallback}`}/>} 
+    <div className="op-config-combobox">
+      <input list={listId} value={value} onChange={event=>onChange(event.target.value)} placeholder={fallback} aria-label={`Nome de ${fallback} no aplicativo`}/>
+      <datalist id={listId}>{options.map(option=><option key={option} value={option}/>)}</datalist>
+      <button type="button" className="op-button secondary" disabled={!typed||exists} onClick={()=>saveExtraOption(app,fieldKey,typed)}><Plus size={14}/>Incluir opção</button>
+    </div>
+    <small className="op-muted">Digite o nome que quiser. As sugestões aceleram o preenchimento; “Incluir opção” guarda um termo novo na lista da operação.</small>
     {app==='zeus'&&fieldKey==='serviceType'&&<ZeusServiceTypesConfigurator/>}
   </div>;
 }
