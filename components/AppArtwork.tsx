@@ -11,8 +11,14 @@ export function AppArtwork({tone,compact=false,layout='default'}:{tone:AppTone;c
         : '/brand/zeus/zeus-cover-app.svg';
 
     return (
-      <div className={`artwork artwork-photo artwork-zeus artwork-zeus-asset ${compact?'artwork-compact':''}`} aria-hidden="true">
-        <img className="zeus-art-image" src={src} alt="" draggable={false} />
+      <div className={`artwork artwork-photo artwork-zeus-asset ${compact?'artwork-compact':''}`} aria-hidden="true" style={{background:'#070707'}}>
+        <img
+          className="zeus-art-image"
+          src={src}
+          alt=""
+          draggable={false}
+          style={{width:'100%',height:'100%',display:'block',objectFit:'contain',objectPosition:'center top'}}
+        />
       </div>
     );
   }
