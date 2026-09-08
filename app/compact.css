@@ -15,6 +15,70 @@
   height:640px;
 }
 
+/* Capa principal: atmosfera abstrata separada da imagem do aplicativo. */
+.hero.hero-zeus{
+  background-image:
+    linear-gradient(90deg,rgba(5,5,5,.93) 0%,rgba(5,5,5,.82) 38%,rgba(5,5,5,.44) 68%,rgba(5,5,5,.18) 100%),
+    url('/images/store-hero-bg.webp');
+  background-size:cover;
+  background-position:center;
+}
+
+.hero.hero-zeus:before{
+  background:linear-gradient(180deg,rgba(8,8,8,.22),rgba(8,8,8,.05));
+  border-left:1px solid rgba(255,255,255,.06);
+}
+
+/* Zeus e Artemis usam fotos próprias; nunca misturam as duas identidades. */
+.artwork-photo{
+  background:#080808;
+}
+
+.artwork-photo:after{
+  display:none;
+}
+
+.artwork-photo .app-photo{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  background-size:cover;
+  background-position:center;
+  transform:scale(1.01);
+}
+
+.artwork-zeus.artwork-photo .app-photo{
+  background-image:url('/images/zeus-oficina.webp');
+}
+
+.artwork-artemis.artwork-photo .app-photo{
+  background-image:url('/images/artemis-restaurante.webp');
+}
+
+.artwork-photo .photo-vignette{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.04) 42%,rgba(0,0,0,.78) 100%);
+}
+
+.artwork-photo .art-title,
+.artwork-photo .art-caption{
+  z-index:2;
+  text-shadow:0 2px 18px rgba(0,0,0,.7);
+}
+
+.featured-shell .artwork-photo .art-title{
+  top:7%;
+  right:6%;
+}
+
+.featured-shell .artwork-photo .art-caption{
+  left:6%;
+  bottom:17%;
+  color:#d1d1cc;
+}
+
 .catalog-preview{
   padding-top:68px;
   padding-bottom:58px;
@@ -28,6 +92,11 @@
 .shelf{
   padding-top:4px;
   padding-bottom:8px;
+}
+
+.app-cover .artwork-photo .art-caption{
+  bottom:29%;
+  color:#d4d4cf;
 }
 
 .store-story{
@@ -80,6 +149,10 @@
     height:500px;
   }
 
+  .hero.hero-zeus{
+    background-position:60% center;
+  }
+
   .catalog-preview{
     padding-top:54px;
     padding-bottom:46px;
@@ -116,8 +189,19 @@
     padding-bottom:26px;
   }
 
+  .hero.hero-zeus{
+    background-image:
+      linear-gradient(180deg,rgba(5,5,5,.93) 0%,rgba(5,5,5,.82) 48%,rgba(5,5,5,.35) 100%),
+      url('/images/store-hero-bg.webp');
+    background-position:center;
+  }
+
   .featured-shell{
     height:430px;
+  }
+
+  .artwork-photo .app-photo{
+    background-position:center;
   }
 
   .catalog-preview{
