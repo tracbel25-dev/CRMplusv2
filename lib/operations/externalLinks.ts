@@ -26,14 +26,21 @@ export function externalDraft(app: AppId, page: string, recordId: string, data: 
 
   if (app === 'zeus' && recordId) {
     const job = data.jobs.find(item => item.id === recordId);
-    if (!job || job.quote.status !== 'Enviado') return null;
-    const customer = data.customers.find(item => item.id === job.customerId);
-    const asset = data.assets.find(item => item.id === job.assetId);
-    return {
-      kind: 'zeus-quote', recordId: job.id,
-      title: `Aprovação da OS ${String(job.number).padStart(4, '0')}`,
-      payload: { business: data.settings.business, jobNumber: job.number, customer: customer?.name, asset: asset ? `${asset.identifier} · ${asset.model}` : '', quote: job.quote }
-    };
+    if (job?.quote.status === 'Enviado') {
+      const customer = data.customers.find(item => item.id === job.customerId);
+      const asset = data.assets.find(item => item.id === job.assetId);
+      return {
+        kind: 'zeus-quote', recordId: job.id,
+        title: `Orçamento OS ${String(job.number).padStart(4, '0')}`,
+        payload: { business: data.settings.business, customer: customer?.name, asset: asset ? `${asset.identifier} · ${asset.model}` : '', quote: job.quote, quoteId: job.quote.id, jobId: job.id, origin: 'os', version: job.quote.version }
+      };
+    }
+    const quote = data.quotes.find(item => item.id === recordId);
+    if (quote?.status === 'Enviado') {
+      const customer = data.customers.find(item => item.id === quote.customerId);
+      return { kind: 'zeus-quote', recordId: quote.id, title: `Orçamento balcão ${String(quote.number).padStart(4, '0')}`, payload: { business: data.settings.business, customer: customer?.name, quote, quoteId: quote.id, origin: 'balcao', version: quote.version } };
+    }
+    return null;
   }
 
   if (app === 'athena-orcamentos' && recordId) {
@@ -91,17 +98,18 @@ export async function syncExternalResponses(w: Workspace, app: AppId) {
     for (const row of rows) {
       const response = row.response as Record<string, unknown>;
       if ((row.kind === 'zeus-quote' || row.kind === 'athena-budget') && row.record_id) {
-        const quote = row.kind === 'zeus-quote' ? data.jobs.find(item => item.id === row.record_id)?.quote : data.quotes.find(item => item.id === row.record_id);
-        if (quote && quote.status === 'Enviado') {
+        const zeusJob = row.kind === 'zeus-quote' ? data.jobs.find(item => item.id === row.record_id) : undefined;
+        const quote = row.kind === 'zeus-quote'
+          ? zeusJob?.quote || data.quotes.find(item => item.id === row.record_id)
+          : data.quotes.find(item => item.id === row.record_id);
+        const responseVersion = Number(response.version || 0);
+        if (quote && quote.status === 'Enviado' && (!responseVersion || responseVersion === quote.version)) {
           const approved = response.decision === 'approved';
           decideQuote(quote, approved, `Resposta pelo link externo${response.name ? ` · ${response.name}` : ''}${response.note ? ` · ${response.note}` : ''}`);
-          if (row.kind === 'zeus-quote') {
-            const job = data.jobs.find(item => item.id === row.record_id);
-            if (job) {
-              job.status = approved ? 'Em andamento' : 'Reprovado';
-              job.events.push(event(`Cliente respondeu pelo link externo: ${approved ? 'Aprovado' : 'Reprovado'}`));
-              if (approved && job.stage === 'Orçamento') advanceJob(data, job.id, 'Orçamento');
-            }
+          if (row.kind === 'zeus-quote' && zeusJob) {
+            zeusJob.status = approved ? 'Em andamento' : 'Reprovado';
+            zeusJob.events.push(event(`Cliente respondeu pelo link externo: ${approved ? 'Aprovado' : 'Reprovado'}`));
+            if (approved && zeusJob.stage === 'Orçamento') advanceJob(data, zeusJob.id, 'Orçamento');
           }
         }
       } else if (row.kind === 'athena-survey' && row.record_id) {

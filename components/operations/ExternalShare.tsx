@@ -7,7 +7,7 @@ import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink, externalDraft, syncExternalResponses } from '@/lib/operations/externalLinks';
 
 const labels: Record<AppId, string> = {
-  zeus: 'Enviar aprovação',
+  zeus: 'Compartilhar orçamento',
   artemis: 'Compartilhar cardápio',
   'athena-pesquisa': 'Pedir avaliação',
   kronos: 'Pedir retorno',
@@ -19,9 +19,10 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
   const [url, setUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const draft = useMemo(() => externalDraft(app, page, recordId, w.data), [app, page, recordId, w.data]);
-  if (!draft || !w.accountId || w.accountId === 'guest') return null;
+  if (!w.accountId || w.accountId === 'guest') return null;
 
   const create = async () => {
+    if (!draft) return;
     setBusy(true);
     try {
       const next = await createExternalLink(w, app, draft);
@@ -43,8 +44,8 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
   };
 
   return <div className="op-external-share">
-    {!url ? <button className="op-icon" type="button" onClick={() => { void create(); }} disabled={busy} title={labels[app]} aria-label={labels[app]}><Link2 size={19} /></button>
-      : <button className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>}
+    {app !== 'zeus' && draft && (!url ? <button className="op-icon" type="button" onClick={() => { void create(); }} disabled={busy} title={labels[app]} aria-label={labels[app]}><Link2 size={19} /></button>
+      : <button className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
     <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title="Receber respostas externas" aria-label="Receber respostas externas"><RefreshCw size={18} /></button>
   </div>;
 }
