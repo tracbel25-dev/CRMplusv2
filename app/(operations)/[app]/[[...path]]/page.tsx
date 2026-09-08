@@ -9,12 +9,12 @@ import './zeus-brand.css';
 
 export const dynamicParams = true;
 
-const recordPages: Record<string, string> = {
-  zeus: 'atendimentos',
-  artemis: 'pedidos',
-  kronos: 'oportunidades',
-  'athena-pesquisa': 'pesquisas',
-  'athena-orcamentos': 'orcamentos'
+const recordPages: Record<string, string[]> = {
+  zeus: ['atendimentos', 'orcamentos'],
+  artemis: ['pedidos'],
+  kronos: ['oportunidades'],
+  'athena-pesquisa': ['pesquisas'],
+  'athena-orcamentos': ['orcamentos']
 };
 
 export function generateStaticParams() {
@@ -36,6 +36,6 @@ export default async function OperationPage({ params }: { params: Promise<{ app:
   if (page === 'login') redirect(`/login?app=${encodeURIComponent(app)}&redirect=${encodeURIComponent(`/${app}`)}`);
   if (page === 'cadastro') redirect(`/cadastro?app=${encodeURIComponent(app)}&redirect=${encodeURIComponent(`/${app}`)}`);
   if (!appPages(app).includes(page)) notFound();
-  if (recordId && recordPages[app] !== page) notFound();
+  if (recordId && !recordPages[app]?.includes(page)) notFound();
   return <OperationAccessGate app={app}><AppRuntime key={`${app}:${page}:${recordId}`} app={app} page={page} recordId={recordId} /></OperationAccessGate>;
 }
