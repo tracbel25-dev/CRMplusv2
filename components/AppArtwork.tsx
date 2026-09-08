@@ -2,7 +2,7 @@ import type { AppTone } from '@/lib/catalog';
 
 export function AppArtwork({tone,compact=false}:{tone:AppTone;compact?:boolean}){
   if(tone==='zeus'){
-    const src=compact?'/brand/zeus/zeus-cover-solid.webp':'/brand/zeus/zeus-cover-app.webp';
+    const src=compact?'/brand/zeus/zeus-cover-solid.svg':'/brand/zeus/zeus-cover-app.svg';
     return (
       <div className={`artwork artwork-photo artwork-zeus ${compact?'artwork-compact':''}`} aria-hidden="true">
         <img src={src} alt="" draggable={false} style={{width:'100%',height:'100%',display:'block',objectFit:'cover'}} />
