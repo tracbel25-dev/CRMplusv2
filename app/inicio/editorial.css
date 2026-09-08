@@ -1,7 +1,8 @@
-.process-note{max-width:var(--max);margin:0 auto;padding:88px 28px 18px}
-.process-note-grid{display:grid;grid-template-columns:1.05fr .75fr;gap:72px;align-items:start;margin-top:18px;padding-top:28px;border-top:1px solid #272727}
-.process-note h2{margin:0;font-family:var(--display);font-size:clamp(50px,5vw,76px);line-height:.95;letter-spacing:-.055em}
-.process-note p{max-width:620px;margin:7px 0 0;color:#c6c6c1;font-size:16px;line-height:1.7}
+.spotlight-copy-editorial{max-width:760px}
+.spotlight-copy-editorial h2{max-width:720px}
+.spotlight-copy-editorial p{max-width:700px;margin:0;color:#d4d0cb;font-size:17px;line-height:1.65}
+.product-spotlight-editorial{background:#0a0a0a}
+.product-spotlight-editorial .spotlight-images::after{background:linear-gradient(90deg,rgba(5,5,5,.98),rgba(5,5,5,.86) 48%,rgba(5,5,5,.58)),linear-gradient(0deg,rgba(5,5,5,.72),transparent 35%)}
 
 .impact-source{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .impact-source strong{font-weight:700;color:#151515}
@@ -21,16 +22,11 @@
 .institutional-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:30px}
 
 @media(max-width:980px){
- .process-note-grid{grid-template-columns:1fr;gap:20px}
- .process-note p{max-width:700px}
  .institutional-grid{grid-template-columns:1fr}
 }
 
 @media(max-width:620px){
- .process-note{padding:68px 16px 8px}
- .process-note-grid{padding-top:22px}
- .process-note h2{font-size:48px}
- .process-note p{font-size:15px}
+ .spotlight-copy-editorial p{font-size:15px;line-height:1.6}
  .institutional-shell{padding:68px 16px 92px}
  .institutional-hero{padding-bottom:42px}
  .institutional-card{min-height:0;padding:24px 20px}
