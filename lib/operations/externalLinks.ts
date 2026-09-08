@@ -1,7 +1,7 @@
 'use client';
 
 import { createStoreClient } from '@/lib/supabase/storeClient';
-import { AppId, Data, Order, Response as SurveyResponse, decideQuote, event, nextNumber, now, uid } from './model';
+import { AppId, Data, Order, Response as SurveyResponse, advanceJob, decideQuote, event, nextNumber, now, uid } from './model';
 import type { Workspace } from './storage';
 
 export type ExternalKind = 'artemis-menu' | 'zeus-quote' | 'athena-budget' | 'athena-survey' | 'kronos-response';
@@ -93,10 +93,15 @@ export async function syncExternalResponses(w: Workspace, app: AppId) {
       if ((row.kind === 'zeus-quote' || row.kind === 'athena-budget') && row.record_id) {
         const quote = row.kind === 'zeus-quote' ? data.jobs.find(item => item.id === row.record_id)?.quote : data.quotes.find(item => item.id === row.record_id);
         if (quote && quote.status === 'Enviado') {
-          decideQuote(quote, response.decision === 'approved', `Resposta pelo link externo${response.name ? ` · ${response.name}` : ''}${response.note ? ` · ${response.note}` : ''}`);
+          const approved = response.decision === 'approved';
+          decideQuote(quote, approved, `Resposta pelo link externo${response.name ? ` · ${response.name}` : ''}${response.note ? ` · ${response.note}` : ''}`);
           if (row.kind === 'zeus-quote') {
             const job = data.jobs.find(item => item.id === row.record_id);
-            if (job) { job.status = quote.status === 'Aprovado' ? 'Em andamento' : 'Reprovado'; job.events.push(event(`Cliente respondeu pelo link externo: ${quote.status}`)); }
+            if (job) {
+              job.status = approved ? 'Em andamento' : 'Reprovado';
+              job.events.push(event(`Cliente respondeu pelo link externo: ${approved ? 'Aprovado' : 'Reprovado'}`));
+              if (approved && job.stage === 'Orçamento') advanceJob(data, job.id, 'Orçamento');
+            }
           }
         }
       } else if (row.kind === 'athena-survey' && row.record_id) {
