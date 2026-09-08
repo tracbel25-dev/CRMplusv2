@@ -1,11 +1,18 @@
 import type { AppTone } from '@/lib/catalog';
 
-export function AppArtwork({tone,compact=false}:{tone:AppTone;compact?:boolean}){
+type ArtworkLayout = 'default' | 'portrait' | 'landscape';
+
+export function AppArtwork({tone,compact=false,layout='default'}:{tone:AppTone;compact?:boolean;layout?:ArtworkLayout}){
   if(tone==='zeus'){
-    const src=compact?'/brand/zeus/zeus-cover-solid.svg':'/brand/zeus/zeus-cover-app.svg';
+    const src = layout==='portrait'
+      ? '/brand/zeus/zeus-cover-card.svg'
+      : compact || layout==='landscape'
+        ? '/brand/zeus/zeus-cover-solid.svg'
+        : '/brand/zeus/zeus-cover-app.svg';
+
     return (
-      <div className={`artwork artwork-photo artwork-zeus ${compact?'artwork-compact':''}`} aria-hidden="true">
-        <img src={src} alt="" draggable={false} style={{width:'100%',height:'100%',display:'block',objectFit:'cover'}} />
+      <div className={`artwork artwork-photo artwork-zeus artwork-zeus-asset ${compact?'artwork-compact':''}`} aria-hidden="true">
+        <img className="zeus-art-image" src={src} alt="" draggable={false} />
       </div>
     );
   }
