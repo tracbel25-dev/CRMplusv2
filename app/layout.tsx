@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './compact.css';
+import './inicio/editorial.css';
 
 export const metadata: Metadata = {
   title: 'CRM PLUS Store — ferramentas para a operação do seu negócio',
