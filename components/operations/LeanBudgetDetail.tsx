@@ -10,7 +10,7 @@ import {
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace } from '@/lib/operations/storage';
 import {
-  Badge, Button, Confirm, Modal, QuoteDocument,
+  Button, Confirm, Modal, QuoteDocument,
   RecordForm, Section, Timeline, Title
 } from './ui';
 import { WorkflowControl } from './WorkflowControl';
@@ -84,7 +84,7 @@ export function LeanBudgetDetail({ w, recordId }: { w: Workspace; recordId: stri
         <span className="op-kicker">Situação</span><h2>{status}</h2>
         <p>Validade: {date(quote.validUntil)}</p><p>Criado em {date(quote.createdAt)}</p>
         {quote.decisionNote && <p className="op-callout">Decisão: {quote.decisionNote}</p>}
-        {quote.status !== 'Rascunho' && operation.actionVisible('revision') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar / nova versão' : 'Criar nova versão'}</Button>}
+        {operation.actionVisible('revision') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar / nova versão' : 'Criar nova versão'}</Button>}
         <details style={{ marginTop: 20 }}><summary>Histórico da proposta</summary><div style={{ marginTop: 14 }}><Timeline events={quote.events} /></div></details>
       </aside>
     </div>}
