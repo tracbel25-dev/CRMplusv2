@@ -13,6 +13,7 @@ import { AppId } from '@/lib/operations/model';
 import { navigation } from '@/lib/operations/navigation';
 import { useWorkspace } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { useLocalAccess } from '@/lib/account/localAccess';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const Artemis = dynamic(() => import('./Artemis').then(module => module.Artemis));
@@ -45,9 +46,11 @@ const icons = {
 export function AppRuntime({ app, page }: { app: AppId; page: string }) {
   const w = useWorkspace(app);
   const operation = useOperationPreferences(app);
+  const access = useLocalAccess();
   const config = navigation[app];
   const [mobile, setMobile] = useState(false);
   const [help, setHelp] = useState(false);
+  const canConfigure = access.ready && access.canManageConfiguration;
 
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
@@ -89,9 +92,9 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
         </nav>
 
         <div className="op-sidebar-bottom">
-          <Link href={`/${app}/configuracoes`} title="Configurações" className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}>
+          {canConfigure && <Link href={`/${app}/configuracoes`} title="Configurações" className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}>
             <Settings2 size={20} /><span>Configurações</span>
-          </Link>
+          </Link>}
           <button onClick={() => w.mutate(data => { data.settings.collapsed = !data.settings.collapsed; }, '')} aria-label={w.data.settings.collapsed ? 'Expandir menu' : 'Recolher menu'}>
             {w.data.settings.collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
             <span>Recolher menu</span>
@@ -110,23 +113,25 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
             <button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>
               {w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}
             </button>
-            <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">
-              {w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}
-            </Link>
+            {canConfigure
+              ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link>
+              : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}
           </div>
         </header>
 
         {help && <div className="op-help">
           <strong>Configuração por aplicativo.</strong>
-          <span>Campos, nomes, módulos e ações podem ser adaptados em Configurações. Os registros operacionais ainda ficam neste navegador enquanto a persistência de conta não está conectada ao projeto Supabase correto.</span>
+          <span>Os aplicativos ficam abertos nesta fase. A área de Configurações, porém, é reservada ao titular da conta ou a quem receber essa permissão explicitamente.</span>
           <button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button>
         </div>}
 
         <main id="op-main" className="op-main">
-          {!w.ready
+          {!w.ready || !access.ready
             ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
             : page === 'configuracoes'
-              ? <AppSettings key={app} w={w} app={app} />
+              ? canConfigure
+                ? <AppSettings key={app} w={w} app={app} />
+                : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área só aparece para o titular da conta ou para um usuário que recebeu a permissão de configuração. O restante do aplicativo continua acessível sem login nesta fase.</p></section>
               : app === 'zeus'
                 ? <Zeus key={page} w={w} page={page} />
                 : app === 'artemis'
@@ -140,7 +145,7 @@ export function AppRuntime({ app, page }: { app: AppId; page: string }) {
 
         <footer className="op-local-status">
           <span>Dados operacionais salvos neste navegador</span>
-          <Link href={`/${app}/configuracoes`}>Configurar aplicativo <ArrowUpRight size={13} /></Link>
+          {canConfigure && <Link href={`/${app}/configuracoes`}>Configurar aplicativo <ArrowUpRight size={13} /></Link>}
         </footer>
       </div>
 
