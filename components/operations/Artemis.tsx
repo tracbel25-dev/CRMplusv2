@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, ArrowRight, ChefHat, FileDown, Minus, Plus, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import {
   Line, Order, Product, advanceDelivery, advanceOrder, balance, cancelOrder, cashExpected,
@@ -13,6 +13,7 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace, csv } from '@/lib/operations/storage';
 import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Timeline, Title } from './ui';
 import { WorkflowControl } from './WorkflowControl';
+import { useRecordRoute } from './useRecordRoute';
 
 const paymentMethods = ['Dinheiro', 'Pix', 'Cartão de débito', 'Cartão de crédito'];
 
@@ -34,7 +35,7 @@ export function Artemis({ w, page, recordId = '' }: { w: Workspace; page: string
   const operation = useOperationPreferences('artemis');
   const d = w.data;
   const [newOrder, setNewOrder] = useState(false);
-  const [selected, setSelected] = useState(recordId);
+  const [selected, setSelected] = useRecordRoute(recordId, '/artemis/pedidos');
   const [newTable, setNewTable] = useState(false);
   const [tableId, setTableId] = useState('');
   const [checkout, setCheckout] = useState('');
@@ -116,7 +117,7 @@ export function Artemis({ w, page, recordId = '' }: { w: Workspace; page: string
       {page === 'relatorios' && <><Title eyebrow="Fechamento da operação" title="Vendas e recebimentos" action={<Button variant="secondary" onClick={() => csv('vendas-artemis.csv', [['Pedido', 'Data', 'Canal', 'Situação', 'Vendido', 'Recebido'], ...reportOrders.map(order => [order.number, date(order.createdAt), order.channel, order.status, (orderTotal(order) / 100).toFixed(2), (paid(d, order.id) / 100).toFixed(2)])])}><FileDown size={17} />Exportar período</Button>} /><div className="op-toolbar"><label className="op-field"><span>De</span><input type="date" value={from} onChange={change => setFrom(change.target.value)} /></label><label className="op-field"><span>Até</span><input type="date" value={to} onChange={change => setTo(change.target.value)} /></label></div><div className="op-report-totals"><div><span>Vendas registradas</span><strong>{money(reportOrders.reduce((sum, order) => sum + orderTotal(order), 0))}</strong><small>Pedidos não cancelados, pagos ou em aberto.</small></div><div><span>Recebimentos líquidos</span><strong>{money(reportPayments.reduce((sum, payment) => sum + payment.amount, 0) - d.movements.filter(movement => movement.kind === 'Devolução' && movement.at.slice(0, 10) >= from && movement.at.slice(0, 10) <= to).reduce((sum, movement) => sum + movement.amount, 0))}</strong><small>Recebimentos menos devoluções no período.</small></div><div><span>Ticket médio</span><strong>{money(reportOrders.length ? Math.round(reportOrders.reduce((sum, order) => sum + orderTotal(order), 0) / reportOrders.length) : 0)}</strong><small>Vendas não canceladas ÷ pedidos não cancelados.</small></div></div><Section title="Vendas por canal">{['Mesa', 'Balcão', 'Delivery', 'Retirada'].map(channel => <div className="op-row" key={channel}><strong className="op-grow">{channel}</strong><span>{reportOrders.filter(order => order.channel === channel).length} pedidos</span><strong>{money(reportOrders.filter(order => order.channel === channel).reduce((sum, order) => sum + orderTotal(order), 0))}</strong></div>)}</Section><Section title="Recebimentos por forma">{paymentMethods.map(method => <div className="op-row" key={method}><strong className="op-grow">{method}</strong><span>{money(reportPayments.filter(payment => payment.method === method).reduce((sum, payment) => sum + payment.amount, 0))}</span></div>)}</Section></>}
     </>}
 
-    {newOrder && <Modal title="Novo pedido" wide onClose={() => setNewOrder(false)}><NewOrder w={w} tableId={tableId} onClose={() => setNewOrder(false)} onCreated={setSelected} /></Modal>}
+    {newOrder && <Modal title="Novo pedido" wide onClose={() => setNewOrder(false)}><NewOrder w={w} tableId={tableId} onClose={() => setNewOrder(false)} onCreated={id => setSelected(id)} /></Modal>}
     {newTable && <Modal title="Cadastrar mesa" onClose={() => setNewTable(false)}><TableForm w={w} onClose={() => setNewTable(false)} /></Modal>}
     {checkout && <Modal title={`Fechar ${d.tables.find(table => table.id === checkout)?.name || 'comanda'}`} wide onClose={() => setCheckout('')}><TableCheckout w={w} tableId={checkout} onClose={() => setCheckout('')} onOrder={setSelected} /></Modal>}
     {product && <Modal title={product === 'new' ? 'Novo produto' : 'Editar produto'} onClose={() => setProduct(null)}><ProductForm w={w} product={product === 'new' ? undefined : product} onClose={() => setProduct(null)} /></Modal>}
@@ -295,9 +296,8 @@ function TableCheckout({ w, tableId, onClose, onOrder }: { w: Workspace; tableId
 
   const submitPayment = async () => {
     setBusy(true);
-    const ok = await w.mutate(data => receiveTablePayment(data, tableId, cents(amount), method), 'Recebimento da comanda registrado.');
+    await w.mutate(data => receiveTablePayment(data, tableId, cents(amount), method), 'Recebimento da comanda registrado.');
     setBusy(false);
-    if (ok) setAmount(tableBalance(w.data, table) / 100);
   };
 
   return <>
