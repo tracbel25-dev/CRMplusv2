@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Zeus">
+  <defs>
+    <linearGradient id="gear" x1="18" y1="12" x2="78" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f3f5f7"/>
+      <stop offset="0.48" stop-color="#b7bec7"/>
+      <stop offset="1" stop-color="#7d8792"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="54" y1="14" x2="37" y2="83" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9dde2"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#gear)">
+    <rect x="41" y="4" width="14" height="22" rx="3"/>
+    <rect x="41" y="70" width="14" height="22" rx="3"/>
+    <rect x="70" y="41" width="22" height="14" rx="3"/>
+    <rect x="4" y="41" width="22" height="14" rx="3"/>
+    <rect x="68" y="12" width="14" height="22" rx="3" transform="rotate(45 75 23)"/>
+    <rect x="14" y="62" width="14" height="22" rx="3" transform="rotate(45 21 73)"/>
+    <rect x="62" y="68" width="22" height="14" rx="3" transform="rotate(45 73 75)"/>
+    <rect x="12" y="14" width="22" height="14" rx="3" transform="rotate(45 23 21)"/>
+    <circle cx="48" cy="48" r="36"/>
+  </g>
+  <circle cx="48" cy="48" r="24" fill="#111820"/>
+  <path d="M56 10 31 47h15L36 86l30-42H51z" fill="url(#bolt)"/>
+</svg>
