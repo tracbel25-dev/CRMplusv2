@@ -4,10 +4,10 @@ type ArtworkLayout = 'default' | 'portrait' | 'landscape';
 
 export function AppArtwork({tone,compact=false,layout='default'}:{tone:AppTone;compact?:boolean;layout?:ArtworkLayout}){
   if(tone==='zeus'){
-    const src = layout==='portrait'
-      ? '/brand/zeus/zeus-cover-card.svg'
-      : compact || layout==='landscape'
-        ? '/brand/zeus/zeus-cover-solid.svg'
+    const src = layout==='landscape'
+      ? '/brand/zeus/zeus-cover-solid.svg'
+      : compact || layout==='portrait'
+        ? '/brand/zeus/zeus-cover-card.svg'
         : '/brand/zeus/zeus-cover-app.svg';
 
     return (
