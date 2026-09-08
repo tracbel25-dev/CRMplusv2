@@ -57,3 +57,35 @@
  .spotlight-position{margin-right:auto}
 }
 @media(prefers-reduced-motion:reduce){.spotlight-image,.spotlight-controls button{transition:none}}
+
+/* A citação da visão precisa manter hierarquia sem dominar a viewport. */
+.impact blockquote{
+ max-width:980px;
+ font-size:clamp(30px,3.4vw,52px);
+ line-height:1.07;
+ letter-spacing:-.04em;
+ text-wrap:pretty;
+ overflow-wrap:anywhere;
+}
+.impact-slider{
+ grid-template-columns:44px minmax(0,980px) 44px;
+ gap:16px;
+ justify-content:start;
+}
+.impact-slider button{width:40px;height:40px}
+
+@media(max-width:980px){
+ .impact blockquote{font-size:clamp(28px,5vw,42px);line-height:1.08}
+ .impact-slider{grid-template-columns:38px minmax(0,1fr) 38px;gap:10px}
+ .impact-slider button{width:36px;height:36px}
+}
+
+@media(max-width:620px){
+ .impact{padding-top:72px;padding-bottom:78px}
+ .impact-slider{grid-template-columns:34px 34px minmax(0,1fr);gap:10px 8px;align-items:center;margin-top:28px}
+ .impact-slider blockquote{grid-column:1/-1;grid-row:1;font-size:clamp(25px,7vw,31px);line-height:1.1;letter-spacing:-.035em;max-width:none}
+ .impact-slider button{width:34px;height:34px}
+ .impact-slider button:first-child{grid-column:1;grid-row:2}
+ .impact-slider button:last-child{grid-column:2;grid-row:2}
+ .impact-source{margin-top:22px}
+}
