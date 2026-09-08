@@ -8,6 +8,7 @@ import {
   newJob, stages, uid
 } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
 import { Workspace, csv } from '@/lib/operations/storage';
 import {
   Badge, Button, Confirm, CustomerManager, Empty, Modal, QuotePanel, RecordForm,
@@ -178,6 +179,7 @@ export function Zeus({ w, page }: { w: Workspace; page: string }) {
 
 function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void; onCreated: (id: string) => void }) {
   const operation = useOperationPreferences('zeus');
+  const serviceTypes = useZeusServiceTypes();
   const [search, setSearch] = useState('');
   const [assetId, setAssetId] = useState('');
   const [newRecord, setNewRecord] = useState(false);
@@ -210,7 +212,7 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
             ...(operation.fieldVisible('year') ? [{ name: 'year', label: operation.label('year', 'Ano') }] : []),
             ...(operation.fieldVisible('meter') ? [{ name: 'meter', label: s.meterLabel }] : [])
           ] : []),
-          { name: 'type', label: operation.label('serviceType', 'Tipo de atendimento'), required: true, options: ['Diagnóstico', 'Revisão', 'Reparo', 'Retorno / Garantia'].map(value => ({ value, label: value })) },
+          { name: 'type', label: operation.label('serviceType', 'Tipo de atendimento'), required: true, options: serviceTypes.map(value => ({ value, label: value })) },
           ...(operation.fieldVisible('technician') ? [{ name: 'technician', label: operation.label('technician', 'Responsável') }] : []),
           ...(operation.fieldVisible('due') ? [{ name: 'due', label: operation.label('due', 'Prazo previsto'), type: 'datetime-local' }] : []),
           { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), type: 'textarea', wide: true, required: true }
@@ -243,13 +245,14 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
 
 function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointment?: Appointment; onClose: () => void }) {
   const operation = useOperationPreferences('zeus');
+  const serviceTypes = useZeusServiceTypes();
   return <>
     {!w.data.assets.length
       ? <Empty>Abra um atendimento ou cadastre o cliente e o veículo em “Clientes e veículos” para agendar.</Empty>
       : <RecordForm fields={[
         { name: 'assetId', label: w.data.settings.assetLabel, required: true, value: appointment?.assetId, options: w.data.assets.map(asset => ({ value: asset.id, label: `${asset.identifier} · ${w.data.customers.find(customer => customer.id === asset.customerId)?.name}` })) },
         { name: 'at', label: 'Data e horário', type: 'datetime-local', required: true, value: appointment?.at },
-        { name: 'type', label: operation.label('serviceType', 'Tipo'), value: appointment?.type, required: true, options: ['Diagnóstico', 'Revisão', 'Reparo', 'Retorno / Garantia'].map(value => ({ value, label: value })) },
+        { name: 'type', label: operation.label('serviceType', 'Tipo'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })) },
         ...(operation.fieldVisible('technician') ? [{ name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician }] : []),
         { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }
       ]} onClose={onClose} onSave={values => w.mutate(data => {

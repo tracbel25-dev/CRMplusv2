@@ -13,6 +13,8 @@ import {
   useOperationPreferences
 } from '@/lib/operations/configuration';
 import { Badge, Button, Confirm, Section, Title } from './ui';
+import { ConfigFieldNameSelect } from './ConfigFieldNameSelect';
+import { LocalAccountSettings } from './LocalAccountSettings';
 
 export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const operation = useOperationPreferences(app);
@@ -66,8 +68,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const addCustomField = () => {
     const label = customName.trim();
     if (!label) return;
-    const field: CustomField = { id: uid(), label, group: customGroup, visible: true };
-    setPreferences(current => ({ ...current, customFields: [...current.customFields, field] }));
+    const newField: CustomField = { id: uid(), label, group: customGroup, visible: true };
+    setPreferences(current => ({ ...current, customFields: [...current.customFields, newField] }));
     setCustomName('');
     setSaved(false);
   };
@@ -76,7 +78,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     const normalizedLabels = Object.fromEntries(
       Object.entries(preferences.fieldLabels).map(([key, value]) => [key, value.trim()])
     );
-    const requiredEmpty = definition.fields.find(field => field.required && !normalizedLabels[field.key]);
+    const requiredEmpty = definition.fields.find(configField => configField.required && !normalizedLabels[configField.key]);
     if (requiredEmpty) {
       w.setError(`O nome do campo “${requiredEmpty.label}” não pode ficar vazio.`);
       return false;
@@ -131,12 +133,13 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       <Section title="Campos e nomes">
-        <p className="op-muted">Escolha o que aparece na operação e adapte os nomes ao vocabulário que sua equipe já usa. Campos essenciais continuam ativos para não quebrar os registros.</p>
+        <p className="op-muted">Escolha o nome em uma lista preparada para o seu segmento. Se a sua operação usa outro termo, selecione “Adicionar outro nome…”. Campos essenciais continuam ativos para não quebrar os registros.</p>
         <div className="op-config-groups">
           {fieldGroups.map(group => <div className="op-config-group" key={group}>
-            <div className="op-config-group-title"><strong>{group}</strong><span>{definition.fields.filter(field => field.group === group).length} campos</span></div>
-            {definition.fields.filter(field => field.group === group).map(configField => {
+            <div className="op-config-group-title"><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></div>
+            {definition.fields.filter(configField => configField.group === group).map(configField => {
               const visible = configField.required || preferences.fieldVisibility[configField.key] !== false;
+              const currentLabel = preferences.fieldLabels[configField.key] ?? configField.label;
               return <div className="op-config-row" key={configField.key}>
                 <label className="op-config-switch">
                   <input
@@ -147,10 +150,10 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
                   />
                   <span>{visible ? 'Mostrar' : 'Ocultar'}</span>
                 </label>
-                <label className="op-field op-config-name">
+                <div className="op-field op-config-name">
                   <span>Nome no aplicativo</span>
-                  <input value={preferences.fieldLabels[configField.key] ?? configField.label} onChange={event => setFieldLabel(configField.key, event.target.value)} />
-                </label>
+                  <ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} />
+                </div>
                 <div className="op-config-description">
                   <strong>{configField.label}{configField.required && <Badge>Essencial</Badge>}</strong>
                   <small>{configField.description}</small>
@@ -162,7 +165,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       <Section title="Adicionar mais um campo">
-        <p className="op-muted">Quando o seu segmento usa uma informação que não está na lista, adicione o nome aqui. O campo fica vinculado a uma área da operação e já entra na configuração da conta.</p>
+        <p className="op-muted">Quando o seu segmento usa uma informação que não existe na lista de campos, adicione uma nova. Isso cria outro campo; para apenas mudar um nome, use “Adicionar outro nome…” na lista acima.</p>
         <div className="op-config-add">
           <label className="op-field">
             <span>Nome do novo campo</span>
@@ -179,17 +182,17 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         {preferences.customFields.length > 0 && <div className="op-custom-fields">
           {preferences.customFields.map(custom => <div className="op-row" key={custom.id}>
             <label className="op-config-switch">
-              <input type="checkbox" checked={custom.visible} onChange={event => setPreferences(current => ({
+              <input type="checkbox" checked={custom.visible} onChange={event => { setSaved(false); setPreferences(current => ({
                 ...current,
-                customFields: current.customFields.map(field => field.id === custom.id ? { ...field, visible: event.target.checked } : field)
-              }))} />
+                customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item)
+              })); }} />
               <span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span>
             </label>
             <div className="op-grow"><strong>{custom.label}</strong><small>{custom.group}</small></div>
-            <button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => setPreferences(current => ({
+            <button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { setSaved(false); setPreferences(current => ({
               ...current,
-              customFields: current.customFields.filter(field => field.id !== custom.id)
-            }))}><Trash2 size={16} /></button>
+              customFields: current.customFields.filter(item => item.id !== custom.id)
+            })); }}><Trash2 size={16} /></button>
           </div>)}
         </div>}
       </Section>
@@ -212,7 +215,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </Section>
 
       {app === 'zeus' && <Section title="Prévia do fluxo da oficina">
-        <p className="op-muted">A sequência se recompõe automaticamente quando Diagnóstico, Orçamento ou Agendamento não fazem parte da operação.</p>
+        <p className="op-muted">A sequência se recompõe automaticamente quando Diagnóstico, Orçamento ou Agendamento não fazem parte da operação. “Tipo de atendimento” também faz parte da área Atendimento acima e pode receber o nome usado pela oficina.</p>
         <div className="zeus-settings-preview">
           <span className="op-kicker">Prévia da identificação</span>
           <div>
@@ -244,6 +247,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </div>
     </form>
 
+    <LocalAccountSettings />
+
     <Section title="Cópia dos seus dados">
       <p>Os registros operacionais ainda são mantidos neste navegador nesta versão. Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.</p>
       <div className="op-actions">
@@ -269,8 +274,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </div>
     </Section>
 
-    <Section title="Persistência da conta">
-      <p>O modelo de configuração agora está separado por aplicativo e pronto para ser persistido por conta. A gravação em Supabase será ativada quando o projeto correto deste aplicativo estiver conectado; nenhum banco não identificado será usado automaticamente.</p>
+    <Section title="Próxima etapa de persistência">
+      <p>Conta, permissões e registros continuam locais neste esboço. A experiência está sendo validada primeiro; Supabase, autenticação real e sincronização entre dispositivos ficam deliberadamente fora desta rodada.</p>
     </Section>
 
     {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => {
