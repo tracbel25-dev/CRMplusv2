@@ -14,8 +14,12 @@ import { navigation } from '@/lib/operations/navigation';
 import { useWorkspace, WorkspaceContext } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import './lean-operations.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
+const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
+const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
+const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const Artemis = dynamic(() => import('./Artemis').then(module => module.Artemis));
 const Research = dynamic(() => import('./Athena').then(module => module.Research));
 const Budgets = dynamic(() => import('./Athena').then(module => module.Budgets));
@@ -92,6 +96,9 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <main id="op-main" className="op-main">
             {!w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
               : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? <AppSettings key={app} w={w} app={app} /> : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele. O restante do aplicativo continua acessível sem login nesta fase.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
+              : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
+              : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
+              : app === 'artemis' && recordId ? <LeanArtemisOrderDetail key={recordId} w={w} recordId={recordId} />
               : app === 'zeus' ? <Zeus key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
               : app === 'artemis' ? <Artemis key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
               : app === 'kronos' ? <Kronos key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />

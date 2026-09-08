@@ -31,10 +31,6 @@ export function WorkflowControl({
         <strong>{current}</strong>
         {status && status !== current && <Badge>{status}</Badge>}
       </div>
-      <div className="op-actions">
-        {actions}
-        {nextLabel && onNext && <Button disabled={disabled} onClick={onNext}>{nextLabel}<ArrowRight size={16} /></Button>}
-      </div>
     </div>
     <div className="op-workflow-steps">
       {steps.map((step, index) => <span key={step} className={index < currentIndex ? 'complete' : index === currentIndex ? 'current' : ''}>
@@ -42,5 +38,12 @@ export function WorkflowControl({
         <em>{step}</em>
       </span>)}
     </div>
+    {(nextLabel && onNext || actions) && <div className="op-workflow-footer">
+      {nextLabel && onNext && <div className="op-workflow-next">
+        <div><span>Próxima ação</span><strong>{nextLabel}</strong></div>
+        <Button disabled={disabled} onClick={onNext}>{nextLabel}<ArrowRight size={16} /></Button>
+      </div>}
+      {actions && <div className="op-workflow-secondary">{actions}</div>}
+    </div>}
   </section>;
 }
