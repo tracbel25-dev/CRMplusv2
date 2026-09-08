@@ -121,7 +121,7 @@ export function Zeus({ w, page }: { w: Workspace; page: string }) {
           </>} />
           <div className="op-toolbar">
             <SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, técnico ou OS`} />
-            <select aria-label="Filtrar status" value={filter} onChange={event => setFilter(event.target.value)}>
+            <select aria-label="Filtrar status" value={filter} onChange={change => setFilter(change.target.value)}>
               {['Todos', ...(page === 'historico' ? ['Encerrado', 'Cancelado', 'Reprovado'] : ['Em andamento', 'Aguardando aprovação', 'Aguardando peça', 'Pausado', 'Pronto para retirada'])].map(value => <option key={value}>{value}</option>)}
             </select>
           </div>
@@ -133,7 +133,7 @@ export function Zeus({ w, page }: { w: Workspace; page: string }) {
           <div className="op-toolbar">
             <div className="op-actions">
               <Button variant="secondary" title="Período anterior" onClick={() => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() - (week ? 7 : 1)); setDay(localDay(value)); }}><ChevronLeft size={17} /></Button>
-              <input aria-label="Data da agenda" type="date" value={day} onChange={event => setDay(event.target.value)} />
+              <input aria-label="Data da agenda" type="date" value={day} onChange={change => setDay(change.target.value)} />
               <Button variant="secondary" title="Próximo período" onClick={() => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() + (week ? 7 : 1)); setDay(localDay(value)); }}><ChevronRight size={17} /></Button>
               <Button variant="secondary" onClick={() => setDay(localDay())}>Hoje</Button>
             </div>
@@ -195,7 +195,7 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
       <div className="op-callout">
         {asset
           ? <><strong>{asset.identifier} · {asset.model}</strong><span>{w.data.customers.find(customer => customer.id === asset.customerId)?.name}</span><button className="op-text-link" onClick={() => { setAssetId(''); setNewRecord(false); }}>Trocar identificação</button></>
-          : <label className="op-field"><span>Cliente</span><select value={customerId} onChange={event => setCustomerId(event.target.value)}><option value="">Cadastrar novo cliente</option>{customerOptions(w.data).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          : <label className="op-field"><span>Cliente</span><select value={customerId} onChange={change => setCustomerId(change.target.value)}><option value="">Cadastrar novo cliente</option>{customerOptions(w.data).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
       </div>
       <RecordForm
         key={assetId + customerId}
@@ -312,10 +312,10 @@ function JobDetail({ w, job, onBack }: { w: Workspace; job: Job; onBack: () => v
       nextLabel={activeJob(job) ? nextLabel : undefined}
       onNext={activeJob(job) ? () => {
         if (job.stage === 'Entrega') setFinish(true);
-        else w.mutate(data => advanceJob(data, job.id, job.stage), 'Etapa atualizada.');
+        else void w.mutate(data => advanceJob(data, job.id, job.stage), 'Etapa atualizada.');
       } : undefined}
-      actions={activeJob(job) && operation.actionVisible('manualStatus') && <select aria-label="Situação do atendimento" value={job.status} disabled={job.status === 'Aguardando aprovação'} onChange={event => patch(current => {
-        current.status = event.target.value;
+      actions={activeJob(job) && operation.actionVisible('manualStatus') && <select aria-label="Situação do atendimento" value={job.status} disabled={job.status === 'Aguardando aprovação'} onChange={change => patch(current => {
+        current.status = change.target.value;
         current.events.push(event(`Situação: ${current.status}`));
       })}>{Array.from(new Set([job.status, 'Em andamento', 'Aguardando peça', 'Pausado'])).map(value => <option key={value}>{value}</option>)}</select>}
     />
@@ -345,10 +345,10 @@ function JobDetail({ w, job, onBack }: { w: Workspace; job: Job; onBack: () => v
 
     {tab === 'Execução' && <Section title="Lista de serviços">
       {job.tasks.map(task => <label className="op-check-row" key={task.id}>
-        <input type="checkbox" checked={!!task.done} disabled={!activeJob(job) || job.stage !== 'Execução'} onChange={eventValue => patch(current => {
+        <input type="checkbox" checked={!!task.done} disabled={!activeJob(job) || job.stage !== 'Execução'} onChange={change => patch(current => {
           if (current.stage !== 'Execução') throw new Error('A etapa de execução não está ativa.');
           const line = current.tasks.find(item => item.id === task.id)!;
-          line.done = eventValue.target.checked;
+          line.done = change.target.checked;
           current.events.push(event(`${line.done ? 'Concluído' : 'Reaberto'}: ${line.description}`));
         })} />
         <strong>{task.description}</strong><Badge>{task.done ? 'Concluído' : 'Pendente'}</Badge>
