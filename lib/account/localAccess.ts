@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AppId } from '@/lib/operations/model';
 
 export type LocalRole = 'owner' | 'member';
+export type LocalPermission = 'manage_configuration' | 'manage_members' | 'manage_apps' | 'manage_billing';
 export type LocalMember = {
   id: string;
   name: string;
   email: string;
   role: LocalRole;
   apps: AppId[];
+  permissions?: LocalPermission[];
 };
 export type LocalAccount = {
   id: string;
@@ -83,7 +85,7 @@ export function createLocalAccount(input: CreateAccountInput) {
     business: input.business.trim(),
     subscriptions: [input.app],
     ownerMemberId: memberId,
-    members: [{ id: memberId, name: input.name.trim(), email, role: 'owner', apps: [input.app] }],
+    members: [{ id: memberId, name: input.name.trim(), email, role: 'owner', apps: [input.app], permissions: [] }],
     createdAt: new Date().toISOString()
   };
   accounts.push(account);
@@ -134,6 +136,8 @@ export function useLocalAccess() {
   const member = useMemo(() => account?.members.find(item => item.id === session?.memberId) || null, [account, session]);
   const isOwner = !!account && !!member && account.ownerMemberId === member.id;
   const hasApp = (app: AppId) => !!member?.apps.includes(app) && !!account?.subscriptions.includes(app);
+  const hasPermission = (permission: LocalPermission) => isOwner || !!member?.permissions?.includes(permission);
+  const canManageConfiguration = hasPermission('manage_configuration');
 
   const mutateAccount = (mutate: (account: LocalAccount) => void) => {
     if (!account || !member) throw new Error('Entre na conta antes de alterar acessos.');
@@ -144,7 +148,7 @@ export function useLocalAccess() {
     writeAccounts(next);
   };
 
-  const addMember = (name: string, emailInput: string, appAccess: AppId[]) => {
+  const addMember = (name: string, emailInput: string, appAccess: AppId[], permissions: LocalPermission[] = []) => {
     if (!isOwner || !account) throw new Error('Somente o titular pode adicionar acessos.');
     if (account.members.length >= 4) throw new Error('Esta conta já possui o limite de quatro acessos.');
     const email = normalizeEmail(emailInput);
@@ -153,7 +157,7 @@ export function useLocalAccess() {
     if (!allowed.length) throw new Error('Escolha pelo menos um aplicativo contratado para este acesso.');
     const accountsNow = readLocalAccounts();
     ensureEmailAvailable(accountsNow, email);
-    mutateAccount(target => target.members.push({ id: makeId(), name: name.trim(), email, role: 'member', apps: allowed }));
+    mutateAccount(target => target.members.push({ id: makeId(), name: name.trim(), email, role: 'member', apps: allowed, permissions: Array.from(new Set(permissions)) }));
   };
 
   const updateMemberApps = (memberId: string, appAccess: AppId[]) => {
@@ -168,11 +172,27 @@ export function useLocalAccess() {
     });
   };
 
+  const updateMemberPermission = (memberId: string, permission: LocalPermission, enabled: boolean) => {
+    if (!isOwner || !account) throw new Error('Somente o titular pode conceder permissões.');
+    if (memberId === account.ownerMemberId) throw new Error('O titular já possui todas as permissões.');
+    mutateAccount(target => {
+      const targetMember = target.members.find(item => item.id === memberId);
+      if (!targetMember) throw new Error('Acesso não encontrado.');
+      const current = targetMember.permissions || [];
+      targetMember.permissions = enabled
+        ? Array.from(new Set([...current, permission]))
+        : current.filter(item => item !== permission);
+    });
+  };
+
   const removeMember = (memberId: string) => {
     if (!isOwner || !account) throw new Error('Somente o titular pode remover acessos.');
     if (memberId === account.ownerMemberId) throw new Error('O acesso do titular não pode ser removido.');
     mutateAccount(target => { target.members = target.members.filter(item => item.id !== memberId); });
   };
 
-  return { ready, accounts, session, account, member, isOwner, hasApp, addMember, updateMemberApps, removeMember, logout: logoutLocal };
+  return {
+    ready, accounts, session, account, member, isOwner, hasApp, hasPermission, canManageConfiguration,
+    addMember, updateMemberApps, updateMemberPermission, removeMember, logout: logoutLocal
+  };
 }
