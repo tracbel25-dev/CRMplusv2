@@ -1,0 +1,152 @@
+/* Ajuste de ritmo vertical da landing page.
+   Mantém conteúdo, componentes e comportamento; apenas reduz respiro excessivo entre seções. */
+
+.hero{
+  min-height:760px;
+  padding-top:42px;
+  padding-bottom:42px;
+}
+
+.hero-copy{
+  padding-top:28px;
+}
+
+.featured-shell{
+  height:640px;
+}
+
+.catalog-preview{
+  padding-top:68px;
+  padding-bottom:58px;
+}
+
+.catalog-tools{
+  margin-top:28px;
+  margin-bottom:20px;
+}
+
+.shelf{
+  padding-top:4px;
+  padding-bottom:8px;
+}
+
+.store-story{
+  padding-top:68px;
+  padding-bottom:82px;
+  gap:32px;
+}
+
+.store-story p{
+  margin-top:34px;
+}
+
+.impact{
+  padding-top:78px;
+  padding-bottom:78px;
+}
+
+.impact-slider{
+  margin-top:28px;
+  margin-bottom:20px;
+}
+
+.testimonials{
+  padding-top:70px;
+  padding-bottom:78px;
+  gap:48px;
+}
+
+.final-cta{
+  padding-top:74px;
+  padding-bottom:84px;
+}
+
+.footer{
+  padding-top:46px;
+}
+
+@media (max-width:900px){
+  .hero{
+    min-height:auto;
+    padding-top:36px;
+    padding-bottom:32px;
+  }
+
+  .hero-copy{
+    padding-top:12px;
+  }
+
+  .featured-shell{
+    height:500px;
+  }
+
+  .catalog-preview{
+    padding-top:54px;
+    padding-bottom:46px;
+  }
+
+  .store-story{
+    padding-top:54px;
+    padding-bottom:62px;
+  }
+
+  .store-story p{
+    margin-top:16px;
+  }
+
+  .impact{
+    padding-top:58px;
+    padding-bottom:60px;
+  }
+
+  .testimonials{
+    padding-top:54px;
+    padding-bottom:60px;
+  }
+
+  .final-cta{
+    padding-top:58px;
+    padding-bottom:66px;
+  }
+}
+
+@media (max-width:600px){
+  .hero{
+    padding-top:28px;
+    padding-bottom:26px;
+  }
+
+  .featured-shell{
+    height:430px;
+  }
+
+  .catalog-preview{
+    padding-top:44px;
+    padding-bottom:38px;
+  }
+
+  .catalog-tools{
+    margin-top:22px;
+    margin-bottom:16px;
+  }
+
+  .store-story{
+    padding-top:44px;
+    padding-bottom:50px;
+  }
+
+  .impact{
+    padding-top:48px;
+    padding-bottom:50px;
+  }
+
+  .testimonials{
+    padding-top:46px;
+    padding-bottom:52px;
+  }
+
+  .final-cta{
+    padding-top:50px;
+    padding-bottom:56px;
+  }
+}
