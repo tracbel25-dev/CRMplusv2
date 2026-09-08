@@ -14,6 +14,7 @@ import { navigation } from '@/lib/operations/navigation';
 import { useWorkspace, WorkspaceContext } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import './lean-operations.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const Artemis = dynamic(() => import('./Artemis').then(module => module.Artemis));
