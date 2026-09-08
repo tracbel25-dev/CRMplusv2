@@ -8,6 +8,11 @@ on:
       - main
       - 'fix/**'
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,4 +26,22 @@ jobs:
       - name: Install
         run: npm install
       - name: Build
-        run: npm run build
+        id: build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Report build failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const text = fs.existsSync('build.log') ? fs.readFileSync('build.log', 'utf8') : 'Build failed without build.log';
+            const excerpt = text.slice(-9000);
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `### Verify — build falhou\n\n\`\`\`text\n${excerpt}\n\`\`\``
+            });
