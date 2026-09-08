@@ -213,7 +213,8 @@ export function HomeExperience() {
         </div>
         <div className="impact-source">
           {currentImpact.kind === 'external' ? (
-            <>Fonte indicada no projeto: <strong>{currentImpact.source}</strong>.</n          ) : (
+            <>Fonte indicada no projeto: <strong>{currentImpact.source}</strong>.</>
+          ) : (
             <><strong>{currentImpact.author}</strong><span>{currentImpact.role}</span></>
           )}
         </div>
