@@ -1,0 +1,4 @@
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+
+export default function Suporte(){return <><Header/><main className="page-shell"><div className="page-intro"><span className="eyebrow">Suporte</span><h1>Fale com a CRM PLUS Store.</h1><p>A área está estruturada para ticket, e-mail e WhatsApp. Os canais oficiais devem ser configurados antes da publicação dos contatos.</p></div><div className="support-grid"><div><strong>Ticket</strong><p>Abra uma solicitação e acompanhe o atendimento.</p><button disabled>Em configuração</button></div><div><strong>E-mail</strong><p>Canal oficial a definir.</p><button disabled>Em configuração</button></div><div><strong>WhatsApp</strong><p>Número oficial a definir.</p><button disabled>Em configuração</button></div></div></main><Footer/></>}
