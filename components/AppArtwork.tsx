@@ -1,24 +1,21 @@
 import type { AppTone } from '@/lib/catalog';
 
 export function AppArtwork({tone,compact=false}:{tone:AppTone;compact?:boolean}){
+  if(tone==='zeus' || tone==='artemis'){
+    return (
+      <div className={`artwork artwork-photo artwork-${tone} ${compact?'artwork-compact':''}`} aria-hidden="true">
+        <div className="app-photo"/>
+        <div className="photo-vignette"/>
+        <div className="art-title">{tone==='zeus'?'OFICINA':'RESTAURANTE'}</div>
+        <div className="art-caption">{tone==='zeus'?'OS · FLUXO · HISTÓRICO':'PEDIDOS · COZINHA · CAIXA'}</div>
+      </div>
+    );
+  }
+
   return (
     <div className={`artwork artwork-${tone} ${compact?'artwork-compact':''}`} aria-hidden="true">
       <div className="art-backdrop"/>
-      <div className="art-title">{tone==='zeus'?'OFICINA':tone==='artemis'?'RESTAURANTE':tone==='athena'?'EXPERIÊNCIA':tone==='kronos'?'VENDAS':'ORÇAMENTOS'}</div>
-
-      {tone==='zeus' && <>
-        <div className="zeus-sheet">
-          <span>ORDEM DE SERVIÇO</span>
-          <strong>Fluxo operacional</strong>
-          <div className="zeus-stages"><i>Entrada</i><i>Diagnóstico</i><i>Execução</i><i>Relatório</i></div>
-          <div className="zeus-progress"><b/></div>
-        </div>
-        <div className="zeus-rail"><span>FLUXO</span><i/><i/><i/><i/></div>
-      </>}
-
-      {tone==='artemis' && <div className="artemis-flow">
-        {['Mesa','Pedido','Cozinha','Caixa','Delivery'].map(item=><div key={item}><b/><span>{item}</span></div>)}
-      </div>}
+      <div className="art-title">{tone==='athena'?'EXPERIÊNCIA':tone==='kronos'?'VENDAS':'ORÇAMENTOS'}</div>
 
       {tone==='athena' && <div className="athena-readout">
         <div className="athena-mark">CX</div>
@@ -38,7 +35,7 @@ export function AppArtwork({tone,compact=false}:{tone:AppTone;compact?:boolean})
         <div className="budget-action">COMPARTILHAR POR LINK</div>
       </div>}
 
-      <div className="art-caption">{tone==='zeus'?'OS · FLUXO · HISTÓRICO':tone==='artemis'?'PEDIDOS · COZINHA · CAIXA':tone==='athena'?'PESQUISAS · RESPOSTAS':tone==='kronos'?'ROTINA · OPORTUNIDADES':'ITENS · LINK · DECISÃO'}</div>
+      <div className="art-caption">{tone==='athena'?'PESQUISAS · RESPOSTAS':tone==='kronos'?'ROTINA · OPORTUNIDADES':'ITENS · LINK · DECISÃO'}</div>
     </div>
   );
 }
