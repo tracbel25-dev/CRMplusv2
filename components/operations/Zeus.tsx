@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileDown, Plus, Wrench, X } from 'lucide-react';
 import {
   Appointment, Asset, Job, activeJob, advanceJob, customValues, date, effectiveQuoteStatus,
@@ -15,6 +15,7 @@ import {
   SearchBox, Section, Timeline, Title, customerOptions
 } from './ui';
 import { WorkflowControl } from './WorkflowControl';
+import { useRecordRoute } from './useRecordRoute';
 
 export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const d = w.data;
@@ -23,7 +24,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const [query, setQuery] = useState('');
   const [create, setCreate] = useState(false);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
-  const [selected, setSelected] = useState(recordId);
+  const [selected, setSelected] = useRecordRoute(recordId, '/zeus/atendimentos');
   const [filter, setFilter] = useState('Todos');
   const [assetCustomer, setAssetCustomer] = useState('');
   const [day, setDay] = useState(localDay());
@@ -33,6 +34,11 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const findCustomer = (id: string) => d.customers.find(customer => customer.id === id)?.name || 'Cliente';
   const findAsset = (id: string) => d.assets.find(asset => asset.id === id);
   const jobs = d.jobs.filter(job => matches(query, job.number, findCustomer(job.customerId), findAsset(job.assetId)?.identifier, findAsset(job.assetId)?.model, job.type, job.technician));
+
+  const approvalSince = (job: Job) => {
+    const events = [...job.quote.events].reverse();
+    return events.find(item => item.text.toLocaleLowerCase('pt-BR').includes('enviad'))?.at || job.createdAt;
+  };
 
   const appointmentList = (list: Appointment[]) => list.length
     ? <div className="op-agenda">{[...list].sort((a, b) => a.at.localeCompare(b.at)).map(appointment => <div className="op-agenda-row" key={appointment.id}>
@@ -46,7 +52,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     ? <div className="op-job-list">{list.map(job => {
       const asset = findAsset(job.assetId);
       const flow = stages(s);
-      const waiting = job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(job.quote.events.findLast?.(item => item.text.includes('enviado'))?.at || job.createdAt)}` : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
+      const waiting = job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(approvalSince(job))}` : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
       return <button key={job.id} className="op-job" onClick={() => setSelected(job.id)}>
         <div className="op-job-identity"><small>OS {String(job.number).padStart(4, '0')} · {job.type}</small><strong>{asset?.identifier}</strong><span>{findCustomer(job.customerId)}</span><small>{asset?.model}</small></div>
         <div className="op-job-work"><strong>{job.stage}</strong><span>{job.technician || 'Sem responsável'}</span>{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter" aria-label={`Etapa ${job.stage}`}>{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
@@ -218,7 +224,6 @@ function JobDetail({ w, job, onBack }: { w: Workspace; job: Job; onBack: () => v
     <div className="op-tabs">{tabs.map(value => <button key={value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{value}</button>)}</div>
 
     {tab === 'Ficha' && <Section title="Ficha do atendimento" action={activeJob(job) && <Button variant="secondary" onClick={() => setEdit(true)}>Editar ficha</Button>}><div className="op-detail-pairs"><div><span>{operation.label('customerName', 'Cliente')}</span><strong>{customer.name}</strong>{operation.fieldVisible('customerPhone') && <small>{customer.phone}</small>}</div><div><span>{s.assetLabel}</span><strong>{asset.model} {operation.fieldVisible('year') && asset.year}</strong>{operation.fieldVisible('meter') && <small>{s.meterLabel}: {asset.meter || 'Não informado'}</small>}</div>{operation.fieldVisible('technician') && <div><span>{operation.label('technician', 'Responsável')}</span><strong>{job.technician || 'Não definido'}</strong></div>}{operation.fieldVisible('due') && <div><span>{operation.label('due', 'Prazo')}</span><strong>{date(job.due, true)}</strong></div>}{combinedCustom.map(({ field, target }) => <div key={`${target}-${field.id}`}><span>{field.label}</span><strong>{customValues(d, target)[field.id] || 'Não informado'}</strong></div>)}</div><h3>{operation.label('complaint', 'Relato do cliente')}</h3><p className="op-prewrap">{job.complaint}</p>{operation.fieldVisible('internalNotes') && job.notes && <><h3>{operation.label('internalNotes', 'Observações internas')}</h3><p className="op-prewrap">{job.notes}</p></>}</Section>}
-
     {tab === 'Diagnóstico' && <Section title={operation.label('diagnosis', 'Registro técnico')}><p className="op-prewrap">{job.diagnosis || 'Registre os sintomas, a causa identificada e a solução recomendada.'}</p>{activeJob(job) && <Button onClick={() => setEdit(true)}>Registrar diagnóstico</Button>}</Section>}
     {tab === 'Orçamento' && <Section title="Serviços, peças e decisão">{activeJob(job) ? <QuotePanel w={w} quote={job.quote} jobId={job.id} /> : <><Badge>{quoteStatus}</Badge><p>Orçamento preservado no histórico.</p><Timeline events={job.quote.events} /></>}</Section>}
     {tab === 'Execução' && <Section title="Lista de serviços">{job.tasks.map(task => <label className="op-check-row" key={task.id}><input type="checkbox" checked={!!task.done} disabled={!activeJob(job) || job.stage !== 'Execução'} onChange={change => patch(current => { if (current.stage !== 'Execução') throw new Error('A etapa de execução não está ativa.'); const line = current.tasks.find(item => item.id === task.id)!; line.done = change.target.checked; current.events.push(event(`${line.done ? 'Concluído' : 'Reaberto'}: ${line.description}`)); })} /><strong>{task.description}</strong><Badge>{task.done ? 'Concluído' : 'Pendente'}</Badge></label>)}{!job.tasks.length && <Empty>Sem serviços registrados. Use “Adicionar tarefa” para organizar a execução.</Empty>}{activeJob(job) && <Button variant="secondary" onClick={() => setEdit(true)}><Plus size={16} />Adicionar tarefa / atualização</Button>}</Section>}
@@ -227,15 +232,29 @@ function JobDetail({ w, job, onBack }: { w: Workspace; job: Job; onBack: () => v
     {tab === 'Linha do tempo' && <Section title="Movimentações"><Timeline events={[...job.events, ...job.quote.events].sort((a, b) => a.at.localeCompare(b.at))} /></Section>}
     {activeJob(job) && operation.actionVisible('cancel') && <div className="op-record-secondary-actions"><Button variant="danger" onClick={() => setCancel(true)}>Cancelar OS</Button></div>}
 
-    {edit && <Modal title={tab === 'Diagnóstico' ? 'Diagnóstico técnico' : tab === 'Execução' ? 'Atualizar execução' : 'Editar atendimento'} onClose={() => setEdit(false)}><RecordForm draftKey={`zeus-job-edit:${job.id}:${tab}`} fields={tab === 'Diagnóstico' ? [{ name: 'diagnosis', label: operation.label('diagnosis', 'Diagnóstico'), type: 'textarea', required: true, wide: true, value: job.diagnosis }] : tab === 'Execução' ? [{ name: 'task', label: 'Nova tarefa de execução', wide: true }, { name: 'update', label: 'Atualização', type: 'textarea', wide: true }] : [...(operation.fieldVisible('technician') ? [{ name: 'technician', label: operation.label('technician', 'Responsável'), value: job.technician }] : []), ...(operation.fieldVisible('due') ? [{ name: 'due', label: operation.label('due', 'Prazo'), type: 'datetime-local', value: job.due }] : []), { name: 'complaint', label: operation.label('complaint', 'Relato'), type: 'textarea', wide: true, required: true, value: job.complaint }, ...(operation.fieldVisible('internalNotes') ? [{ name: 'notes', label: operation.label('internalNotes', 'Observações internas'), type: 'textarea', wide: true, value: job.notes }] : []), ...customFieldDefs(operation, ['Cliente'], customValues(d, customer.id)), ...customFieldDefs(operation, ['Veículo / equipamento'], customValues(d, asset.id)), ...customFieldDefs(operation, ['Atendimento'], customValues(d, job.id))]} onClose={() => setEdit(false)} onSave={form => patch(current => {
-      if (tab === 'Execução') { if (form.task?.trim()) { current.tasks.push({ id: uid(), description: form.task, done: false }); current.events.push(event(`Tarefa adicionada: ${form.task}`)); } if (form.update?.trim()) current.events.push(event(form.update)); }
-      else if ('diagnosis' in form) current.diagnosis = form.diagnosis;
-      else { if (form.technician !== undefined) current.technician = form.technician; if (form.due !== undefined) current.due = form.due; current.complaint = form.complaint; if (form.notes !== undefined) current.notes = form.notes; current.events.push(event('Ficha atualizada')); const data = w.data; void data; }
-    })} /></Modal>}
+    {edit && <Modal title={tab === 'Diagnóstico' ? 'Diagnóstico técnico' : tab === 'Execução' ? 'Atualizar execução' : 'Editar atendimento'} onClose={() => setEdit(false)}><RecordForm draftKey={`zeus-job-edit:${job.id}:${tab}`} fields={tab === 'Diagnóstico' ? [{ name: 'diagnosis', label: operation.label('diagnosis', 'Diagnóstico'), type: 'textarea', required: true, wide: true, value: job.diagnosis }] : tab === 'Execução' ? [{ name: 'task', label: 'Nova tarefa de execução', wide: true }, { name: 'update', label: 'Atualização', type: 'textarea', wide: true }] : [...(operation.fieldVisible('technician') ? [{ name: 'technician', label: operation.label('technician', 'Responsável'), value: job.technician }] : []), ...(operation.fieldVisible('due') ? [{ name: 'due', label: operation.label('due', 'Prazo'), type: 'datetime-local', value: job.due }] : []), { name: 'complaint', label: operation.label('complaint', 'Relato'), type: 'textarea', wide: true, required: true, value: job.complaint }, ...(operation.fieldVisible('internalNotes') ? [{ name: 'notes', label: operation.label('internalNotes', 'Observações internas'), type: 'textarea', wide: true, value: job.notes }] : []), ...customerCustom.map(field => ({ name: `customer__${field.id}`, label: field.label, wide: true, value: customValues(d, customer.id)[field.id] || '' })), ...assetCustom.map(field => ({ name: `asset__${field.id}`, label: field.label, wide: true, value: customValues(d, asset.id)[field.id] || '' })), ...jobCustom.map(field => ({ name: `job__${field.id}`, label: field.label, wide: true, value: customValues(d, job.id)[field.id] || '' }))]} onClose={() => setEdit(false)} onSave={form => w.mutate(data => {
+      const current = data.jobs.find(item => item.id === job.id)!;
+      if (tab === 'Execução') {
+        if (form.task?.trim()) { current.tasks.push({ id: uid(), description: form.task, done: false }); current.events.push(event(`Tarefa adicionada: ${form.task}`)); }
+        if (form.update?.trim()) current.events.push(event(form.update));
+      } else if ('diagnosis' in form) {
+        current.diagnosis = form.diagnosis;
+        current.events.push(event('Diagnóstico atualizado'));
+      } else {
+        if (form.technician !== undefined) current.technician = form.technician;
+        if (form.due !== undefined) current.due = form.due;
+        current.complaint = form.complaint;
+        if (form.notes !== undefined) current.notes = form.notes;
+        setCustomValues(data, customer.id, Object.fromEntries(customerCustom.map(field => [field.id, form[`customer__${field.id}`] ?? customValues(data, customer.id)[field.id] ?? ''])));
+        setCustomValues(data, asset.id, Object.fromEntries(assetCustom.map(field => [field.id, form[`asset__${field.id}`] ?? customValues(data, asset.id)[field.id] ?? ''])));
+        setCustomValues(data, job.id, Object.fromEntries(jobCustom.map(field => [field.id, form[`job__${field.id}`] ?? customValues(data, job.id)[field.id] ?? ''])));
+        current.events.push(event('Ficha atualizada'));
+      }
+    }, 'Atendimento atualizado.')} /></Modal>}
 
     {finalNote && <Modal title="Observação final" onClose={() => setFinalNote(false)}><RecordForm draftKey={`zeus-final:${job.id}`} fields={[{ name: 'note', label: operation.label('finalNotes', 'Observação final'), type: 'textarea', required: true, wide: true }]} onClose={() => setFinalNote(false)} onSave={form => patch(current => { current.events.push(event(`Observação final: ${form.note}`)); }, 'Observação final registrada.')} /></Modal>}
     {finish && <Confirm title="Confirmar entrega e encerramento?" onClose={() => setFinish(false)} onConfirm={() => w.mutate(data => advanceJob(data, job.id, job.stage), 'Atendimento encerrado e enviado ao histórico.')}>A OS será preservada no histórico com todas as movimentações.</Confirm>}
     {cancel && <Modal title="Cancelar ordem de serviço" onClose={() => setCancel(false)}><RecordForm fields={[{ name: 'reason', label: 'Motivo do cancelamento', type: 'textarea', wide: true, required: true }]} onClose={() => setCancel(false)} submit="Confirmar cancelamento" onSave={form => patch(current => { current.status = 'Cancelado'; current.events.push(event(`Cancelado: ${form.reason}`)); })} /></Modal>}
-    {report && <Modal title="Relatório do atendimento" wide onClose={() => setReport(false)}><div className="op-print-document"><span className="op-kicker">{s.business || 'Oficina'}</span><h2>Relatório · OS {job.number}</h2><p>{s.phone} {s.email}</p><div className="op-detail-pairs"><div><span>Cliente</span><strong>{customer.name}</strong></div><div><span>{s.identifierLabel}</span><strong>{asset.identifier} · {asset.model}</strong></div><div><span>Abertura</span><strong>{date(job.createdAt, true)}</strong></div><div><span>Situação</span><strong>{job.status}</strong></div></div><h3>Relato</h3><p>{job.complaint}</p><h3>Diagnóstico</h3><p>{job.diagnosis || 'Não registrado'}</p><h3>Serviços realizados</h3>{job.tasks.length ? job.tasks.map(task => <div className="op-row" key={task.id}><span className="op-grow">{task.description}</span><Badge>{task.done ? 'Concluído' : 'Pendente'}</Badge></div>) : <p>Sem tarefas de execução registradas.</p>}<h3>Peças registradas</h3>{job.quote.lines.filter(line => line.kind === 'Peça').length ? job.quote.lines.filter(line => line.kind === 'Peça').map(line => <div className="op-row" key={line.id}><span className="op-grow">{line.description}{line.brand ? ` · ${line.brand}` : ''}</span><span>{line.quantity} × {line.price / 100}</span></div>) : <p>Sem peças registradas.</p>}</div><div className="op-form-footer"><Button onClick={() => window.print()}>Imprimir / salvar PDF</Button></div></Modal>}
+    {report && <Modal title="Relatório do atendimento" wide onClose={() => setReport(false)}><div className="op-print-document"><span className="op-kicker">{s.business || 'Oficina'}</span><h2>Relatório · OS {job.number}</h2><p>{s.phone} {s.email}</p><div className="op-detail-pairs"><div><span>Cliente</span><strong>{customer.name}</strong></div><div><span>{s.identifierLabel}</span><strong>{asset.identifier} · {asset.model}</strong></div><div><span>Abertura</span><strong>{date(job.createdAt, true)}</strong></div><div><span>Situação</span><strong>{job.status}</strong></div></div><h3>Relato</h3><p>{job.complaint}</p><h3>Diagnóstico</h3><p>{job.diagnosis || 'Não registrado'}</p><h3>Serviços realizados</h3>{job.tasks.length ? job.tasks.map(task => <div className="op-row" key={task.id}><span className="op-grow">{task.description}</span><Badge>{task.done ? 'Concluído' : 'Pendente'}</Badge></div>) : <p>Sem tarefas de execução registradas.</p>}<h3>Peças registradas</h3>{job.quote.lines.filter(line => line.kind === 'Peça').length ? job.quote.lines.filter(line => line.kind === 'Peça').map(line => <div className="op-row" key={line.id}><span className="op-grow">{line.description}{line.brand ? ` · ${line.brand}` : ''}</span><span>{line.quantity} × {money(line.price)}</span></div>) : <p>Sem peças registradas.</p>}</div><div className="op-form-footer"><Button onClick={() => window.print()}>Imprimir / salvar PDF</Button></div></Modal>}
   </>;
 }
