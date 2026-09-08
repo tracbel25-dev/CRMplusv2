@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1000" role="img" aria-label="Zeus — identidade sobre interface do aplicativo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#050505"/>
+      <stop offset=".55" stop-color="#0b0c0e"/>
+      <stop offset="1" stop-color="#17191c"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".45" stop-color="#c9ccd0"/>
+      <stop offset="1" stop-color="#747a80"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+  <rect width="2000" height="1000" fill="url(#bg)"/>
+  <g opacity=".22" filter="url(#blur)" transform="translate(85 120)">
+    <rect x="0" y="0" width="460" height="760" rx="28" fill="#181b1f"/>
+    <rect x="500" y="0" width="1310" height="170" rx="28" fill="#15181c"/>
+    <rect x="500" y="210" width="405" height="245" rx="24" fill="#171a1e"/>
+    <rect x="940" y="210" width="405" height="245" rx="24" fill="#171a1e"/>
+    <rect x="1380" y="210" width="430" height="245" rx="24" fill="#171a1e"/>
+    <rect x="500" y="495" width="1310" height="265" rx="28" fill="#15181c"/>
+  </g>
+  <g opacity=".24" stroke="#7f858c" stroke-width="4" fill="none">
+    <path d="M145 265h255M145 335h210M145 405h230M145 475h190M145 545h245"/>
+    <path d="M670 642h910M670 702h760M670 762h840"/>
+  </g>
+  <rect width="2000" height="1000" fill="#000" opacity=".28"/>
+  <g transform="translate(520 260)">
+    <g transform="scale(.72)" fill="url(#metal)">
+      <rect x="174" y="0" width="72" height="118" rx="10"/>
+      <rect x="174" y="302" width="72" height="118" rx="10"/>
+      <rect x="302" y="174" width="118" height="72" rx="10"/>
+      <rect x="0" y="174" width="118" height="72" rx="10"/>
+      <rect x="286" y="42" width="72" height="118" rx="10" transform="rotate(45 322 101)"/>
+      <rect x="62" y="260" width="72" height="118" rx="10" transform="rotate(45 98 319)"/>
+      <rect x="260" y="286" width="118" height="72" rx="10" transform="rotate(45 319 322)"/>
+      <rect x="42" y="62" width="118" height="72" rx="10" transform="rotate(45 101 98)"/>
+      <circle cx="210" cy="210" r="166"/>
+      <circle cx="210" cy="210" r="103" fill="#090a0b"/>
+      <path d="M260 20 112 208h86l-60 192 173-222h-92z" fill="#f7f7f7"/>
+    </g>
+  </g>
+  <g transform="translate(910 348)">
+    <text x="0" y="105" fill="#f8f8f8" font-family="Arial,Helvetica,sans-serif" font-size="150" font-weight="800" letter-spacing="6">ZEUS</text>
+    <text x="6" y="174" fill="#c9cbce" font-family="Arial,Helvetica,sans-serif" font-size="46" letter-spacing="3">Gestão para oficinas</text>
+  </g>
+</svg>
