@@ -68,7 +68,6 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
   const label = budgetLabel(record);
   const reference = job ? `OS ${String(job.number).padStart(4, '0')}` : 'Venda de balcão';
   const value = quote.lines.length ? total(quote.lines, quote.discount) : 0;
-
   const download = () => downloadQuotePdf({ quote, customer, business: w.data.settings, label, reference });
 
   const share = async () => {
@@ -102,11 +101,7 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
           business: w.data.settings.business,
           customer: customer.name,
           asset: job ? (() => { const asset = w.data.assets.find(item => item.id === job.assetId); return asset ? `${asset.identifier} · ${asset.model}` : ''; })() : '',
-          quote: { ...externalQuote, status: 'Enviado' },
-          quoteId: quote.id,
-          jobId: job?.id || '',
-          origin: job ? 'os' : 'balcao',
-          version: externalQuote.version
+          quote: { ...externalQuote, status: 'Enviado' }, quoteId: quote.id, jobId: job?.id || '', origin: job ? 'os' : 'balcao', version: externalQuote.version
         }
       });
       const phone = phoneForWhatsapp(customer.phone);
@@ -117,49 +112,29 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
     finally { setBusy(false); }
   };
 
-  const mutateQuote = (fn: (current: Quote) => void, message?: string) => w.mutate(data => {
-    const current = locateQuote(data, quote.id, job?.id);
-    if (!current) throw new Error('Orçamento não encontrado.');
-    fn(current);
-  }, message);
-
   return <div className="zeus-quote-panel">
     <div className="zeus-quote-heading"><div><span className="op-kicker">{label}</span><strong>{status}</strong><small>Versão {quote.version}</small></div><strong className="op-price">{money(value)}</strong></div>
-
     {quote.status === 'Rascunho' ? <QuoteEditor w={w} quote={quote} job={job} onSaved={() => setSharePrompt(true)} /> : <>
       {quote.lines.length ? <div className="op-document-lines">{quote.lines.map(line => <div key={line.id}><span><strong>{line.description}</strong><small>{line.kind}{line.brand ? ` · ${line.brand}` : ''} · {line.quantity} × {money(line.price)}</small></span><b>{money(Math.round(line.quantity * line.price))}</b></div>)}</div> : <Empty>Este orçamento ainda não possui itens.</Empty>}
-      {quote.discount > 0 && <p>Desconto: {money(quote.discount)}</p>}
-      {quote.notes && <p className="op-prewrap">{quote.notes}</p>}
+      {quote.discount > 0 && <p>Desconto: {money(quote.discount)}</p>}{quote.notes && <p className="op-prewrap">{quote.notes}</p>}
     </>}
-
     <div className="op-actions zeus-quote-actions">
       {quote.lines.length > 0 && <Button variant="secondary" onClick={download}><Download size={16} />Baixar PDF</Button>}
       {quote.lines.length > 0 && ['Rascunho', 'Enviado'].includes(quote.status) && <Button variant="secondary" onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />{quote.status === 'Rascunho' ? 'Compartilhar' : 'Compartilhar novamente'}</Button>}
       {status === 'Enviado' && <><Button onClick={() => setDecision(true)}>Registrar aprovação</Button><Button variant="secondary" onClick={() => setDecision(false)}>Registrar reprovação</Button></>}
-      {!['Rascunho', 'Enviado'].includes(quote.status) || status === 'Expirado' ? <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar validade / nova versão' : 'Criar nova versão'}</Button> : null}
+      {(!['Rascunho', 'Enviado'].includes(quote.status) || status === 'Expirado') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar validade / nova versão' : 'Criar nova versão'}</Button>}
     </div>
-
     {quote.versions?.length ? <details className="op-version-history"><summary>Versões anteriores ({quote.versions.length})</summary>{quote.versions.map(version => <div key={version.version}><strong>Versão {version.version} · {version.status}</strong><p>{version.decisionNote || 'Sem decisão registrada'}</p></div>)}</details> : null}
     {quote.events.length > 0 && <details><summary>Histórico do orçamento</summary><div style={{ marginTop: 12 }}><Timeline events={quote.events} /></div></details>}
 
     {sharePrompt && <Modal title="Orçamento salvo" onClose={() => setSharePrompt(false)}><p>Gostaria de compartilhar o orçamento agora?</p><div className="op-form-footer"><Button variant="secondary" onClick={() => setSharePrompt(false)}>{job ? 'Continuar editando a OS' : 'Deixar para depois'}</Button><Button onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />Compartilhar pelo WhatsApp</Button></div></Modal>}
-
     {decision !== null && <Modal title={decision ? 'Registrar aprovação' : 'Registrar reprovação'} onClose={() => setDecision(null)}><RecordForm draftKey={`zeus-quote-decision:${quote.id}`} fields={[{ name: 'note', label: 'Como a decisão do cliente foi recebida?', type: 'textarea', required: true, wide: true }]} onClose={() => setDecision(null)} submit={decision ? 'Confirmar aprovação' : 'Confirmar reprovação'} onSave={form => w.mutate(data => {
-      const current = locateQuote(data, quote.id, job?.id);
-      if (!current) throw new Error('Orçamento não encontrado.');
-      decideQuote(current, decision, form.note);
-      if (job) {
-        const currentJob = data.jobs.find(item => item.id === job.id)!;
-        currentJob.status = decision ? 'Em andamento' : 'Reprovado';
-        currentJob.events.push(event(`Decisão do orçamento: ${current.status}`));
-        if (decision && currentJob.stage === 'Orçamento') advanceJob(data, currentJob.id, 'Orçamento');
-      }
+      const current = locateQuote(data, quote.id, job?.id); if (!current) throw new Error('Orçamento não encontrado.'); decideQuote(current, decision, form.note);
+      if (job) { const currentJob = data.jobs.find(item => item.id === job.id)!; currentJob.status = decision ? 'Em andamento' : 'Reprovado'; currentJob.events.push(event(`Decisão do orçamento: ${current.status}`)); if (decision && currentJob.stage === 'Orçamento') advanceJob(data, currentJob.id, 'Orçamento'); }
     }, decision && job ? 'Orçamento aprovado e OS liberada para execução.' : 'Decisão registrada.')} /></Modal>}
-
-    {revision && <Confirm title="Criar nova versão?" onClose={() => setRevision(false)} onConfirm={() => mutateQuote(current => {
-      reviseQuote(current);
-      current.validUntil = defaultQuoteValidity(w.data);
-      if (job) w.data.jobs.find(item => item.id === job.id);
+    {revision && <Confirm title="Criar nova versão?" onClose={() => setRevision(false)} onConfirm={() => w.mutate(data => {
+      const current = locateQuote(data, quote.id, job?.id); if (!current) throw new Error('Orçamento não encontrado.'); reviseQuote(current); current.validUntil = defaultQuoteValidity(data);
+      if (job) { const currentJob = data.jobs.find(item => item.id === job.id)!; if (!['Encerrado', 'Cancelado'].includes(currentJob.status)) { currentJob.stage = 'Orçamento'; currentJob.status = 'Em andamento'; currentJob.events.push(event(`Nova versão ${current.version} do orçamento aberta`)); } }
     }, 'Nova versão aberta.')}>A versão atual será preservada. A nova versão volta a rascunho e exigirá novo compartilhamento.</Confirm>}
   </div>;
 }
