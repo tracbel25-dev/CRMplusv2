@@ -24,12 +24,21 @@ export function AppArtwork({tone,compact=false,layout='default'}:{tone:AppTone;c
   }
 
   if(tone==='artemis'){
+    const src = layout==='landscape'
+      ? '/brand/artemis/artemis-cover-solid.svg'
+      : compact || layout==='portrait'
+        ? '/brand/artemis/artemis-cover-card.svg'
+        : '/brand/artemis/artemis-cover-solid.svg';
+
     return (
-      <div className={`artwork artwork-photo artwork-artemis ${compact?'artwork-compact':''}`} aria-hidden="true">
-        <div className="app-photo"/>
-        <div className="photo-vignette"/>
-        <div className="art-title">RESTAURANTE</div>
-        <div className="art-caption">PEDIDOS · COZINHA · CAIXA</div>
+      <div className={`artwork artwork-photo artwork-artemis-asset ${compact?'artwork-compact':''}`} aria-hidden="true" style={{background:'#0b0807'}}>
+        <img
+          className="artemis-art-image"
+          src={src}
+          alt=""
+          draggable={false}
+          style={{width:'100%',height:'100%',display:'block',objectFit:'cover',objectPosition:'center'}}
+        />
       </div>
     );
   }
