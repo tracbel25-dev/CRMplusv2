@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, Minus, Plus } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
@@ -42,7 +42,12 @@ function QuotePublic({ token, link, done, fail }: PublicProps) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async (decision: 'approved' | 'rejected') => {
-    setBusy(true); try { await invoke(token, 'respond', { decision, name, note }); done(); } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar a resposta.'); } finally { setBusy(false); }
+    setBusy(true);
+    try {
+      await invoke(token, 'respond', { decision, name, note, version: Number(link.payload.version || quote.version || 0) });
+      done();
+    } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar a resposta.'); }
+    finally { setBusy(false); }
   };
   const total = (quote.lines || []).reduce((sum: number, line: any) => sum + Math.round((line.quantity || 0) * (line.price || 0)), 0) - (quote.discount || 0);
   return <section className="external-card">
