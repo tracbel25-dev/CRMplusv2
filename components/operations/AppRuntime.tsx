@@ -27,6 +27,7 @@ const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
 
 import { AppSettings } from './Settings';
 import { ErrorContext } from './errors';
+import { ExternalShare } from './ExternalShare';
 
 const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
@@ -85,6 +86,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong>{recordId && <><i>/</i><span>registro</span></>}</div>
             <div className="op-header-tools">
               <span className="op-business-name">{w.data.settings.business}</span>
+              <ExternalShare w={w} app={app} page={page} recordId={recordId} />
               <button className="op-icon" onClick={() => setHelp(!help)} aria-label="Sobre os dados deste aplicativo" aria-expanded={help}><CircleHelp size={19} /></button>
               <button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>
               {canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}
