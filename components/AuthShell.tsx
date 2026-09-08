@@ -17,7 +17,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [error,setError]=useState('');
-  const destination=redirectTo&&redirectTo.startsWith('/')?redirectTo:`/${selectedApp}`;
+  const requestedDestination=redirectTo&&redirectTo.startsWith('/')?redirectTo:app?`/${app}`:'/entrar';
 
   const submit=(event:FormEvent)=>{
     event.preventDefault();
@@ -29,7 +29,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
       }else{
         const result=loginLocal(email);
         if(app&&!result.member.apps.includes(app)) router.push('/entrar');
-        else router.push(destination);
+        else router.push(requestedDestination);
       }
     }catch(reason){setError((reason as Error).message)}
   };
