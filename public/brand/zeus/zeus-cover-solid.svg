@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Zeus — Gestão para oficinas">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070707"/>
+      <stop offset="1" stop-color="#111214"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f6f6"/>
+      <stop offset="0.5" stop-color="#b8bcc1"/>
+      <stop offset="1" stop-color="#737980"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <g opacity=".18" fill="none" stroke="#a9adb2" stroke-width="2">
+    <path d="M0 710h370l110 110h300"/>
+    <path d="M1080 0l-90 90h-230"/>
+  </g>
+  <g transform="translate(205 210)">
+    <g fill="url(#metal)">
+      <rect x="174" y="0" width="72" height="118" rx="10"/>
+      <rect x="174" y="302" width="72" height="118" rx="10"/>
+      <rect x="302" y="174" width="118" height="72" rx="10"/>
+      <rect x="0" y="174" width="118" height="72" rx="10"/>
+      <rect x="286" y="42" width="72" height="118" rx="10" transform="rotate(45 322 101)"/>
+      <rect x="62" y="260" width="72" height="118" rx="10" transform="rotate(45 98 319)"/>
+      <rect x="260" y="286" width="118" height="72" rx="10" transform="rotate(45 319 322)"/>
+      <rect x="42" y="62" width="118" height="72" rx="10" transform="rotate(45 101 98)"/>
+      <circle cx="210" cy="210" r="166"/>
+    </g>
+    <circle cx="210" cy="210" r="103" fill="#090a0b"/>
+    <path d="M260 20 112 208h86l-60 192 173-222h-92z" fill="#f4f4f4"/>
+  </g>
+  <g transform="translate(730 318)">
+    <text x="0" y="120" fill="#f7f7f7" font-family="Arial,Helvetica,sans-serif" font-size="170" font-weight="800" letter-spacing="6">ZEUS</text>
+    <text x="8" y="196" fill="#c6c8cb" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="400" letter-spacing="3">Gestão para oficinas</text>
+  </g>
+</svg>
