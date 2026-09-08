@@ -3,20 +3,21 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarCheck2, Check, FileDown, Plus } from 'lucide-react';
 import {
-  Deal, Task, cents, customValues, date, event, localDay, money, nextNumber, now,
+  Deal, cents, customValues, date, event, localDay, money, nextNumber, now,
   setCustomValues, syncDealNextActivity, uid
 } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace, csv } from '@/lib/operations/storage';
 import { Badge, Button, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Timeline, Title, customerOptions } from './ui';
 import { WorkflowControl } from './WorkflowControl';
+import { useRecordRoute } from './useRecordRoute';
 
 const fallbackColumns = ['Novo contato', 'Contato realizado', 'Proposta', 'Negociação'];
 
 export function Kronos({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const operation = useOperationPreferences('kronos');
   const [create, setCreate] = useState(false);
-  const [selected, setSelected] = useState(recordId);
+  const [selected, setSelected] = useRecordRoute(recordId, '/kronos/oportunidades');
   const [query, setQuery] = useState('');
   const [task, setTask] = useState(false);
   const [contact, setContact] = useState(false);
@@ -179,7 +180,7 @@ function DealForm({ w, deal, onClose, onCreated }: { w: Workspace; deal?: Deal; 
     ...custom.map(field => ({ name: `custom__${field.id}`, label: field.label, wide: true, value: savedCustom[field.id] || '' }))
   ]} onClose={onClose} onSave={form => w.mutate(data => {
     if (!data.customers.some(customer => customer.id === form.customerId)) throw new Error('Selecione um cliente.');
-    let recordId = deal?.id || uid();
+    const recordIdValue = deal?.id || uid();
     if (deal) {
       const current = data.deals.find(item => item.id === deal.id)!;
       current.title = form.title;
@@ -200,13 +201,13 @@ function DealForm({ w, deal, onClose, onCreated }: { w: Workspace; deal?: Deal; 
       current.events.push(event('Oportunidade atualizada'));
     } else {
       const columns = data.settings.salesStages?.length >= 2 ? data.settings.salesStages : fallbackColumns;
-      const record: Deal = { id: recordId, number: nextNumber(data.deals), title: form.title, customerId: form.customerId, value: form.value ? cents(form.value) : 0, source: form.source || '', due: '', nextAction: '', notes: form.notes || '', stage: columns[0], lostReason: '', createdAt: now(), events: [event('Oportunidade criada')] };
+      const record: Deal = { id: recordIdValue, number: nextNumber(data.deals), title: form.title, customerId: form.customerId, value: form.value ? cents(form.value) : 0, source: form.source || '', due: '', nextAction: '', notes: form.notes || '', stage: columns[0], lostReason: '', createdAt: now(), events: [event('Oportunidade criada')] };
       data.deals.push(record);
       if ((form.due && !form.nextAction) || (form.nextAction && !form.due)) throw new Error('Informe o próximo compromisso e a data juntos.');
       if (form.due && form.nextAction) data.tasks.push({ id: uid(), dealId: record.id, title: form.nextAction, due: form.due, done: false });
       syncDealNextActivity(data, record.id);
       onCreated(record.id);
     }
-    setCustomValues(data, recordId, Object.fromEntries(custom.map(field => [field.id, form[`custom__${field.id}`] || savedCustom[field.id] || ''])));
+    setCustomValues(data, recordIdValue, Object.fromEntries(custom.map(field => [field.id, form[`custom__${field.id}`] || savedCustom[field.id] || ''])));
   })} />;
 }
