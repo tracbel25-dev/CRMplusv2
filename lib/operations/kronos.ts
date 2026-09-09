@@ -27,6 +27,9 @@ export type KronosVisit = {
   quoteStatus: KronosQuoteStatus;
   quoteValue: number;
   notes: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
   status: KronosVisitStatus;
   result: string;
   followUp: string;
@@ -53,6 +56,7 @@ const visitStatuses: KronosVisitStatus[] = ['Planejada', 'Realizada', 'Cancelada
 
 const asEnum = <T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T => allowed.includes(value as T) ? value as T : fallback;
 const finite = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const coordinate = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : null;
 
 export function getKronosDealMeta(data: Data, dealId: string): KronosDealMeta {
   const values = data.customFieldValues?.[dealId] || {};
@@ -93,6 +97,9 @@ function parseVisit(value: unknown): KronosVisit | null {
     quoteStatus: asEnum(item.quoteStatus, quoteStatuses, 'Sem cotação'),
     quoteValue: Math.max(0, Math.round(finite(item.quoteValue))),
     notes: String(item.notes || ''),
+    address: String(item.address || ''),
+    lat: coordinate(item.lat),
+    lng: coordinate(item.lng),
     status: asEnum(item.status, visitStatuses, 'Planejada'),
     result: String(item.result || ''),
     followUp: String(item.followUp || ''),
@@ -146,6 +153,26 @@ export function updateKronosVisit(data: Data, id: string, patch: Partial<KronosV
   visits[index] = { ...visits[index], ...patch, id: visits[index].id };
   saveKronosVisits(data, visits);
   return visits[index];
+}
+
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const query = address.trim();
+  if (!query || typeof window === 'undefined') return null;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 6500);
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`;
+    const response = await fetch(url, { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' }, signal: controller.signal });
+    if (!response.ok) return null;
+    const result = await response.json() as { lat?: string; lon?: string }[];
+    const lat = Number(result[0]?.lat);
+    const lng = Number(result[0]?.lon);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function dealActivityAt(data: Data, deal: Deal) {

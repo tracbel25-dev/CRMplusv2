@@ -46,7 +46,7 @@ export function Confirm({ title, children, onClose, onConfirm, label = 'Confirma
   return <Modal title={title} onClose={onClose}><p>{children}</p><div className="op-form-footer"><Button variant="secondary" onClick={onClose}>Voltar</Button><Button disabled={busy} onClick={async () => { setBusy(true); if (await onConfirm()) onClose(); setBusy(false); }}>{label}</Button></div></Modal>;
 }
 
-export type FieldDef = { name: string; label: string; type?: string; required?: boolean; options?: { value: string; label: string }[]; value?: string | number; wide?: boolean; min?: string | number; step?: string | number; hint?: string };
+export type FieldDef = { name: string; label: string; type?: string; required?: boolean; options?: { value: string; label: string }[]; suggestions?: string[]; value?: string | number; wide?: boolean; min?: string | number; step?: string | number; hint?: string };
 
 function readDraft(key: string | undefined) {
   if (!key || typeof window === 'undefined') return {} as Record<string, string>;
@@ -55,6 +55,7 @@ function readDraft(key: string | undefined) {
 
 export function RecordForm({ fields, onSave, onClose, submit = 'Salvar', children, draftKey }: { fields: FieldDef[]; onSave: (values: Record<string, string>) => Promise<boolean>; onClose: () => void; submit?: string; children?: ReactNode; draftKey?: string }) {
   const [busy, setBusy] = useState(false);
+  const formId = useId();
   const savedDraft = useMemo(() => readDraft(draftKey), [draftKey]);
   const clearDraft = () => { if (draftKey && typeof window !== 'undefined') sessionStorage.removeItem(`crmplus:draft:${draftKey}`); };
   const close = () => onClose();
@@ -76,13 +77,14 @@ export function RecordForm({ fields, onSave, onClose, submit = 'Salvar', childre
   >
     <div className="op-fields">{fields.map(field => {
       const initial = savedDraft[field.name] ?? field.value;
+      const listId = field.suggestions?.length ? `${formId}-${field.name}` : undefined;
       return <label key={field.name} className={`op-field ${field.wide ? 'span-full' : ''}`}>
         <span>{field.label}{field.required ? ' *' : ''}</span>
         {field.options
           ? <select name={field.name} defaultValue={initial} required={field.required}>{!initial && <option value="">Selecionar</option>}{field.options.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
           : field.type === 'textarea'
             ? <textarea name={field.name} defaultValue={initial} required={field.required} rows={3} />
-            : <input name={field.name} type={field.type || 'text'} defaultValue={initial} required={field.required} min={field.min} step={field.step} maxLength={field.type === 'number' ? undefined : 2000} />}
+            : <><input name={field.name} list={listId} type={field.type || 'text'} defaultValue={initial} required={field.required} min={field.min} step={field.step} maxLength={field.type === 'number' ? undefined : 2000} />{listId && <datalist id={listId}>{field.suggestions!.map(value => <option value={value} key={value} />)}</datalist>}</>}
         {field.hint && <small>{field.hint}</small>}
       </label>;
     })}</div>
@@ -251,4 +253,3 @@ export function QuotePanel({ w, quote, jobId }: { w: Workspace; quote: Quote; jo
 
 export const customerOptions = (d: Data) => d.customers.map(customer => ({ value: customer.id, label: customer.name }));
 export function exportCustomers(d: Data) { csv('clientes.csv', [['Nome', 'Telefone', 'E-mail'], ...d.customers.map(customer => [customer.name, customer.phone, customer.email])]); }
-

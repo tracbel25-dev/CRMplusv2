@@ -27,7 +27,7 @@ const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module 
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
 const Research = dynamic(() => import('./Athena').then(module => module.Research));
-const Budgets = dynamic(() => import('./Athena').then(module => module.Budgets));
+const Budgets = dynamic(() => import('./AthenaBudgets').then(module => module.Budgets));
 const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
 
 import { AppSettings } from './Settings';
@@ -149,4 +149,3 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     </ErrorContext.Provider>
   </WorkspaceContext.Provider>;
 }
-

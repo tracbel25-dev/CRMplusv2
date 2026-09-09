@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileDown, Plus, Wrench } from 'lucide-react';
 import { Appointment, Asset, Job, activeJob, date, event, localDay, matches, newJob, setCustomValues, stages, uid } from '@/lib/operations/model';
+import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
 import { Workspace, csv } from '@/lib/operations/storage';
 import { defaultQuoteValidity, initialJobStatus, readZeusPreferences } from '@/lib/operations/zeus';
-import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title, customerOptions } from './ui';
+import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 import { useRecordRoute } from './useRecordRoute';
+
+const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
 
 export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const router = useRouter();
@@ -122,40 +125,108 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
   const serviceTypes = useZeusServiceTypes();
   const [search, setSearch] = useState('');
   const [assetId, setAssetId] = useState('');
-  const [newRecord, setNewRecord] = useState(false);
-  const [customerId, setCustomerId] = useState('');
   const s = w.data.settings;
   const asset = w.data.assets.find(item => item.id === assetId);
+  const currentCustomer = asset ? w.data.customers.find(item => item.id === asset.customerId) : undefined;
+  const suggestions = customerSuggestions(w.data);
   const customGroups = ['Cliente', 'Veículo / equipamento', 'Atendimento'];
-  return <><SearchBox value={search} onChange={setSearch} placeholder={`Pesquisar por ${s.identifierLabel.toLowerCase()} ou cliente`} />
-    {!asset && !newRecord && <><div className="op-picker-results">{w.data.assets.filter(item => matches(search, item.identifier, w.data.customers.find(customer => customer.id === item.customerId)?.name)).map(item => <button type="button" className="op-row" key={item.id} onClick={() => { setAssetId(item.id); setCustomerId(item.customerId); }}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(customer => customer.id === item.customerId)?.name}</span><ArrowRight size={16} /></button>)}</div><Button variant="secondary" onClick={() => setNewRecord(true)}><Plus size={17} />Cadastrar novo neste atendimento</Button></>}
-    {(asset || newRecord) && <><div className="op-callout">{asset ? <><strong>{asset.identifier} · {asset.model}</strong><span>{w.data.customers.find(customer => customer.id === asset.customerId)?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setCustomerId(''); }}>Trocar</button></> : <label className="op-field"><span>Cliente</span><select value={customerId} onChange={change => setCustomerId(change.target.value)}><option value="">Cadastrar novo cliente</option>{customerOptions(w.data).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}</div>
-      <RecordForm draftKey="zeus-job:new" fields={[...(newRecord ? [...(!customerId ? [{ name: 'customerName', label: 'Nome do cliente', required: true }, { name: 'phone', label: 'Telefone', type: 'tel' }] : []), { name: 'identifier', label: s.identifierLabel, required: true, value: search }, { name: 'model', label: s.assetLabel, required: true }, { name: 'year', label: 'Ano' }, { name: 'meter', label: s.meterLabel }] : []), { name: 'type', label: 'Tipo de atendimento', required: true, options: serviceTypes.map(value => ({ value, label: value })) }, { name: 'technician', label: 'Responsável' }, { name: 'due', label: 'Prazo previsto', type: 'datetime-local' }, { name: 'complaint', label: 'Relato do cliente', type: 'textarea', wide: true, required: true }, ...customFieldDefs(operation, customGroups)]} submit="Finalizar identificação" onClose={onClose} onSave={form => w.mutate(data => {
-        let cid = customerId; let aid = assetId;
-        if (newRecord) { if (!cid) { cid = uid(); data.customers.push({ id: cid, name: form.customerName.trim(), phone: form.phone || '', email: '', notes: '' }); } if (data.assets.some(item => item.identifier.replace(/\W/g, '').toUpperCase() === form.identifier.replace(/\W/g, '').toUpperCase())) throw new Error('Esta identificação já existe. Selecione o cadastro.'); aid = uid(); data.assets.push({ id: aid, customerId: cid, identifier: form.identifier.trim().toUpperCase(), model: form.model, year: form.year || '', meter: form.meter || '' }); }
-        const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' });
-        const job = data.jobs.find(item => item.id === id)!; job.status = initialJobStatus(data.settings); job.quote.validUntil = defaultQuoteValidity(data); job.events.push(event(`Situação: ${job.status}`));
-        const values = customFromForm(operation, customGroups, form);
-        setCustomValues(data, cid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Cliente').map(field => [field.id, values[field.id] || ''])));
-        setCustomValues(data, aid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Veículo / equipamento').map(field => [field.id, values[field.id] || ''])));
-        setCustomValues(data, id, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Atendimento').map(field => [field.id, values[field.id] || ''])));
-        onCreated(id);
-      }, 'Identificação salva.')} />
-    </>}
+  const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(customer => customer.id === item.customerId)?.name)).slice(0, 8) : [];
+
+  return <>
+    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) setAssetId(''); }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />
+    {results.length > 0 && !asset && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => setAssetId(item.id)}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(customer => customer.id === item.customerId)?.name}</span><ArrowRight size={16} /></button>)}</div>}
+    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button></div>}
+    <RecordForm draftKey="zeus-job:new" fields={[
+      ...(!asset ? [
+        { name: 'customer', label: 'Cliente', required: true, suggestions, hint: 'Digite o nome. Se existir, o Zeus reaproveita; se não existir, cria automaticamente.' },
+        { name: 'phone', label: 'Telefone', type: 'tel' },
+        { name: 'identifier', label: s.identifierLabel, required: true, value: search },
+        { name: 'model', label: s.assetLabel, required: true },
+        { name: 'year', label: 'Ano' },
+        { name: 'meter', label: s.meterLabel }
+      ] : []),
+      { name: 'type', label: 'Tipo de atendimento', required: true, options: serviceTypes.map(value => ({ value, label: value })) },
+      { name: 'technician', label: 'Responsável' },
+      { name: 'due', label: 'Prazo previsto', type: 'datetime-local' },
+      { name: 'complaint', label: 'Relato do cliente', type: 'textarea', wide: true, required: true },
+      ...customFieldDefs(operation, customGroups)
+    ]} submit="Finalizar identificação" onClose={onClose} onSave={form => w.mutate(data => {
+      let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
+      let cid = selectedAsset?.customerId || '';
+      let aid = selectedAsset?.id || '';
+
+      if (!selectedAsset) {
+        const identifier = form.identifier.trim();
+        const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(identifier));
+        if (exact) {
+          selectedAsset = exact;
+          cid = exact.customerId;
+          aid = exact.id;
+        } else {
+          const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
+          cid = resolved.id;
+          aid = uid();
+          data.assets.push({ id: aid, customerId: cid, identifier: identifier.toUpperCase(), model: form.model.trim(), year: form.year || '', meter: form.meter || '' });
+        }
+      }
+
+      const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' });
+      const job = data.jobs.find(item => item.id === id)!;
+      job.status = initialJobStatus(data.settings);
+      job.quote.validUntil = defaultQuoteValidity(data);
+      job.events.push(event(`Situação: ${job.status}`));
+      const values = customFromForm(operation, customGroups, form);
+      if (cid) setCustomValues(data, cid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Cliente').map(field => [field.id, values[field.id] || ''])));
+      if (aid) setCustomValues(data, aid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Veículo / equipamento').map(field => [field.id, values[field.id] || ''])));
+      setCustomValues(data, id, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Atendimento').map(field => [field.id, values[field.id] || ''])));
+      onCreated(id);
+    }, 'Identificação salva.')} />
   </>;
 }
 
 function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointment?: Appointment; onClose: () => void }) {
   const serviceTypes = useZeusServiceTypes();
   const [assetId, setAssetId] = useState(appointment?.assetId || '');
-  const [customerId, setCustomerId] = useState(appointment?.customerId || '');
-  const [newRecord, setNewRecord] = useState(false);
   const [search, setSearch] = useState('');
   const asset = w.data.assets.find(item => item.id === assetId);
-  return <><SearchBox value={search} onChange={setSearch} placeholder="Buscar veículo ou cliente" />{!asset && !newRecord && <><div className="op-picker-results">{w.data.assets.filter(item => matches(search, item.identifier, w.data.customers.find(customer => customer.id === item.customerId)?.name)).map(item => <button type="button" className="op-row" key={item.id} onClick={() => { setAssetId(item.id); setCustomerId(item.customerId); }}><strong>{item.identifier}</strong><span>{item.model}</span></button>)}</div><Button variant="secondary" onClick={() => setNewRecord(true)}>Cadastrar cliente e veículo aqui</Button></>}{(asset || newRecord) && <RecordForm draftKey={`zeus-appointment:${appointment?.id || 'new'}`} fields={[...(newRecord ? [...(!customerId ? [{ name: 'customerName', label: 'Nome do cliente', required: true }, { name: 'phone', label: 'Telefone', type: 'tel' }] : []), { name: 'identifier', label: w.data.settings.identifierLabel, required: true }, { name: 'model', label: w.data.settings.assetLabel, required: true }] : []), { name: 'at', label: 'Data e horário', type: 'datetime-local', required: true, value: appointment?.at }, { name: 'type', label: 'Tipo', value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })) }, { name: 'technician', label: 'Responsável', value: appointment?.technician }, { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }]} onClose={onClose} onSave={form => w.mutate(data => { let cid = customerId; let aid = assetId; if (newRecord) { if (!cid) { cid = uid(); data.customers.push({ id: cid, name: form.customerName.trim(), phone: form.phone || '', email: '', notes: '' }); } aid = uid(); data.assets.push({ id: aid, customerId: cid, identifier: form.identifier.trim().toUpperCase(), model: form.model, year: '', meter: '' }); } const selectedAsset = data.assets.find(item => item.id === aid); if (!selectedAsset) throw new Error('Selecione ou cadastre o veículo.'); const next: Appointment = { id: appointment?.id || uid(), customerId: selectedAsset.customerId, assetId: selectedAsset.id, at: form.at, type: form.type, technician: form.technician || '', notes: form.notes || '', status: 'Agendado' }; const index = data.appointments.findIndex(item => item.id === next.id); if (index < 0) data.appointments.push(next); else data.appointments[index] = next; })} />}</>;
+  const customer = asset ? w.data.customers.find(item => item.id === asset.customerId) : undefined;
+  const suggestions = customerSuggestions(w.data);
+  const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(current => current.id === item.customerId)?.name)).slice(0, 8) : [];
+
+  return <>
+    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId && !appointment) setAssetId(''); }} placeholder="Digite veículo, identificação ou cliente" />
+    {results.length > 0 && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => setAssetId(item.id)}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(current => current.id === item.customerId)?.name}</span></button>)}</div>}
+    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{customer?.name}</span>{!appointment && <button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button>}</div>}
+    <RecordForm draftKey={`zeus-appointment:${appointment?.id || 'new'}`} fields={[
+      ...(!asset ? [
+        { name: 'customer', label: 'Cliente', required: true, suggestions, hint: 'Digite e continue. Um cliente novo é criado automaticamente se não existir.' },
+        { name: 'phone', label: 'Telefone', type: 'tel' },
+        { name: 'identifier', label: w.data.settings.identifierLabel, required: true, value: search },
+        { name: 'model', label: w.data.settings.assetLabel, required: true }
+      ] : []),
+      { name: 'at', label: 'Data e horário', type: 'datetime-local', required: true, value: appointment?.at },
+      { name: 'type', label: 'Tipo', value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })) },
+      { name: 'technician', label: 'Responsável', value: appointment?.technician },
+      { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }
+    ]} onClose={onClose} onSave={form => w.mutate(data => {
+      let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
+      if (!selectedAsset) {
+        const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(form.identifier));
+        if (exact) selectedAsset = exact;
+        else {
+          const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
+          selectedAsset = { id: uid(), customerId: resolved.id, identifier: form.identifier.trim().toUpperCase(), model: form.model.trim(), year: '', meter: '' };
+          data.assets.push(selectedAsset);
+        }
+      }
+      const next: Appointment = { id: appointment?.id || uid(), customerId: selectedAsset.customerId, assetId: selectedAsset.id, at: form.at, type: form.type, technician: form.technician || '', notes: form.notes || '', status: 'Agendado' };
+      const index = data.appointments.findIndex(item => item.id === next.id);
+      if (index < 0) data.appointments.push(next); else data.appointments[index] = next;
+    }, 'Agendamento salvo.')} />
+  </>;
 }
 
 function AssetForm({ w, customerId, onClose }: { w: Workspace; customerId: string; onClose: () => void }) {
   const s = w.data.settings;
-  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: s.identifierLabel, required: true }, { name: 'model', label: s.assetLabel, required: true }, { name: 'year', label: 'Ano' }, { name: 'meter', label: s.meterLabel }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => asset.identifier.replace(/\W/g, '').toUpperCase() === form.identifier.replace(/\W/g, '').toUpperCase())) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
+  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: s.identifierLabel, required: true }, { name: 'model', label: s.assetLabel, required: true }, { name: 'year', label: 'Ano' }, { name: 'meter', label: s.meterLabel }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => assetKey(asset.identifier) === assetKey(form.identifier))) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
 }
