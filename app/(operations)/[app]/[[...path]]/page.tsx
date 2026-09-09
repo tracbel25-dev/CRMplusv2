@@ -6,6 +6,7 @@ import './operations.css';
 import './configuration.css';
 import './access-control.css';
 import './zeus-brand.css';
+import './kronos.css';
 
 export const dynamicParams = true;
 
