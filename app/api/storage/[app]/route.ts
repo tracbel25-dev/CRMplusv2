@@ -53,10 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     headers: { 'content-type': file.type },
     body: payload,
   });
-  if (!upload.ok) {
-    const detail = (await upload.text().catch(() => '')).slice(0, 400);
-    return NextResponse.json({ error: `O R2 recusou o envio (${upload.status}).${detail ? ` ${detail}` : ''}` }, { status: 502 });
-  }
+  if (!upload.ok) return NextResponse.json({ error: `O R2 recusou o envio (${upload.status}). Confira bucket e credenciais deste aplicativo.` }, { status: 502 });
 
   return NextResponse.json({
     key,
@@ -75,6 +72,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try { readR2Config(app); }
   catch (reason) { return NextResponse.json({ error: reason instanceof Error ? reason.message : 'R2 não configurado.' }, { status: 503 }); }
+
+  if (request.nextUrl.searchParams.get('health') === '1') {
+    const probeKey = `accounts/${access.accountId}/.crmplus-r2-health`;
+    const probe = await fetch(presignR2(app, 'HEAD', probeKey, 60), { method: 'HEAD', cache: 'no-store' });
+    if (probe.status === 200 || probe.status === 404) return NextResponse.json({ ok: true, app });
+    return NextResponse.json({ error: `A conexão R2 respondeu ${probe.status}. Confira Account ID, Access Key, Secret e bucket do ${app}.` }, { status: 502 });
+  }
 
   const key = request.nextUrl.searchParams.get('key') || '';
   if (!validOwnedKey(key, access.accountId)) return NextResponse.json({ error: 'Arquivo fora do escopo desta conta.' }, { status: 403 });
