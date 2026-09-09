@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Bike, BellRing, Box, ChefHat, QrCode, Store, Users, Wallet } from 'lucide-react';
 import type { Workspace } from '@/lib/operations/storage';
 import { defaultOperationPreferences, saveOperationPreferences, useOperationPreferences, type OperationPreferences } from '@/lib/operations/configuration';
 import { Badge, Button, Section, Title } from './ui';
+import { useArtemisBootstrap } from './useArtemisBootstrap';
 
-function Choice({ checked, onChange, title, description, icon }: { checked: boolean; onChange: (value: boolean) => void; title: string; description: string; icon: React.ReactNode }) {
+function Choice({ checked, onChange, title, description, icon }: { checked: boolean; onChange: (value: boolean) => void; title: string; description: string; icon: ReactNode }) {
   return <label className="op-module-choice"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /><span className="op-config-choice-icon">{icon}</span><span><strong>{title}</strong><small>{description}</small></span><Badge>{checked ? 'Ativo' : 'Desativado'}</Badge></label>;
 }
 
 export function ArtemisSettings({ w }: { w: Workspace }) {
+  useArtemisBootstrap('artemis');
   const operation = useOperationPreferences('artemis');
   const [preferences, setPreferences] = useState<OperationPreferences>(() => defaultOperationPreferences('artemis'));
   const [business, setBusiness] = useState(w.data.settings.business);
@@ -29,7 +31,14 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
   const enabled = (key: string) => preferences.actionVisibility[key] !== false;
   const setEnabled = (key: string, value: boolean) => {
     setSaved(false);
-    setPreferences(current => ({ ...current, actionVisibility: { ...current.actionVisibility, [key]: value } }));
+    setPreferences(current => {
+      const next = { ...current.actionVisibility, [key]: value };
+      if (key === 'module:caixa') {
+        next.payments = value;
+        next.refunds = value;
+      }
+      return { ...current, actionVisibility: next };
+    });
   };
   const fieldEnabled = (key: string) => preferences.fieldVisibility[key] !== false;
   const setFieldEnabled = (key: string, value: boolean) => {
@@ -95,7 +104,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
         <Choice checked={enabled('module:caixa')} onChange={value => setEnabled('module:caixa', value)} title="Caixa" description="Recebimentos, abertura e fechamento de caixa." icon={<Wallet size={19} />} />
         <Choice checked={enabled('module:estoque')} onChange={value => setEnabled('module:estoque', value)} title="Estoque" description="Só aparece para restaurantes que realmente controlam saldo e reposição." icon={<Box size={19} />} />
         <Choice checked={enabled('module:clientes')} onChange={value => setEnabled('module:clientes', value)} title="Clientes" description="Histórico de consumidores e relacionamento." icon={<Users size={19} />} />
-        <Choice checked={enabled('loyalty')} onChange={value => setEnabled('loyalty', value)} title="Fidelidade por pontos" description="Habilita a base de fidelidade para a operação do restaurante; regras de resgate podem evoluir sem poluir a rotina principal." icon={<Users size={19} />} />
+        <Choice checked={enabled('loyalty')} onChange={value => setEnabled('loyalty', value)} title="Fidelidade por pontos" description="Reserva a fidelidade como recurso da operação; regras de pontuação e resgate ficam separadas da rotina de pedidos." icon={<Users size={19} />} />
         <Choice checked={enabled('module:relatorios')} onChange={value => setEnabled('module:relatorios', value)} title="Relatórios" description="Mantém relatórios fora da rotina de quem não precisa deles." icon={<Users size={19} />} />
       </div></div>
     </Section>
