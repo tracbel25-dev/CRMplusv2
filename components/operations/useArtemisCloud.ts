@@ -5,6 +5,7 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Event, Line, Order } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { useArtemisBootstrap } from './useArtemisBootstrap';
 
 type RemoteLine = {
   id: string;
@@ -97,6 +98,7 @@ function operationSignature(order: Order) {
 }
 
 export function useArtemisCloud(w: Workspace) {
+  useArtemisBootstrap('artemis');
   const operation = useOperationPreferences('artemis');
   const [slug, setSlug] = useState('');
   const [connected, setConnected] = useState(false);
