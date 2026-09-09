@@ -72,8 +72,10 @@ export type CustomerLocation = { address: string; lat: number | null; lng: numbe
 
 export function getCustomerLocation(data: Data, customerId: string): CustomerLocation {
   const values = data.customFieldValues?.[customerId] || {};
-  const lat = Number(values[LOCATION_KEYS.lat]);
-  const lng = Number(values[LOCATION_KEYS.lng]);
+  const rawLat = values[LOCATION_KEYS.lat];
+  const rawLng = values[LOCATION_KEYS.lng];
+  const lat = rawLat ? Number(rawLat) : Number.NaN;
+  const lng = rawLng ? Number(rawLng) : Number.NaN;
   return {
     address: values[LOCATION_KEYS.address] || '',
     lat: Number.isFinite(lat) ? lat : null,
