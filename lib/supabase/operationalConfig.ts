@@ -13,11 +13,13 @@ const expected = {
   zeus: {
     projectRef: 'diejjfzvoopcuqulqkqr',
     url: 'https://diejjfzvoopcuqulqkqr.supabase.co',
+    publishableKey: 'sb_publishable_V8KzkI74JYAXFm3lv6cEMQ_92ecfA6Q',
     env: 'ZEUS'
   },
   artemis: {
     projectRef: 'sqbjqjjnusmqotlkegyt',
     url: 'https://sqbjqjjnusmqotlkegyt.supabase.co',
+    publishableKey: 'sb_publishable_FVh6RFzQLZ0EDU1a0X0r5g_rh_nKRWn',
     env: 'ARTEMIS'
   }
 } as const;
@@ -40,14 +42,14 @@ export function readOperationalSupabaseConfig(app: OperationalApp): OperationalS
   const definition = expected[app];
   const prefix = definition.env;
   const projectRef = env(`${prefix}_SUPABASE_PROJECT_REF`) || definition.projectRef;
-  const url = env(`${prefix}_SUPABASE_URL`);
-  const publishableKey = env(`${prefix}_SUPABASE_PUBLISHABLE_KEY`);
+  const configuredUrl = env(`${prefix}_SUPABASE_URL`);
+  const url = configuredUrl || definition.url;
+  const publishableKey = env(`${prefix}_SUPABASE_PUBLISHABLE_KEY`) || definition.publishableKey;
   const anonKey = env(`${prefix}_SUPABASE_ANON_KEY`);
   const secretKey = env(`${prefix}_SUPABASE_SECRET_KEY`);
 
   if (projectRef !== definition.projectRef) throw new Error(`${prefix}_SUPABASE_PROJECT_REF não corresponde ao projeto ${app}.`);
   if (url !== definition.url) throw new Error(`${prefix}_SUPABASE_URL deve ser ${definition.url}.`);
-  if (!publishableKey && !anonKey) throw new Error(`${prefix}: informe SUPABASE_PUBLISHABLE_KEY ou SUPABASE_ANON_KEY.`);
 
   if (anonKey) {
     const claims = legacyAnonClaims(anonKey);
