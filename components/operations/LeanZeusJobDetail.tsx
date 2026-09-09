@@ -22,6 +22,9 @@ function DiagnosisEditor({ w, job, assetLabel, onClose }: { w: Workspace; job: J
   const [value, setValue] = useState(job.diagnosis);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiInteractionId, setAiInteractionId] = useState('');
+  const [aiSuggestion, setAiSuggestion] = useState('');
+
   const assist = async () => {
     setAiBusy(true);
     try {
@@ -42,22 +45,55 @@ function DiagnosisEditor({ w, job, assetLabel, onClose }: { w: Workspace; job: J
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || 'Não foi possível preparar a sugestão.');
-      setValue(String(payload.text || ''));
+      const prepared = String(payload.text || '').trim();
+      setValue(prepared);
+      setAiSuggestion(prepared);
+      setAiInteractionId(String(payload.interactionId || ''));
       w.setNotice(`Sugestão preparada com ${payload.model || 'Groq'}. Revise antes de salvar.`);
     } catch (reason) { w.setError(reason instanceof Error ? reason.message : 'Não foi possível usar a assistência do diagnóstico.'); }
     finally { setAiBusy(false); }
   };
+
   const save = async () => {
-    if (!value.trim()) { w.setError('Registre o diagnóstico antes de salvar.'); return; }
+    const savedValue = value.trim();
+    if (!savedValue) { w.setError('Registre o diagnóstico antes de salvar.'); return; }
     setBusy(true);
     const ok = await w.mutate(data => {
       const current = data.jobs.find(item => item.id === job.id)!;
-      current.diagnosis = value.trim();
+      current.diagnosis = savedValue;
       current.events.push(event('Diagnóstico atualizado'));
     }, 'Diagnóstico salvo.');
+
+    if (ok && aiInteractionId && aiSuggestion.trim() && savedValue !== aiSuggestion.trim()) {
+      const learn = window.confirm('Você corrigiu a sugestão da IA. Usar esta correção para melhorar futuras sugestões do Zeus nesta empresa? Ela não será compartilhada com outros aplicativos ou empresas.');
+      if (learn) {
+        try {
+          const supabase = createStoreClient();
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (!token) throw new Error('Sua sessão expirou antes de registrar o aprendizado.');
+          const response = await fetch('/api/ai/zeus/feedback', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ interactionId: aiInteractionId, correctedText: savedValue }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || 'Não foi possível registrar o aprendizado.');
+          if (payload.learned) {
+            w.setNotice(payload.reinforced ? 'Correção confirmada e aprendizado do Zeus reforçado para esta empresa.' : 'Correção aprendida pelo Zeus para futuras sugestões desta empresa.');
+          } else if (payload.reason) {
+            w.setNotice(String(payload.reason));
+          }
+        } catch (reason) {
+          w.setError(reason instanceof Error ? reason.message : 'O diagnóstico foi salvo, mas o aprendizado não pôde ser registrado.');
+        }
+      }
+    }
+
     setBusy(false);
     if (ok) onClose();
   };
+
   return <Modal title="Diagnóstico técnico" onClose={onClose} wide>
     <div className="zeus-diagnosis-editor">
       <div className="op-callout"><strong>Assistência de redação</strong><span> A Groq organiza somente as informações fornecidas. O técnico continua responsável por revisar o conteúdo e confirmar o diagnóstico.</span></div>
