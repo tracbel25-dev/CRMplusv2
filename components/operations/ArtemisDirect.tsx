@@ -98,7 +98,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     return <>{page === 'cardapio' && <SharePanel w={w} slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} />}<Artemis w={w} page={page} recordId={recordId} /></>;
   }
 
-  if (!w.data.products.length) {
+  if (!w.data.products.length && !w.data.orders.length) {
     return <>
       <Title eyebrow="Primeiro passo" title="Cadastre seu cardápio">
         O Artemis começa pelo que o restaurante vende. Depois o mesmo cardápio alimenta o salão, o link de delivery e a operação.
@@ -159,8 +159,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
       {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Preparo</span><strong>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</strong><small>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</small></button>}
     </div>
 
-    {!activeOrders.length && view === 'pedidos'
-      ? <Empty icon={<ChefHat size={28} />} action={<Link className="op-button secondary" href="/artemis/cardapio">Abrir cardápio</Link>}>A operação está limpa. O próximo pedido aparecerá aqui.</Empty>
-      : <div className="artemis-operation-body"><Artemis key={view} w={w} page={view} /></div>}
+    <div className="artemis-operation-body"><Artemis key={view} w={w} page={view} /></div>
   </>;
 }
+

@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Children, Fragment, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, FileDown, Plus, Search, X } from 'lucide-react';
 import {
   AppId, Customer, Data, Event, Line, Quote, advanceJob, date, decideQuote, effectiveQuoteStatus,
@@ -8,6 +8,7 @@ import {
 } from '@/lib/operations/model';
 import { learnLineSuggestions, type LineSuggestion } from '@/lib/operations/learning';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { CompactTabs, CompactPanel } from './CompactTabs';
 import { ErrorContext } from './errors';
 import { Workspace, csv, useCurrentWorkspace } from '@/lib/operations/storage';
 
@@ -100,6 +101,9 @@ export function CustomerManager({ w, title = 'Clientes', onOpen }: { w: Workspac
   const [edit, setEdit] = useState<Customer | 'new' | null>(null);
   const [detail, setDetail] = useState<Customer | null>(null);
   const current = edit && edit !== 'new' ? edit : null;
+  const sections = (node: ReactNode): ReactNode[] => Children.toArray(node).flatMap(child => isValidElement<{children?: ReactNode}>(child) && child.type === Fragment ? sections(child.props.children) : [child]);
+  const detailSections = detail && onOpen ? sections(onOpen(detail)) : [];
+  const detailTabs = detailSections.map((content, index) => ({id:`section-${index}`,label:isValidElement<{title?: string}>(content) ? content.props.title || 'Histórico' : 'Histórico'}));
   return <>
     <Title eyebrow="Relacionamento" title={title} action={<Button onClick={() => setEdit('new')}><Plus size={18} />Novo cliente</Button>} />
     <SearchBox value={query} onChange={setQuery} placeholder="Buscar por nome, telefone ou e-mail" />
@@ -111,7 +115,7 @@ export function CustomerManager({ w, title = 'Clientes', onOpen }: { w: Workspac
       if (index < 0) data.customers.push(record); else data.customers[index] = record;
       setDetail(null);
     })} /></Modal>}
-    {detail && <Modal title={detail.name} onClose={() => setDetail(null)} wide><div className="op-detail-pairs"><div><span>Telefone</span><strong>{detail.phone || 'Não informado'}</strong></div><div><span>E-mail</span><strong>{detail.email || 'Não informado'}</strong></div></div>{detail.notes && <p>{detail.notes}</p>}{onOpen?.(detail)}<div className="op-form-footer"><Button variant="secondary" onClick={() => { setEdit(detail); setDetail(null); }}>Editar cadastro</Button></div></Modal>}
+    {detail && <Modal title={detail.name} onClose={() => setDetail(null)} wide><CompactTabs label="Ficha do cliente" tabs={[{id:'dados',label:'Dados'},...detailTabs]}><CompactPanel value="dados"><div className="op-detail-pairs"><div><span>Telefone</span><strong>{detail.phone || 'Não informado'}</strong></div><div><span>E-mail</span><strong>{detail.email || 'Não informado'}</strong></div></div>{detail.notes && <p>{detail.notes}</p>}</CompactPanel>{detailSections.map((content,index) => <CompactPanel key={index} value={`section-${index}`}>{content}</CompactPanel>)}</CompactTabs><div className="op-form-footer"><Button variant="secondary" onClick={() => { setEdit(detail); setDetail(null); }}>Editar cadastro</Button></div></Modal>}
   </>;
 }
 
@@ -247,3 +251,4 @@ export function QuotePanel({ w, quote, jobId }: { w: Workspace; quote: Quote; jo
 
 export const customerOptions = (d: Data) => d.customers.map(customer => ({ value: customer.id, label: customer.name }));
 export function exportCustomers(d: Data) { csv('clientes.csv', [['Nome', 'Telefone', 'E-mail'], ...d.customers.map(customer => [customer.name, customer.phone, customer.email])]); }
+
