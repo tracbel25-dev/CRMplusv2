@@ -1,0 +1,47 @@
+.loading,
+.fallback {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(110deg, rgba(255,255,255,.04) 8%, rgba(255,255,255,.11) 18%, rgba(255,255,255,.04) 33%);
+  background-size: 220% 100%;
+}
+
+.loading {
+  animation: appAssetShimmer 1.25s linear infinite;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255,255,255,.06);
+  pointer-events: none;
+}
+
+.ready {
+  animation: appAssetFadeIn .22s ease-out both;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.08), transparent 42%), #0b0b0b;
+  color: rgba(255,255,255,.58);
+  font: 700 clamp(12px, 1.5vw, 18px)/1 system-ui, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@keyframes appAssetShimmer {
+  to { background-position-x: -220%; }
+}
+
+@keyframes appAssetFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading,
+  .ready { animation: none; }
+}
