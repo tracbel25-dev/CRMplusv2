@@ -13,6 +13,14 @@ O Supabase central da CRM PLUS Store continua responsável por Auth, conta, assi
 
 Cada projeto possui sua própria publishable key e sua própria legacy anon key. Chaves nunca devem ser reutilizadas entre os apps. Secret/service-role fica somente no backend.
 
+## SQL versionado
+
+- Zeus: `supabase/zeus/schema.sql`
+- Artemis: `supabase/artemis/schema.sql`
+- Migrations novas versionadas: `supabase/<app>/migrations/`
+
+Os arquivos `schema.sql` são snapshots canônicos para bootstrap e revisão. A fonte de verdade do banco já publicado continua sendo o histórico de migrations do projeto Supabase correspondente. Nunca execute esses SQLs no Supabase central ou no banco do outro aplicativo.
+
 ## Zeus
 
 Antes da alteração o schema `public` estava vazio. Não havia tabela existente a reaproveitar.
@@ -36,6 +44,7 @@ Não foram criadas tabelas de dashboard ou lead time: esses valores são derivad
 Migrations aplicadas:
 - `20260909004956 zeus_operational_schema_v1`
 - `20260909005303 zeus_harden_foreign_keys_and_indexes`
+- `20260909013048 zeus_lock_future_public_objects`
 
 ## Artemis
 
@@ -61,10 +70,17 @@ Não foram criadas tabelas de cozinha, relatórios ou reservas: cozinha é deriv
 Migrations aplicadas:
 - `20260909005026 artemis_operational_schema_v1`
 - `20260909005327 artemis_harden_foreign_keys_and_function_access`
+- `20260909013056 artemis_lock_future_public_objects`
 
 ## Segurança atual
 
-RLS está habilitado em todas as tabelas operacionais. `anon` e `authenticated` não possuem CRUD direto nessas tabelas neste estágio.
+RLS está habilitado em todas as tabelas operacionais. `anon` e `authenticated` não possuem CRUD direto nessas tabelas neste estágio. Os defaults de novos objetos do schema `public` também foram fechados para evitar exposição acidental futura.
+
+Validação após as migrations:
+- Zeus: 16/16 tabelas com RLS; 0 grants de tabela para `anon/authenticated`; 16 tabelas acessíveis ao `service_role`.
+- Artemis: 14/14 tabelas com RLS; 0 grants de tabela para `anon/authenticated`; 14 tabelas acessíveis ao `service_role`.
+
+O Security Advisor mantém apenas o INFO `RLS Enabled No Policy`, intencional nesta fase porque o frontend ainda não autentica diretamente nos bancos operacionais. Referência: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
 
 Isso é proposital: a sessão do usuário hoje pertence ao Supabase central da Store. Uma publishable/anon key de um banco operacional identifica o projeto, mas não prova a conta da CRM PLUS Store. Liberar acesso direto baseado apenas em `tenant_key` permitiria falsificação desse valor no navegador.
 
