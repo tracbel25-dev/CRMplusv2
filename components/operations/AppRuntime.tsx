@@ -25,12 +25,13 @@ const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.
 const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
-const Artemis = dynamic(() => import('./Artemis').then(module => module.Artemis));
+const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
 const Research = dynamic(() => import('./Athena').then(module => module.Research));
 const Budgets = dynamic(() => import('./Athena').then(module => module.Budgets));
 const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
 
 import { AppSettings } from './Settings';
+import { ArtemisSettings } from './ArtemisSettings';
 import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
@@ -57,17 +58,26 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     return operation.actionVisible(`module:${section.path}`);
   });
 
-  const pageLabel = page === 'configuracoes' ? corporateUi.settingsLabel : nav.find(section => section.path === page)?.label || 'Área do aplicativo';
+  const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'cozinha'].includes(page);
+  const pageLabel = page === 'configuracoes'
+    ? corporateUi.settingsLabel
+    : legacyArtemisOperation
+      ? 'Operação'
+      : nav.find(section => section.path === page)?.label || 'Área do aplicativo';
+
+  const settingsBody = app === 'artemis'
+    ? <ArtemisSettings w={w} />
+    : <><AppSettings key={app} w={w} app={app} />{app === 'zeus' && <ZeusSettingsExtras w={w} />}</>;
 
   const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
-    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? <><AppSettings key={app} w={w} app={app} />{app === 'zeus' && <ZeusSettingsExtras w={w} />}</> : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
+    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
     : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
     : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
     : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
     : app === 'artemis' && recordId ? <LeanArtemisOrderDetail key={recordId} w={w} recordId={recordId} />
     : app === 'zeus' ? <Zeus key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
-    : app === 'artemis' ? <Artemis key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
+    : app === 'artemis' ? <ArtemisDirect key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
     : app === 'kronos' ? <Kronos key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
     : app === 'athena-pesquisa' ? <Research key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
     : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />;
@@ -96,7 +106,8 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             {nav.map(item => {
               const Icon = icons[item.icon as keyof typeof icons];
               const label = app === 'zeus' && item.path === 'clientes' ? `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s` : item.label;
-              return <Link key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={page === item.path ? 'active' : ''} aria-current={page === item.path ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
+              const active = page === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
+              return <Link key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
             })}
           </nav>
 
@@ -121,7 +132,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             </div>
           </header>
 
-          {help && <div className="op-help"><strong>Configuração por aplicativo.</strong><span>Enquanto a operação estiver local, as configurações ficam disponíveis neste acesso. Em contas conectadas, a permissão da CRM PLUS Store define quem pode configurar cada aplicativo.</span><button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button></div>}
+          {help && <div className="op-help"><strong>Configuração por aplicativo.</strong><span>O Artemis mostra somente os canais e áreas que o restaurante decidiu usar. Pedidos de loja física, delivery e retirada convergem para a mesma operação.</span><button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button></div>}
 
           <main id="op-main" className="op-main">{body}</main>
 
