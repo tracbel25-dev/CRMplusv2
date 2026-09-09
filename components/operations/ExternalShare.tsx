@@ -5,6 +5,7 @@ import { Check, Clipboard, Link2, RefreshCw } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink, externalDraft, syncExternalResponses } from '@/lib/operations/externalLinks';
+import { OperationalAIAssist } from './OperationalAIAssist';
 
 const labels: Record<AppId, string> = {
   zeus: 'Compartilhar orçamento',
@@ -44,6 +45,7 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
   };
 
   return <div className="op-external-share">
+    {(app === 'zeus' || app === 'artemis') && <OperationalAIAssist w={w} app={app} />}
     {app !== 'zeus' && draft && (!url ? <button className="op-icon" type="button" onClick={() => { void create(); }} disabled={busy} title={labels[app]} aria-label={labels[app]}><Link2 size={19} /></button>
       : <button className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
     <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title="Receber respostas externas" aria-label="Receber respostas externas"><RefreshCw size={18} /></button>
