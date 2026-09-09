@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, Bike, ChefHat, QrCode, Store, Volume2, VolumeX } from 'lucide-react';
+import { BellRing, Bike, ChefHat, Copy, Link2, QrCode, Store, Volume2, VolumeX } from 'lucide-react';
 import { advanceOrder, cancelOrder, money, orderTotal } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
 import { Artemis } from './Artemis';
 import { Badge, Button, Empty, Title } from './ui';
+import { useArtemisCloud } from './useArtemisCloud';
 import './artemis-direct.css';
 
 type OperationView = 'pedidos' | 'mesas' | 'cozinha';
@@ -36,8 +37,33 @@ function tryOrderSound() {
   }
 }
 
+function SharePanel({ w, slug, cloudError, deliveryEnabled, pickupEnabled }: { w: Workspace; slug: string; cloudError: string; deliveryEnabled: boolean; pickupEnabled: boolean }) {
+  const [origin, setOrigin] = useState('');
+  const [copied, setCopied] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
+  const menuUrl = origin && slug ? `${origin}/artemis/menu/${slug}` : '';
+  const deliveryUrl = origin && slug ? `${origin}/artemis/delivery/${slug}` : '';
+  const copy = async (label: string, value: string) => {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(label);
+    window.setTimeout(() => setCopied(''), 1800);
+  };
+
+  return <section className="artemis-share-panel">
+    <div className="artemis-share-head"><div><span className="op-kicker">Publicação</span><h2>Seu cardápio em um único link</h2><p>Use na bio, no site ou transforme o link da mesa em QR Code. Alterações do cardápio são sincronizadas para o público.</p></div>{slug ? <Badge>Publicado</Badge> : <Badge>Local</Badge>}</div>
+    {slug && menuUrl ? <div className="artemis-share-links">
+      <div><Link2 size={18} /><span><strong>Cardápio público</strong><small>{menuUrl}</small></span><button className="op-icon" onClick={() => void copy('menu', menuUrl)} aria-label="Copiar link do cardápio"><Copy size={17} /></button></div>
+      {(deliveryEnabled || pickupEnabled) && <div><Bike size={18} /><span><strong>Delivery / retirada</strong><small>{deliveryUrl}</small></span><button className="op-icon" onClick={() => void copy('delivery', deliveryUrl)} aria-label="Copiar link de delivery"><Copy size={17} /></button></div>}
+      {w.data.tables.map(table => <div key={table.id}><QrCode size={18} /><span><strong>{table.name}</strong><small>{`${menuUrl}?mesa=${table.id}`}</small></span><button className="op-icon" onClick={() => void copy(table.id, `${menuUrl}?mesa=${table.id}`)} aria-label={`Copiar link de QR Code da ${table.name}`}><Copy size={17} /></button></div>)}
+      {copied && <p className="artemis-copy-notice">Link copiado.</p>}
+    </div> : <p className="op-callout">{cloudError || 'Entre com a conta do restaurante para publicar o cardápio em outros dispositivos.'}</p>}
+  </section>;
+}
+
 export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const operation = useOperationPreferences('artemis');
+  const cloud = useArtemisCloud(w);
   const initialView: OperationView = page === 'mesas' ? 'mesas' : page === 'cozinha' ? 'cozinha' : 'pedidos';
   const [view, setView] = useState<OperationView>(initialView);
   const lastAlerted = useRef('');
@@ -69,7 +95,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   }, [view, physicalEnabled, kitchenEnabled]);
 
   if (!operationPages.has(page)) {
-    return <Artemis w={w} page={page} recordId={recordId} />;
+    return <>{page === 'cardapio' && <SharePanel w={w} slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} />}<Artemis w={w} page={page} recordId={recordId} /></>;
   }
 
   if (!w.data.products.length) {
@@ -114,6 +140,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
       {deliveryEnabled && <span><Bike size={16} />Delivery</span>}
       {pickupEnabled && <span><QrCode size={16} />Retirada</span>}
       <span className={soundEnabled ? 'is-on' : ''}>{soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}{soundEnabled ? 'Alerta sonoro ativo' : 'Alerta sonoro desativado'}</span>
+      {cloud.connected && <span className="is-on"><Link2 size={16} />Pedidos online conectados</span>}
     </div>
 
     {newest ? <section className="artemis-order-alert" role="alert" aria-live="assertive">
