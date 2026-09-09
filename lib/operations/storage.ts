@@ -3,7 +3,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { AppId, Data, initialData } from './model';
 
 const legacyStorageKey = (app: AppId) => `crmplus:${app}:operations:v1`;
-export const storageKey = (app: AppId, accountId = 'guest') => `crmplus:${accountId}:${app}:operations:v1`;
+export const storageKey = (app: AppId, accountId = 'guest') => app === 'kronos'
+  ? `crmplus:${accountId}:${app}:operations:v2`
+  : `crmplus:${accountId}:${app}:operations:v1`;
+
+function initialForApp(app: AppId): Data {
+  const data = initialData();
+  if (app === 'kronos') {
+    data.settings.salesStages = ['Identificado', 'Contato iniciado', 'Interesse confirmado', 'Proposta', 'Negociação'];
+  }
+  return data;
+}
 
 export function decodeData(raw: string): Data {
   const value = JSON.parse(raw);
@@ -19,7 +29,7 @@ export function decodeData(raw: string): Data {
 }
 
 export function useWorkspace(app: AppId, accountId?: string) {
-  const [data, setData] = useState<Data>(initialData);
+  const [data, setData] = useState<Data>(() => initialForApp(app));
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -32,7 +42,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     setReady(false);
     const scopedRaw = () => {
       let raw = localStorage.getItem(key);
-      if (!raw && accountId !== 'guest') {
+      if (!raw && accountId !== 'guest' && app !== 'kronos') {
         const legacyKey = legacyStorageKey(app);
         const migratedKey = `${legacyKey}:migrated-account`;
         const legacy = localStorage.getItem(legacyKey);
@@ -48,7 +58,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     function sync() {
       try {
         const raw = scopedRaw();
-        const next = raw ? decodeData(raw) : initialData();
+        const next = raw ? decodeData(raw) : initialForApp(app);
         ref.current = next;
         setData(next);
         blocked.current = false;
@@ -77,7 +87,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       try {
         if (blocked.current) throw new Error('Os dados locais precisam ser recuperados antes de continuar.');
         const raw = localStorage.getItem(key);
-        const next = raw ? decodeData(raw) : initialData();
+        const next = raw ? decodeData(raw) : initialForApp(app);
         fn(next);
         next.revision++;
         localStorage.setItem(key, JSON.stringify(next));
@@ -92,7 +102,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       }
     };
     return navigator.locks ? navigator.locks.request(key, update) : update();
-  }, [key]);
+  }, [key, app]);
 
   const restore = async (raw: string) => {
     if (!key) { setError('A conta ainda está sendo identificada.'); return false; }
