@@ -1,0 +1,1 @@
+Arquivo esperado nesta pasta para o app: `icon.(svg|png|jpg|jpeg)`.
