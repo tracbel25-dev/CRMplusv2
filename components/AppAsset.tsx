@@ -1,6 +1,7 @@
 'use client';
 
-import { CSSProperties, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
 
 export type AppAssetKind = 'icon' | 'cover' | 'card';
 
