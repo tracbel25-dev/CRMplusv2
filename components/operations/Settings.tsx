@@ -10,6 +10,8 @@ import {
 } from '@/lib/operations/configuration';
 import { Badge, Button, Confirm, Section, Title } from './ui';
 import { ConfigFieldNameSelect } from './ConfigFieldNameSelect';
+import { ZeusSettingsExtras } from './ZeusSettingsExtras';
+import { CompactTabs, CompactPanel } from './CompactTabs';
 import { LocalAccountSettings } from './LocalAccountSettings';
 
 function dependencyMessage(app: AppId, key: string) {
@@ -148,15 +150,16 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
 
   return <>
     <Title eyebrow="Sua operação" title="Configurações">{definition.description}</Title>
+    <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Campos'},{id:'operacao',label:'Operação'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'},...(app === 'zeus' ? [{id:'preferencias',label:'Preferências'}] : [])]}>
     <form onSubmit={async event => { event.preventDefault(); await save(); }}>
-      <Section title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'}>
+      <CompactPanel value="dados"><Section title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'}>
         <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
       </Section>
 
-      <Section title="Campos e nomes">
+      </CompactPanel><CompactPanel value="campos"><Section title="Campos e nomes">
         <p className="op-muted">Escolha o vocabulário da sua operação. Ocultar um campo altera apenas a interface: valores já registrados continuam preservados.</p>
-        <div className="op-config-groups">{fieldGroups.map(group => <div className="op-config-group" key={group}>
-          <div className="op-config-group-title"><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></div>
+        <div className="op-config-groups">{fieldGroups.map(group => <details className="op-config-group" key={group}>
+          <summary><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></summary>
           {definition.fields.filter(configField => configField.group === group).map(configField => {
             const visible = configField.required || preferences.fieldVisibility[configField.key] !== false;
             const currentLabel = preferences.fieldLabels[configField.key] ?? configField.label;
@@ -166,7 +169,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
               <div className="op-config-description"><strong>{configField.label}{configField.required && <Badge>Essencial</Badge>}</strong><small>{configField.description}</small>{app === 'artemis' && configField.key === 'deliveryAddress' && <small>Necessário enquanto Delivery estiver ativo.</small>}</div>
             </div>;
           })}
-        </div>)}</div>
+        </details>)}</div>
       </Section>
 
       <Section title="Adicionar mais um campo">
@@ -175,7 +178,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><div className="op-grow"><strong>{custom.label}</strong><small>{custom.group}</small></div><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
       </Section>
 
-      <Section title="Ações e módulos disponíveis">
+      </CompactPanel><CompactPanel value="operacao"><Section title="Ações e módulos disponíveis">
         <p className="op-muted">Desative o que a equipe não usa. Combinações que quebrariam o fluxo são bloqueadas ao salvar e mostram a dependência aqui.</p>
         <div className="op-config-groups">{actionGroups.map(group => <div className="op-config-group" key={group}><div className="op-config-group-title"><strong>{group}</strong></div>{definition.actions.filter(action => action.group === group).map(action => {
           const visible = action.required || preferences.actionVisibility[action.key] !== false;
@@ -190,15 +193,20 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
 
       {app === 'artemis' && <Section title="Delivery e atendimento online"><div className="op-fields"><label className="op-field"><span>Taxa de entrega padrão (R$)</span><input type="number" min="0" step="0.01" value={draft.deliveryFee / 100} onChange={event => setDraft({ ...draft, deliveryFee: Math.round(Number(event.target.value) * 100) })} /></label><label className="op-field"><span>Pedido mínimo de delivery (R$)</span><input type="number" min="0" step="0.01" value={draft.minimumOrder / 100} onChange={event => setDraft({ ...draft, minimumOrder: Math.round(Number(event.target.value) * 100) })} /></label>{field('deliveryAreas', 'Bairros / zonas atendidas')}{field('hours', 'Horários de atendimento')}</div></Section>}
 
-      <div className="op-form-footer">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>
+      </CompactPanel><div className="op-form-footer op-settings-actions">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>
     </form>
 
-    <LocalAccountSettings />
+    <CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
+    <CompactPanel value="backup">
 
     <Section title="Cópia dos seus dados"><p>Os registros operacionais ainda são mantidos neste navegador nesta versão. Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.</p><div className="op-actions"><Button variant="secondary" onClick={() => { const raw = localStorage.getItem(storageKey(app)) || JSON.stringify(w.data); const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: JSON.parse(raw), configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { if (file.size > 15000000) throw new Error('A cópia excede o limite de 15 MB.'); const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError((error as Error).message); } event.target.value = ''; }} /></label></div></Section>
 
     <Section title="Persistência e acesso"><p>A conta, autenticação e permissões da Store já usam o Supabase central. Os dados operacionais continuam isolados no navegador até a migração para o projeto Supabase próprio de cada aplicativo.</p></Section>
 
+    </CompactPanel>
+    {app === 'zeus' && <CompactPanel value="preferencias"><ZeusSettingsExtras w={w} /></CompactPanel>}
+    </CompactTabs>
     {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => { const raw = JSON.parse(importData); const ok = await w.restore(JSON.stringify(raw.data)); if (ok && raw.configuration) saveOperationPreferences(app, raw.configuration); return ok; }}>Os registros e configurações atuais deste app serão substituídos pelos da cópia. Exporte os dados atuais antes de continuar, se precisar preservá-los.</Confirm>}
   </>;
 }
+

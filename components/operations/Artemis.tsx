@@ -12,6 +12,7 @@ import {
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace, csv } from '@/lib/operations/storage';
 import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Timeline, Title } from './ui';
+import { CompactTabs, CompactPanel } from './CompactTabs';
 import { WorkflowControl } from './WorkflowControl';
 import { useRecordRoute } from './useRecordRoute';
 
@@ -42,7 +43,6 @@ export function Artemis({ w, page, recordId = '' }: { w: Workspace; page: string
   const [product, setProduct] = useState<Product | 'new' | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
-  const [filter, setFilter] = useState('Ativos');
   const [stock, setStock] = useState<Product | null>(null);
   const [from, setFrom] = useState(localDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [to, setTo] = useState(localDay());
@@ -83,8 +83,11 @@ export function Artemis({ w, page, recordId = '' }: { w: Workspace; page: string
       {(page === 'inicio' || page === 'pedidos') && <>
         <Title eyebrow={page === 'inicio' ? 'Serviço de hoje' : 'Central de pedidos'} title={page === 'inicio' ? 'O restaurante em movimento' : 'Todos os pedidos'} action={<>{operation.actionVisible('module:mesas') && <Link className="op-button secondary" href="/artemis/mesas">Mesas e comandas</Link>}<Button onClick={() => addOrder()}><Plus size={18} />Novo pedido</Button></>} />
         {page === 'inicio' && <div className="artemis-service-strip"><div><ChefHat size={22} /><span>{d.settings.business || 'Seu restaurante'}<small>{d.shifts.some(shift => !shift.closedAt) ? 'Caixa aberto' : 'Caixa fechado'}</small></span></div>{operation.actionVisible('module:cardapio') && <Link href="/artemis/cardapio" className="op-text-link">Organizar cardápio <ArrowRight size={16} /></Link>}</div>}
-        <div className="op-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Buscar pedido, cliente ou canal" />{page === 'pedidos' && <select aria-label="Status dos pedidos" value={filter} onChange={change => setFilter(change.target.value)}>{['Ativos', 'Todos', 'Novo', 'Aceito', 'Em preparo', 'Pronto', 'Concluído', 'Cancelado'].map(value => <option key={value}>{value}</option>)}</select>}</div>
-        {page === 'inicio' ? <div className="artemis-board">{['Novo', 'Aceito', 'Em preparo', 'Pronto'].map(status => <section key={status}><div className="artemis-lane-title"><h2>{status === 'Novo' ? 'Chegando' : status === 'Aceito' ? 'Na fila' : status === 'Pronto' ? 'Pode sair' : 'No fogo'}</h2><span>{active.filter(order => order.status === status).length}</span></div>{active.filter(order => order.status === status).map(order => orderCard(order))}{!active.some(order => order.status === status) && <div className="artemis-lane-empty">{status === 'Novo' ? 'Novos pedidos entram aqui.' : status === 'Aceito' ? 'Aguardando o próximo preparo.' : status === 'Em preparo' ? 'Cozinha sem pedidos em preparo.' : 'Os pedidos prontos aparecem aqui.'}</div>}</section>)}</div> : <div className="artemis-tickets">{orders.filter(order => filter === 'Todos' || (filter === 'Ativos' ? !['Concluído', 'Cancelado'].includes(order.status) : order.status === filter)).map(order => orderCard(order))}</div>}
+        <div className="op-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Buscar pedido, cliente ou canal" /></div>
+        {page === 'inicio' ? <div className="artemis-board">{['Novo', 'Aceito', 'Em preparo', 'Pronto'].map(status => <section key={status}><div className="artemis-lane-title"><h2>{status === 'Novo' ? 'Chegando' : status === 'Aceito' ? 'Na fila' : status === 'Pronto' ? 'Pode sair' : 'No fogo'}</h2><span>{active.filter(order => order.status === status).length}</span></div>{active.filter(order => order.status === status).map(order => orderCard(order))}{!active.some(order => order.status === status) && <div className="artemis-lane-empty">{status === 'Novo' ? 'Novos pedidos entram aqui.' : status === 'Aceito' ? 'Aguardando o próximo preparo.' : status === 'Em preparo' ? 'Cozinha sem pedidos em preparo.' : 'Os pedidos prontos aparecem aqui.'}</div>}</section>)}</div> : <CompactTabs label="Situação dos pedidos" tabs={[{id:'abertos',label:'Em aberto',count:active.length},{id:'historico',label:'Histórico',count:orders.length-active.length}]}>{['abertos','historico'].map(scope => {
+          const scoped = orders.filter(order => (scope === 'historico') === ['Concluído','Cancelado'].includes(order.status));
+          return <CompactPanel key={scope} value={scope}><OrderScope orders={scoped} render={orderCard} /></CompactPanel>;
+        })}</CompactTabs>}
         {!d.orders.length && page === 'pedidos' && <Empty icon={<ShoppingBag size={30} />}>Crie o primeiro pedido a partir dos produtos do cardápio.</Empty>}
       </>}
 
@@ -322,4 +325,12 @@ function Cash({ w, onOrder }: { w: Workspace; onOrder: (id: string) => void }) {
     <Section title="Turnos encerrados">{[...d.shifts].filter(item => item.closedAt).reverse().map(item => <div className="op-row" key={item.id}><div className="op-grow"><strong>{date(item.closedAt, true)}</strong><small>{item.operator} · {item.note || 'Sem observação'}</small></div><span>Contado: {money(item.counted)}<small>Diferença: {money(item.counted - cashExpected(d, item))}</small></span></div>)}</Section>
     {mode && <Modal title={mode === 'open' ? 'Abrir caixa' : mode === 'close' ? 'Conferência de caixa' : 'Movimentação em dinheiro'} onClose={() => setMode('')}>{mode === 'close' && shift && <p>Dinheiro esperado: <strong>{money(cashExpected(d, shift))}</strong>. Pix e cartões não compõem o dinheiro físico.</p>}<RecordForm draftKey={`artemis-cash:${mode}`} fields={mode === 'open' ? [{ name: 'operator', label: operation.label('cashOperator', 'Operador'), required: true, value: d.settings.operator }, { name: 'amount', label: 'Troco inicial (R$)', type: 'number', min: 0, step: 0.01, required: true }] : mode === 'close' ? [{ name: 'amount', label: 'Dinheiro contado (R$)', type: 'number', min: 0, step: 0.01, required: true }, { name: 'note', label: 'Justificativa de diferença / observações', type: 'textarea', wide: true }] : [{ name: 'kind', label: 'Tipo', required: true, options: ['Suprimento', 'Sangria', 'Despesa'].map(value => ({ value, label: value })) }, { name: 'amount', label: 'Valor (R$)', type: 'number', min: 0.01, step: 0.01, required: true }, { name: 'note', label: 'Motivo', required: true, wide: true }]} onClose={() => setMode('')} submit={mode === 'close' ? 'Confirmar fechamento' : 'Registrar'} onSave={values => w.mutate(data => { const current = data.shifts.find(item => !item.closedAt); const amountValue = cents(values.amount); if (mode === 'open') { if (current) throw new Error('Já existe um turno aberto.'); data.shifts.push({ id: uid(), openedAt: now(), closedAt: '', initial: amountValue, counted: 0, note: '', operator: values.operator }); } else { if (!current) throw new Error('Não há turno aberto.'); if (mode === 'close') { if (amountValue !== cashExpected(data, current) && !values.note.trim()) throw new Error('Justifique a diferença entre o esperado e o contado.'); current.counted = amountValue; current.closedAt = now(); current.note = values.note; } else { if (values.kind !== 'Suprimento' && amountValue > cashExpected(data, current)) throw new Error('Saída superior ao dinheiro disponível.'); data.movements.push({ id: uid(), shiftId: current.id, kind: values.kind as 'Suprimento' | 'Sangria' | 'Despesa', amount: amountValue, note: values.note, at: now() }); } } })} /></Modal>}
   </>;
+}
+
+
+function OrderScope({ orders, render }: { orders: Order[]; render: (order: Order) => React.ReactNode }) {
+  const [status,setStatus] = useState('Todos');
+  const statuses = [...new Set(orders.map(order => order.status))];
+  const visible = orders.filter(order => status === 'Todos' || order.status === status);
+  return <><div className="op-toolbar"><select aria-label="Filtrar situação do pedido" value={status} onChange={event => setStatus(event.target.value)}><option>Todos</option>{[...new Set([...statuses,...(status === 'Todos' ? [] : [status])])].map(item => <option key={item}>{item}</option>)}</select></div><div className="artemis-tickets">{visible.map(order => render(order))}</div>{!visible.length && <Empty>Nenhum pedido nesta seleção.</Empty>}</>;
 }

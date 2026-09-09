@@ -32,7 +32,6 @@ const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
 
 import { AppSettings } from './Settings';
 import { ArtemisSettings } from './ArtemisSettings';
-import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
 
@@ -55,19 +54,21 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
+    if (section.path === 'historico') return false;
     return operation.actionVisible(`module:${section.path}`);
   });
 
   const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'cozinha'].includes(page);
+  const navigationPage = page === 'historico' ? (app === 'zeus' ? 'atendimentos' : app === 'kronos' ? 'oportunidades' : page) : page;
   const pageLabel = page === 'configuracoes'
     ? corporateUi.settingsLabel
     : legacyArtemisOperation
       ? 'Operação'
-      : nav.find(section => section.path === page)?.label || 'Área do aplicativo';
+      : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
 
   const settingsBody = app === 'artemis'
     ? <ArtemisSettings w={w} />
-    : <><AppSettings key={app} w={w} app={app} />{app === 'zeus' && <ZeusSettingsExtras w={w} />}</>;
+    : <AppSettings key={app} w={w} app={app} />;
 
   const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
     : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
@@ -106,7 +107,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             {nav.map(item => {
               const Icon = icons[item.icon as keyof typeof icons];
               const label = app === 'zeus' && item.path === 'clientes' ? `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s` : item.label;
-              const active = page === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
+              const active = navigationPage === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
               return <Link key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
             })}
           </nav>
@@ -134,7 +135,10 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
           {help && <div className="op-help"><strong>Configuração por aplicativo.</strong><span>O Artemis mostra somente os canais e áreas que o restaurante decidiu usar. Pedidos de loja física, delivery e retirada convergem para a mesma operação.</span><button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button></div>}
 
-          <main id="op-main" className="op-main">{body}</main>
+          <main id="op-main" className="op-main">
+            {!recordId && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
+            {body}
+          </main>
 
           <footer className="op-local-status"><span>{corporateDeveloperLine()}</span><Link href={`/${app}/configuracoes`}>{corporateUi.settingsLabel} <ArrowUpRight size={13} /></Link></footer>
         </div>
@@ -145,3 +149,4 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     </ErrorContext.Provider>
   </WorkspaceContext.Provider>;
 }
+
