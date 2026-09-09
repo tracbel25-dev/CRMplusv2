@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 
@@ -25,6 +26,11 @@ export default function Privacidade(){
       <article className="institutional-card">
         <h2>Uso necessário das informações</h2>
         <p>Os dados podem ser utilizados para autenticação, execução das funções contratadas, segurança, suporte, cobrança, prevenção de abuso, manutenção do serviço e demais finalidades necessárias para entregar o produto solicitado pelo cliente.</p>
+      </article>
+      <article className="institutional-card">
+        <h2>Inteligência Artificial</h2>
+        <p>Os recursos de IA são intermediados por uma API própria e por uma camada de servidor da aplicação, com isolamento por conta e por aplicativo, minimização de contexto e controles específicos para memória e aprendizado.</p>
+        <p><Link href="/privacidade/ia">Consultar o Termo de Privacidade, Proteção de Dados e Uso de Inteligência Artificial.</Link></p>
       </article>
       <article className="institutional-card">
         <h2>Comunicações</h2>
