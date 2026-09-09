@@ -82,7 +82,7 @@ export function AppAsset({ app, kind, alt = '', className, style, fallback }: Pr
 
   return (
     <img
-      src={resolvedSource}
+      src={resolvedSource || undefined}
       alt={alt}
       className={combinedClassName(className, styles.ready)}
       style={style}
