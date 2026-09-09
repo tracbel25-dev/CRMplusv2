@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Pause, Play, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { apps, featured } from '@/lib/catalog';
 import { AppArtwork } from './AppArtwork';
+import { AppAsset } from './AppAsset';
 
 type Impact = {
   label: string;
@@ -130,13 +131,13 @@ export function HomeExperience() {
         <div className={`product-spotlight product-spotlight-${current?.tone ?? 'editorial'}`}>
           <div className="spotlight-images" aria-hidden="true">
             {featured.map((app, index) => (
-              <Image
+              <AppAsset
                 key={app.slug}
+                app={app.slug}
+                kind="cover"
                 className={`spotlight-image spotlight-image-${app.tone}${hero === index ? ' is-active' : ''}`}
-                src={app.slug === 'artemis' ? '/brand/artemis/artemis-cover-app.svg' : `/images/${app.slug}-cover.webp`}
                 alt=""
-                fill
-                sizes="(max-width: 1360px) 100vw, 1304px"
+                style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'}}
               />
             ))}
           </div>
