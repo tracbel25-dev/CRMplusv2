@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, FileDown, Plus, Sparkles, X } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { deleteOperationalFile, R2AuthRequiredError, uploadOperationalFile } from '@/lib/r2/client';
 import {
   Job, activeJob, advanceJob, customValues, date, effectiveQuoteStatus,
   event, money, setCustomValues, stages, uid
@@ -12,6 +13,7 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Confirm, Empty, Modal, RecordForm, Section, Timeline, Title } from './ui';
 import { ZeusQuotePanel } from './ZeusQuotePanel';
+import { OperationalR2Image, r2KeyFromStoredData } from './OperationalR2Image';
 
 type EditMode = 'Ficha' | 'Execução' | null;
 
@@ -74,6 +76,7 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
   const [cancel, setCancel] = useState(false);
   const [report, setReport] = useState(false);
   const [finalNote, setFinalNote] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const d = w.data;
   const s = d.settings;
   const job = d.jobs.find(item => item.id === recordId);
@@ -128,6 +131,55 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
           : nextStage ? `Avançar para ${nextStage}` : '';
   const showPrimary = active && job.stage !== 'Orçamento' && !!primaryButtonLabel;
 
+  const savePhotoLocally = async (file: File) => {
+    if (file.size > 750000) throw new Error('Sem login, escolha uma foto de até 750 KB para salvar somente neste navegador.');
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não foi possível ler esta foto.'));
+      reader.readAsDataURL(file);
+    });
+    await patch(current => {
+      current.attachments.push({ id: uid(), name: file.name, data: dataUrl });
+      current.events.push(event(`Foto anexada localmente: ${file.name}`));
+    }, 'Foto salva neste navegador.');
+  };
+
+  const addPhoto = async (file: File) => {
+    if (file.size > 8 * 1024 * 1024) { w.setError('Escolha uma foto de até 8 MB.'); return; }
+    setPhotoBusy(true);
+    try {
+      try {
+        const uploaded = await uploadOperationalFile('zeus', file);
+        await patch(current => {
+          current.attachments.push({ id: uid(), name: file.name, data: `r2:${uploaded.key}|${uploaded.url}` });
+          current.events.push(event(`Foto enviada ao R2: ${file.name}`));
+        }, 'Foto enviada e vinculada à OS.');
+      } catch (reason) {
+        if (!(reason instanceof R2AuthRequiredError)) throw reason;
+        await savePhotoLocally(file);
+        w.setNotice('Foto salva somente neste navegador. Entre com a conta para usar o armazenamento em nuvem.');
+      }
+    } catch (reason) {
+      w.setError(reason instanceof Error ? reason.message : 'Não foi possível anexar a foto.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async (photo: Job['attachments'][number]) => {
+    const r2Key = r2KeyFromStoredData(photo.data);
+    try {
+      if (r2Key) await deleteOperationalFile('zeus', r2Key);
+      await patch(current => {
+        current.attachments = current.attachments.filter(item => item.id !== photo.id);
+        current.events.push(event(`Foto removida: ${photo.name}`));
+      }, 'Foto removida.');
+    } catch (reason) {
+      w.setError(reason instanceof Error ? reason.message : 'Não foi possível remover a foto.');
+    }
+  };
+
   return <>
     <Button variant="text" onClick={() => router.push('/zeus/atendimentos')}><ArrowLeft size={17} />Voltar aos atendimentos</Button>
     <Title eyebrow={`OS ${String(job.number).padStart(4, '0')} · ${job.type}`} title={asset.identifier} action={operation.actionVisible('report') ? <Button variant="secondary" onClick={() => setReport(true)}><FileDown size={16} />Relatório</Button> : undefined}>{customer.name} · {asset.model}{job.technician && ` · ${job.technician}`}</Title>
@@ -154,7 +206,7 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
 
         <div className="zeus-support">
           <details><summary>Ficha completa do atendimento</summary><div><div className="op-detail-pairs"><div><span>Cliente</span><strong>{customer.name}</strong><small>{customer.phone || 'Sem telefone'}</small></div><div><span>{s.assetLabel}</span><strong>{asset.model} {asset.year}</strong><small>{s.meterLabel}: {asset.meter || 'Não informado'}</small></div>{operation.fieldVisible('technician') && <div><span>Responsável</span><strong>{job.technician || 'Não definido'}</strong></div>}{operation.fieldVisible('due') && <div><span>Prazo</span><strong>{job.due ? date(job.due, true) : 'Não definido'}</strong></div>}{combinedCustom.map(({ field, target }) => <div key={`${target}-${field.id}`}><span>{field.label}</span><strong>{customValues(d, target)[field.id] || 'Não informado'}</strong></div>)}</div><h3>Relato do cliente</h3><p className="op-prewrap">{job.complaint}</p>{job.diagnosis && <><h3>Diagnóstico</h3><p className="op-prewrap">{job.diagnosis}</p></>}</div></details>
-          {operation.actionVisible('attachments') && <details><summary>Fotos e evidências ({job.attachments.length})</summary><div>{active && <label className="op-button secondary">Adicionar foto<input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={input => { const file = input.target.files?.[0]; if (!file) return; if (file.size > 750000) { w.setError('Escolha uma foto de até 750 KB nesta versão local.'); return; } const reader = new FileReader(); reader.onload = () => patch(current => { current.attachments.push({ id: uid(), name: file.name, data: String(reader.result) }); current.events.push(event(`Foto anexada: ${file.name}`)); }); reader.readAsDataURL(file); input.target.value = ''; }} /></label>}<div className="op-photos" style={{ marginTop: 14 }}>{job.attachments.map(photo => <figure key={photo.id}><img src={photo.data} alt={photo.name} /><figcaption>{photo.name}</figcaption>{active && <button className="op-icon" aria-label={`Remover ${photo.name}`} onClick={() => patch(current => { current.attachments = current.attachments.filter(item => item.id !== photo.id); })}><X size={16} /></button>}</figure>)}</div>{!job.attachments.length && <Empty>Nenhuma evidência anexada.</Empty>}</div></details>}
+          {operation.actionVisible('attachments') && <details><summary>Fotos e evidências ({job.attachments.length})</summary><div>{active && <label className="op-button secondary">{photoBusy ? 'Enviando…' : 'Adicionar foto'}<input hidden disabled={photoBusy} type="file" accept="image/jpeg,image/png,image/webp" onChange={input => { const element = input.currentTarget; const file = element.files?.[0]; if (!file) return; void addPhoto(file).finally(() => { element.value = ''; }); }} /></label>}<div className="op-photos" style={{ marginTop: 14 }}>{job.attachments.map(photo => <figure key={photo.id}><OperationalR2Image app="zeus" storedData={photo.data} alt={photo.name} /><figcaption>{photo.name}</figcaption>{active && <button className="op-icon" aria-label={`Remover ${photo.name}`} onClick={() => { void removePhoto(photo); }}><X size={16} /></button>}</figure>)}</div>{!job.attachments.length && <Empty>Nenhuma evidência anexada.</Empty>}</div></details>}
           <details><summary>Histórico da OS</summary><div><Timeline events={[...job.events, ...job.quote.events].sort((a, b) => a.at.localeCompare(b.at))} /></div></details>
         </div>
       </main>
