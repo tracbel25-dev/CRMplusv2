@@ -34,7 +34,9 @@ export function findCustomerFromInput(data: Data, input: string, draft: Customer
     || (email ? data.customers.find(customer => cleanEmail(customer.email) === email) : undefined);
 }
 
-export function resolveCustomer(data: Data, input: string, draft: CustomerDraft = {}, options: { optional?: boolean } = {}) {
+export function resolveCustomer(data: Data, input: string, draft?: CustomerDraft, options?: { optional?: false }): Customer;
+export function resolveCustomer(data: Data, input: string, draft: CustomerDraft | undefined, options: { optional: true }): Customer | null;
+export function resolveCustomer(data: Data, input: string, draft: CustomerDraft = {}, options: { optional?: boolean } = {}): Customer | null {
   const name = input.trim();
   if (!name) {
     if (options.optional) return null;
