@@ -1,7 +1,8 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import styles from './AppAsset.module.css';
 
 export type AppAssetKind = 'icon' | 'cover' | 'card';
 
@@ -25,21 +26,67 @@ export function AppAsset({ app, kind, alt = '', className, style, fallback }: Pr
     () => extensions[kind].map((ext) => `/app-assets/${app}/${kind}.${ext}`),
     [app, kind],
   );
-  const [index, setIndex] = useState(0);
+  const [resolvedSource, setResolvedSource] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  if (index >= sources.length) {
-    if (!fallback) return null;
-    return <span className={className} style={style} aria-hidden="true">{fallback}</span>;
+  useEffect(() => {
+    let cancelled = false;
+    setResolvedSource(null);
+    setFailed(false);
+
+    const trySource = (index: number) => {
+      if (cancelled) return;
+      if (index >= sources.length) {
+        setFailed(true);
+        return;
+      }
+
+      const probe = new window.Image();
+      probe.onload = () => {
+        if (!cancelled) setResolvedSource(sources[index]);
+      };
+      probe.onerror = () => trySource(index + 1);
+      probe.src = sources[index];
+    };
+
+    trySource(0);
+    return () => { cancelled = true; };
+  }, [sources]);
+
+  const combinedClassName = (...names: Array<string | undefined | false>) => names.filter(Boolean).join(' ');
+
+  if (!resolvedSource && !failed) {
+    return (
+      <span
+        className={combinedClassName(className, styles.loading)}
+        style={style}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (failed) {
+    const label = fallback || app.replaceAll('-', ' ');
+    return (
+      <span
+        className={combinedClassName(className, styles.fallback)}
+        style={style}
+        role={alt ? 'img' : undefined}
+        aria-label={alt || undefined}
+        aria-hidden={alt ? undefined : true}
+      >
+        {label}
+      </span>
+    );
   }
 
   return (
     <img
-      src={sources[index]}
+      src={resolvedSource}
       alt={alt}
-      className={className}
+      className={combinedClassName(className, styles.ready)}
       style={style}
       draggable={false}
-      onError={() => setIndex((value) => value + 1)}
     />
   );
 }
