@@ -1,4 +1,6 @@
-type OperationalApp = 'zeus' | 'artemis';
+import { OPERATIONAL_SUPABASE, type FixedOperationalApp } from './fixedProjects';
+
+type OperationalApp = FixedOperationalApp;
 
 type OperationalSupabaseConfig = {
   app: OperationalApp;
@@ -9,59 +11,22 @@ type OperationalSupabaseConfig = {
   secretKey: string;
 };
 
-const expected = {
-  zeus: {
-    projectRef: 'diejjfzvoopcuqulqkqr',
-    url: 'https://diejjfzvoopcuqulqkqr.supabase.co',
-    publishableKey: 'sb_publishable_V8KzkI74JYAXFm3lv6cEMQ_92ecfA6Q',
-    env: 'ZEUS'
-  },
-  artemis: {
-    projectRef: 'sqbjqjjnusmqotlkegyt',
-    url: 'https://sqbjqjjnusmqotlkegyt.supabase.co',
-    publishableKey: 'sb_publishable_FVh6RFzQLZ0EDU1a0X0r5g_rh_nKRWn',
-    env: 'ARTEMIS'
-  }
-} as const;
-
 function env(name: string) {
   return process.env[name]?.trim() || '';
 }
 
-function legacyAnonClaims(key: string) {
-  const payload = key.split('.')[1];
-  if (!payload) throw new Error('Legacy anon key inválida: JWT sem payload.');
-  try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { ref?: string; role?: string };
-  } catch {
-    throw new Error('Legacy anon key inválida: payload JWT não pôde ser lido.');
-  }
-}
-
 export function readOperationalSupabaseConfig(app: OperationalApp): OperationalSupabaseConfig {
-  const definition = expected[app];
-  const prefix = definition.env;
-  const projectRef = env(`${prefix}_SUPABASE_PROJECT_REF`) || definition.projectRef;
-  const configuredUrl = env(`${prefix}_SUPABASE_URL`);
-  const url = configuredUrl || definition.url;
-  const publishableKey = env(`${prefix}_SUPABASE_PUBLISHABLE_KEY`) || definition.publishableKey;
-  const anonKey = env(`${prefix}_SUPABASE_ANON_KEY`);
-  const secretKey = env(`${prefix}_SUPABASE_SECRET_KEY`);
+  const definition = OPERATIONAL_SUPABASE[app];
+  const secretKey = env(`${definition.envPrefix}_SUPABASE_SECRET_KEY`);
 
-  if (projectRef !== definition.projectRef) throw new Error(`${prefix}_SUPABASE_PROJECT_REF não corresponde ao projeto ${app}.`);
-  if (url !== definition.url) throw new Error(`${prefix}_SUPABASE_URL deve ser ${definition.url}.`);
-
-  if (anonKey) {
-    const claims = legacyAnonClaims(anonKey);
-    if (claims.role !== 'anon') throw new Error(`${prefix}_SUPABASE_ANON_KEY não possui role anon.`);
-    if (claims.ref !== definition.projectRef) throw new Error(`${prefix}_SUPABASE_ANON_KEY pertence a outro projeto Supabase.`);
-  }
-
-  if (publishableKey && !publishableKey.startsWith('sb_publishable_')) {
-    throw new Error(`${prefix}_SUPABASE_PUBLISHABLE_KEY não possui o formato sb_publishable_.`);
-  }
-
-  return { app, projectRef, url, publishableKey, anonKey, secretKey };
+  return {
+    app,
+    projectRef: definition.projectRef,
+    url: definition.url,
+    publishableKey: definition.publishableKey,
+    anonKey: '',
+    secretKey,
+  };
 }
 
 export function validateOperationalSupabaseIsolation() {
@@ -71,10 +36,7 @@ export function validateOperationalSupabaseIsolation() {
   if (zeus.url === artemis.url || zeus.projectRef === artemis.projectRef) {
     throw new Error('Zeus e Artemis precisam apontar para projetos Supabase diferentes.');
   }
-  if (zeus.anonKey && artemis.anonKey && zeus.anonKey === artemis.anonKey) {
-    throw new Error('Zeus e Artemis não podem compartilhar a legacy anon key.');
-  }
-  if (zeus.publishableKey && artemis.publishableKey && zeus.publishableKey === artemis.publishableKey) {
+  if (zeus.publishableKey === artemis.publishableKey) {
     throw new Error('Zeus e Artemis não podem compartilhar a publishable key.');
   }
   if (zeus.secretKey && artemis.secretKey && zeus.secretKey === artemis.secretKey) {
@@ -82,7 +44,7 @@ export function validateOperationalSupabaseIsolation() {
   }
 
   return {
-    zeus: { projectRef: zeus.projectRef, url: zeus.url, keyMode: zeus.publishableKey ? 'publishable' : 'legacy-anon' },
-    artemis: { projectRef: artemis.projectRef, url: artemis.url, keyMode: artemis.publishableKey ? 'publishable' : 'legacy-anon' }
+    zeus: { projectRef: zeus.projectRef, url: zeus.url, keyMode: 'publishable' as const },
+    artemis: { projectRef: artemis.projectRef, url: artemis.url, keyMode: 'publishable' as const },
   } as const;
 }

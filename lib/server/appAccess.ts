@@ -1,17 +1,19 @@
 import type { NextRequest } from 'next/server';
+import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 
 export type ServerApp = 'zeus' | 'artemis';
 
-const STORE_URL = process.env.NEXT_PUBLIC_STORE_SUPABASE_URL || 'https://sodcfarvfhkdjecjmdwc.supabase.co';
-const STORE_KEY = process.env.NEXT_PUBLIC_STORE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_hPguKVNttFAz7Pqq4necfA_rxbVUqET';
-
 async function storeFetch(path: string, token: string) {
-  const response = await fetch(`${STORE_URL}${path}`, {
-    headers: { apikey: STORE_KEY, authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
-  if (!response.ok) return null;
-  return response.json();
+  try {
+    const response = await fetch(`${STORE_SUPABASE.url}${path}`, {
+      headers: { apikey: STORE_SUPABASE.publishableKey, authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
 }
 
 function restPath(table: string, params: Record<string, string>) {
@@ -23,10 +25,15 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
   if (!token) return null;
 
-  const userResponse = await fetch(`${STORE_URL}/auth/v1/user`, {
-    headers: { apikey: STORE_KEY, authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
+  let userResponse: Response;
+  try {
+    userResponse = await fetch(`${STORE_SUPABASE.url}/auth/v1/user`, {
+      headers: { apikey: STORE_SUPABASE.publishableKey, authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+  } catch {
+    return null;
+  }
   if (!userResponse.ok) return null;
   const user = await userResponse.json().catch(() => null);
   if (!user || typeof user.id !== 'string') return null;
