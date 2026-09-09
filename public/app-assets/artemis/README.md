@@ -1,0 +1,1 @@
+Arquivos esperados nesta pasta: `icon.(svg|png|jpg|jpeg)`, `cover.(jpg|png|svg|jpeg)` e `card.(jpg|png|svg|jpeg)`.
