@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     { ok, zeus, artemis },
     {
-      status: ok ? 200 : 503,
+      status: 200,
       headers: { 'cache-control': 'no-store, max-age=0' },
     },
   );
