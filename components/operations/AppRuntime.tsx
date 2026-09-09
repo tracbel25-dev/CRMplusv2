@@ -14,6 +14,7 @@ import { navigation } from '@/lib/operations/navigation';
 import { useWorkspace, WorkspaceContext } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { AppAsset } from '@/components/AppAsset';
 import './lean-operations.css';
 import './zeus-enhancements.css';
 
@@ -78,7 +79,15 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
         <aside className="op-sidebar">
           <Link className="op-brand" href={`/${app}`} aria-label={`${config.name} — início`}>
-            <span className="op-brand-symbol">{config.short}</span>
+            <span className="op-brand-symbol" style={{background:'transparent',color:'var(--op-nav-ink)',overflow:'hidden'}}>
+              <AppAsset
+                app={app}
+                kind="icon"
+                alt=""
+                fallback={config.short}
+                style={{width:'100%',height:'100%',display:'grid',placeItems:'center',objectFit:'contain'}}
+              />
+            </span>
             <div><strong>{config.name}</strong><small>{config.subtitle}</small></div>
           </Link>
           <span className="op-nav-label">Sua operação</span>
