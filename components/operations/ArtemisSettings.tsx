@@ -6,6 +6,7 @@ import type { Workspace } from '@/lib/operations/storage';
 import { defaultOperationPreferences, saveOperationPreferences, useOperationPreferences, type OperationPreferences } from '@/lib/operations/configuration';
 import { CompactTabs, CompactPanel } from './CompactTabs';
 import { LocalAccountSettings } from './LocalAccountSettings';
+import { PaymentIntegrationSetting } from './PaymentIntegrationSetting';
 import { Badge, Button, Section, Title } from './ui';
 import { useArtemisBootstrap } from './useArtemisBootstrap';
 
@@ -80,7 +81,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       Ative apenas o que seu restaurante realmente usa. O menu e a operação se ajustam a essas escolhas.
     </Title>
 
-    <CompactTabs label="Configurações do restaurante" tabs={[{id:'dados',label:'Dados'},{id:'canais',label:'Canais e delivery'},{id:'operacao',label:'Operação'},{id:'cardapio',label:'Cardápio'},{id:'acessos',label:'Acessos'}]}>
+    <CompactTabs label="Configurações do restaurante" tabs={[{id:'dados',label:'Dados'},{id:'canais',label:'Canais e delivery'},{id:'operacao',label:'Operação'},{id:'pagamentos',label:'Pagamentos'},{id:'cardapio',label:'Cardápio'},{id:'acessos',label:'Acessos'}]}>
     <CompactPanel value="dados"><Section title="Restaurante">
       <div className="op-fields">
         <label className="op-field"><span>Nome do restaurante</span><input value={business} onChange={event => { setBusiness(event.target.value); setSaved(false); }} /></label>
@@ -121,6 +122,8 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       </div></div>
     </Section>
 
+    </CompactPanel><CompactPanel value="pagamentos"><PaymentIntegrationSetting app="artemis" />
+
     </CompactPanel><CompactPanel value="cardapio"><Section title="O que aparece no cardápio?">
       <div className="op-config-groups"><div className="op-config-group">
         <Choice checked={fieldEnabled('productDescription')} onChange={value => setFieldEnabled('productDescription', value)} title="Descrição dos produtos" description="Texto comercial para ajudar o cliente a escolher." icon={<ChefHat size={19} />} />
@@ -130,11 +133,8 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       <p className="op-callout">A assistência de IA do Artemis pode ser usada para acelerar descrições e preenchimentos; ela não substitui a confirmação do restaurante.</p>
     </Section>
 
-
-
     </CompactPanel><CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
     </CompactTabs>
     <div className="op-form-footer op-settings-actions"><Button onClick={save}>Salvar configurações</Button>{saved && <Badge>Salvo</Badge>}</div>
   </>;
 }
-
