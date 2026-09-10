@@ -1,5 +1,5 @@
 import type { Data, Deal } from './model';
-import { now, uid } from './model';
+import { event, normalize, now, syncDealNextActivity, uid } from './model';
 
 export type KronosMotion = 'Ativa' | 'Reativa' | '';
 export type KronosTemperature = 'Fria' | 'Morna' | 'Quente' | '';
@@ -57,6 +57,52 @@ const visitStatuses: KronosVisitStatus[] = ['Planejada', 'Realizada', 'Cancelada
 const asEnum = <T extends string>(value: string | undefined, allowed: readonly T[], fallback: T): T => allowed.includes(value as T) ? value as T : fallback;
 const finite = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const coordinate = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : null;
+const visitTaskId = (visitId: string) => `kronos-visit:${visitId}`;
+
+function proposalStageIndex(data: Data) {
+  return data.settings.salesStages.findIndex(stage => {
+    const key = normalize(stage);
+    return key.includes('proposta') || key.includes('orcamento') || key.includes('cotacao');
+  });
+}
+
+function alignDealStageWithQuote(data: Data, dealId: string, quoteStatus: KronosQuoteStatus) {
+  if (!['Em elaboração', 'Enviada', 'Aprovada'].includes(quoteStatus)) return;
+  const deal = data.deals.find(item => item.id === dealId);
+  if (!deal || isClosedDeal(deal)) return;
+  const targetIndex = proposalStageIndex(data);
+  const currentIndex = data.settings.salesStages.indexOf(deal.stage);
+  if (targetIndex < 0 || currentIndex < 0 || currentIndex >= targetIndex) return;
+  deal.stage = data.settings.salesStages[targetIndex];
+  deal.events.push(event(`Momento atualizado automaticamente para ${deal.stage} após avanço da cotação`));
+}
+
+function syncVisitTask(data: Data, visit: KronosVisit, previousDealId = '') {
+  const taskId = visitTaskId(visit.id);
+  const existing = data.tasks.find(task => task.id === taskId);
+
+  if (previousDealId && previousDealId !== visit.dealId) {
+    if (existing) existing.done = true;
+    syncDealNextActivity(data, previousDealId);
+  }
+
+  if (!visit.dealId) return;
+
+  const title = `${visit.kind}${visit.objective ? `: ${visit.objective}` : visit.offering ? `: ${visit.offering}` : ''}`;
+  if (visit.status === 'Planejada') {
+    if (existing) {
+      existing.dealId = visit.dealId;
+      existing.title = title;
+      existing.due = visit.at;
+      existing.done = false;
+    } else {
+      data.tasks.push({ id: taskId, dealId: visit.dealId, title, due: visit.at, done: false });
+    }
+  } else if (existing) {
+    existing.done = true;
+  }
+  syncDealNextActivity(data, visit.dealId);
+}
 
 export function getKronosDealMeta(data: Data, dealId: string): KronosDealMeta {
   const values = data.customFieldValues?.[dealId] || {};
@@ -80,6 +126,7 @@ export function setKronosDealMeta(data: Data, dealId: string, patch: Partial<Kro
   if (patch.lastContactAt !== undefined) values[META_KEYS.lastContactAt] = patch.lastContactAt;
   if (patch.lastOutcome !== undefined) values[META_KEYS.lastOutcome] = patch.lastOutcome;
   data.customFieldValues[dealId] = values;
+  if (patch.quoteStatus !== undefined) alignDealStageWithQuote(data, dealId, patch.quoteStatus);
 }
 
 function parseVisit(value: unknown): KronosVisit | null {
@@ -141,17 +188,21 @@ export function newKronosVisit(input: Omit<KronosVisit, 'id' | 'status' | 'resul
 export function upsertKronosVisit(data: Data, visit: KronosVisit) {
   const visits = getKronosVisits(data);
   const index = visits.findIndex(item => item.id === visit.id);
+  const previousDealId = index >= 0 ? visits[index].dealId : '';
   if (index >= 0) visits[index] = visit;
   else visits.push(visit);
   saveKronosVisits(data, visits);
+  syncVisitTask(data, visit, previousDealId);
 }
 
 export function updateKronosVisit(data: Data, id: string, patch: Partial<KronosVisit>) {
   const visits = getKronosVisits(data);
   const index = visits.findIndex(item => item.id === id);
   if (index < 0) throw new Error('Compromisso comercial não encontrado.');
+  const previousDealId = visits[index].dealId;
   visits[index] = { ...visits[index], ...patch, id: visits[index].id };
   saveKronosVisits(data, visits);
+  syncVisitTask(data, visits[index], previousDealId);
   return visits[index];
 }
 
@@ -197,7 +248,10 @@ export function kronosSignal(data: Data, deal: Deal, stages: string[]): KronosSi
   const meta = getKronosDealMeta(data, deal.id);
   const pending = data.tasks.filter(item => item.dealId === deal.id && !item.done).sort((a, b) => a.due.localeCompare(b.due));
   const next = pending[0];
-  const overdue = Boolean(next?.due && new Date(next.due).getTime() < Date.now());
+  const plannedVisit = getKronosVisits(data).filter(item => item.dealId === deal.id && item.status === 'Planejada').sort((a, b) => a.at.localeCompare(b.at))[0];
+  const nextAt = next?.due || plannedVisit?.at || '';
+  const hasNext = Boolean(next || plannedVisit);
+  const overdue = Boolean(nextAt && new Date(nextAt).getTime() < Date.now());
   const stageIndex = Math.max(0, stages.indexOf(deal.stage));
   const stageProgress = stages.length > 1 ? stageIndex / (stages.length - 1) : 0;
   const last = new Date(dealActivityAt(data, deal)).getTime();
@@ -212,14 +266,14 @@ export function kronosSignal(data: Data, deal: Deal, stages: string[]): KronosSi
   if (meta.quoteStatus === 'Reprovada') { score -= 25; reasons.push('cotação reprovada'); }
   if (meta.temperature === 'Quente') { score += 10; reasons.push('percepção do vendedor: quente'); }
   if (meta.temperature === 'Fria') { score -= 8; reasons.push('percepção do vendedor: fria'); }
-  if (next && !overdue) { score += 8; reasons.push('próxima ação definida'); }
-  if (!next) { score -= 12; reasons.push('sem próxima ação'); }
-  if (overdue) { score -= 20; reasons.push('retorno atrasado'); }
+  if (hasNext && !overdue) { score += 8; reasons.push(plannedVisit ? 'compromisso programado' : 'próxima ação definida'); }
+  if (!hasNext) { score -= 12; reasons.push('sem próxima ação'); }
+  if (overdue) { score -= 20; reasons.push(plannedVisit ? 'compromisso atrasado' : 'retorno atrasado'); }
   if (daysWithoutContact <= 7) { score += 7; reasons.push('contato recente'); }
   if (daysWithoutContact >= 15) { score -= 12; reasons.push(`${daysWithoutContact} dias sem contato`); }
 
   score = Math.max(5, Math.min(95, score));
-  const label = overdue || daysWithoutContact >= 21 || !next
+  const label = overdue || daysWithoutContact >= 21 || !hasNext
     ? 'Atenção'
     : score >= 70
       ? 'Forte'
