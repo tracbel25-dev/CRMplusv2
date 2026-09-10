@@ -1,0 +1,9 @@
+project_id = "sodcfarvfhkdjecjmdwc"
+
+[functions.mercadopago-subscription]
+# Handler validates Supabase Auth with getUser and account billing permissions.
+verify_jwt = false
+
+[functions.mercadopago-webhook]
+# Handler validates Mercado Pago HMAC before fetching or writing any data.
+verify_jwt = false

@@ -47,12 +47,15 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
   }), token) as Array<{ account_id: string; role: string }> | null;
   const membership = memberships?.[0];
   if (!membership?.account_id) return null;
+  const accounts = await storeFetch(restPath('accounts', { select: 'id', id: `eq.${membership.account_id}`, status: 'eq.active' }), token) as Array<{ id: string }> | null;
+  if (!accounts?.length) return null;
 
   const accountApps = await storeFetch(restPath('account_apps', {
-    select: 'app_id,status',
+    select: 'app_id,status,current_period_end',
     account_id: `eq.${membership.account_id}`,
     app_id: `eq.${app}`,
     status: 'in.(trialing,active)',
+    or: `(current_period_end.is.null,current_period_end.gt.${new Date().toISOString()})`,
     limit: '1',
   }), token) as Array<{ app_id: string }> | null;
   if (!accountApps?.length) return null;

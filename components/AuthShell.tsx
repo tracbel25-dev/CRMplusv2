@@ -19,7 +19,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
-  const requestedDestination=redirectTo&&redirectTo.startsWith('/')?redirectTo:'/entrar';
+  const requestedDestination=redirectTo&&redirectTo.startsWith('/')&&!redirectTo.startsWith('//')&&!redirectTo.includes('\\')?redirectTo:'/entrar';
 
   const submit=async(event:FormEvent)=>{
     event.preventDefault();
@@ -36,14 +36,14 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           password,
           options:{
             data:{name:name.trim(),business:business.trim(),requested_app:selectedApp},
-            emailRedirectTo:`${window.location.origin}/entrar`
+            emailRedirectTo:`${window.location.origin}${requestedDestination}`
           }
         });
         if(signUpError)throw signUpError;
         if(data.session){
           const {error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
-          router.push('/entrar');
+          router.push(requestedDestination);
           router.refresh();
         }else{
           setMessage('Conta criada. Confira seu e-mail para confirmar o acesso e concluir o cadastro.');
@@ -79,7 +79,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
         <button type="submit" className="primary" disabled={loading}>{loading?'Aguarde…':signup?'Criar conta':'Entrar'}</button>
       </form>
       {!signup&&<small><Link href="/recuperar-senha">Esqueci minha senha</Link></small>}
-      <small>{signup?<>Já possui conta? <Link href={`/login${app?`?app=${app}`:''}`}>Entrar</Link></>:<>Ainda não possui conta? <Link href={`/cadastro${app?`?app=${app}`:''}`}>Criar conta</Link></>}</small>
+      <small>{signup?<>Já possui conta? <Link href={`/login?redirect=${encodeURIComponent(requestedDestination)}${app?`&app=${app}`:''}`}>Entrar</Link></>:<>Ainda não possui conta? <Link href={`/cadastro?redirect=${encodeURIComponent(requestedDestination)}${app?`&app=${app}`:''}`}>Criar conta</Link></>}</small>
     </section>
   </main>;
 }
