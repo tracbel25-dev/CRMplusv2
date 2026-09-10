@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { reserveTrialNetwork } from '@/lib/antifraud';
 import { billingRequest } from '@/lib/billing';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import './confirm.css';
@@ -71,7 +72,12 @@ export default function ConfirmPage() {
 
         if (planId && accountId) {
           if(active)setPhase('payment');
-          const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId });
+          const {data:targetPlan,error:planError}=await supabase.from('plans').select('app_id').eq('id',planId).eq('active',true).maybeSingle();
+          if(planError||!targetPlan)throw new Error('O plano selecionado não está mais disponível.');
+          const billingState=await billingRequest<{trialEligibleApps?:string[]}>({action:'list',accountId});
+          const useTrial=(billingState.trialEligibleApps||[]).includes(targetPlan.app_id);
+          if(useTrial)await reserveTrialNetwork(accountId,targetPlan.app_id);
+          const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId, skipTrial: !useTrial });
           if (!result.url) throw new Error('Sua conta foi confirmada, mas o Mercado Pago não retornou o link de pagamento.');
           const paymentUrl = new URL(result.url);
           if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas o link de pagamento retornado é inválido.');
@@ -110,7 +116,7 @@ export default function ConfirmPage() {
         <div className="confirm-icon is-loading"><LoaderCircle size={26}/></div>
         <span className="eyebrow">Confirmação de acesso</span>
         <h1>{phase==='payment'?'Conta confirmada. Preparando pagamento.':'Confirmando sua conta.'}</h1>
-        <p>{phase==='payment'?'Seu e-mail já foi confirmado. Estamos abrindo o Mercado Pago para o plano escolhido.':'Estamos validando seu e-mail e preparando a área da sua conta CRM PLUS.'}</p>
+        <p>{phase==='payment'?'Seu e-mail já foi confirmado. Estamos validando o teste e abrindo o Mercado Pago para o plano escolhido.':'Estamos validando seu e-mail e preparando a área da sua conta CRM PLUS.'}</p>
         <div className="confirm-progress"><span/></div>
       </> : <>
         <div className="confirm-icon"><CheckCircle2 size={26}/></div>
