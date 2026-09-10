@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { apps } from '@/lib/catalog';
+import { precheckSignupIdentity } from '@/lib/antifraud';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
@@ -14,6 +15,8 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [selectedApp,setSelectedApp]=useState<AppId>(initialApp);
   const [name,setName]=useState('');
   const [business,setBusiness]=useState('');
+  const [cpf,setCpf]=useState('');
+  const [birthDate,setBirthDate]=useState('');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [loading,setLoading]=useState(false);
@@ -83,23 +86,39 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
       const supabase=createStoreClient();
       if(signup){
         if(!name.trim()||!business.trim())throw new Error('Informe seu nome e o nome do negócio.');
+        const identity=await precheckSignupIdentity({cpf,name:name.trim(),birthDate,email:email.trim().toLowerCase()});
         const {data, error:signUpError}=await supabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
           options:{
-            data:{name:name.trim(),business:business.trim(),requested_app:selectedApp,signup_redirect:requestedDestination},
+            data:{
+              name:name.trim(),
+              business:business.trim(),
+              requested_app:selectedApp,
+              signup_redirect:requestedDestination,
+              identity_reservation:identity.reservationToken,
+            },
             emailRedirectTo:`${window.location.origin}/auth/confirm`
           }
         });
         if(signUpError)throw signUpError;
         if(data.session){
-          const {error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
+          const {data:createdAccount,error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
-          await supabase.auth.updateUser({data:{signup_redirect:null}});
+          const accountId=typeof createdAccount==='string'?createdAccount:'';
+          if(!accountId)throw new Error('Não foi possível concluir o vínculo da empresa.');
+          const {error:identityError}=await supabase.rpc('finalize_signup_identity',{
+            reservation_token:identity.reservationToken,
+            target_account:accountId,
+          });
+          if(identityError)throw new Error('Não foi possível concluir a validação do cadastro.');
+          await supabase.auth.updateUser({data:{signup_redirect:null,identity_reservation:null}});
           await continueAfterAuth();
         }else{
           setPendingConfirmation(true);
-          setMessage('Conta criada. Enviamos um e-mail para confirmar seu endereço e ativar o acesso.');
+          setMessage(identity.verification==='official'
+            ?'Dados validados. Enviamos um e-mail para confirmar seu endereço e ativar a conta.'
+            :'CPF validado. Enviamos um e-mail para confirmar seu endereço e ativar a conta.');
         }
       }else{
         const {error:loginError}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
@@ -121,7 +140,15 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
       <h1>{signup?'Crie sua conta CRM PLUS.':'Entre na sua conta.'}</h1>
       <p>{signup?'A conta centraliza sua assinatura, os aplicativos contratados e quem pode acessar ou configurar cada um.':app?`Depois do acesso, você pode seguir para o ${apps.find(item=>item.slug===app)?.name||'aplicativo'} ou abrir sua área do cliente.`:'Acesse sua área do cliente, aplicativos e assinaturas.'}</p>
       <form onSubmit={submit}>
-        {signup&&<><label>Seu nome<input type="text" value={name} onChange={event=>setName(event.target.value)} placeholder="Nome do titular" autoComplete="name" required/></label><label>Nome do negócio<input type="text" value={business} onChange={event=>setBusiness(event.target.value)} placeholder="Nome da empresa" autoComplete="organization" required/></label></>}
+        {signup&&<>
+          <label>Seu nome<input type="text" value={name} onChange={event=>setName(event.target.value)} placeholder="Nome completo do titular" autoComplete="name" required/></label>
+          <div className="auth-inline-fields">
+            <label>CPF<input type="text" inputMode="numeric" value={cpf} onChange={event=>setCpf(event.target.value.replace(/[^0-9.-]/g,''))} placeholder="000.000.000-00" autoComplete="off" maxLength={14} required/></label>
+            <label>Data de nascimento<input type="date" value={birthDate} onChange={event=>setBirthDate(event.target.value)} autoComplete="bday" required/></label>
+          </div>
+          <small className="auth-privacy-note">CPF e data de nascimento são usados para validar o titular e impedir cadastros/testes duplicados. O registro antifraude guarda identificadores criptográficos, não o CPF em texto puro.</small>
+          <label>Nome do negócio<input type="text" value={business} onChange={event=>setBusiness(event.target.value)} placeholder="Nome da empresa" autoComplete="organization" required/></label>
+        </>}
         {signup&&<label>Aplicativo de interesse<select value={selectedApp} onChange={event=>setSelectedApp(event.target.value as AppId)}>{apps.map(item=><option key={item.slug} value={item.slug}>{item.name} — {item.category}</option>)}</select><small>Isso não libera o aplicativo. A liberação acontece pela contratação da Store.</small></label>}
         <label>E-mail<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="voce@empresa.com.br" autoComplete="email" required/></label>
         <label>Senha<input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" autoComplete={signup?'new-password':'current-password'} minLength={8} required/></label>
