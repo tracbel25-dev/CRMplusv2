@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 
 const items = [
   { href: '/conta', label: 'Visão geral' },
+  { href: '/minhas-informacoes', label: 'Minhas informações' },
   { href: '/assinaturas', label: 'Assinaturas e cobrança' },
-  { href: '/aplicativos', label: 'Aplicativos' },
-  { href: '/suporte', label: 'Suporte' },
+  { href: '/equipe-acessos', label: 'Equipe e acessos' },
 ];
 
 export function AccountNav() {
