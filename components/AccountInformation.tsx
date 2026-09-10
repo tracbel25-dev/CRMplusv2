@@ -102,8 +102,8 @@ export function AccountInformation(){
       </section>
 
       <section className="account-security-card">
-        <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Altere sua senha pelo fluxo seguro de recuperação de acesso.</small></span></div>
-        <Link className="ghost small" href="/recuperar-senha">Alterar senha</Link>
+        <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Troque sua senha, recupere acesso e gerencie a autenticação em dois fatores.</small></span></div>
+        <Link className="ghost small" href="/seguranca">Gerenciar segurança</Link>
       </section>
 
       {(error||message)&&<div className={`account-form-feedback ${error?'is-error':'is-success'}`} role={error?'alert':'status'}>{error||message}</div>}
