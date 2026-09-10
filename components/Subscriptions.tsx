@@ -5,11 +5,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { apps } from '@/lib/catalog';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
-import { TrialActivation } from '@/components/TrialActivation';
 import { billingRequest } from '@/lib/billing';
 
 type Plan = { id: string; app_id: string; billing_interval: string; amount_cents: number; currency: string };
-type Subscription = { id: string; app_id: string; status: string; amount_cents: number; frequency: number; current_period_end: string | null };
+type Subscription = {
+  id: string;
+  app_id: string;
+  status: string;
+  amount_cents: number;
+  frequency: number;
+  current_period_end: string | null;
+  trial_requested: boolean;
+  trial_ends_at: string | null;
+};
 const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const cycles: Record<string, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
 const statuses: Record<string, string> = { creating: 'Conferindo criação', pending: 'Aguardando autorização', authorized: 'Renovação automática autorizada', paused: 'Renovação pausada', cancelled: 'Renovação cancelada', failed: 'Não concluída' };
@@ -24,7 +32,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState(returned ? 'Estamos aguardando a confirmação do pagamento. Você pode atualizar o status abaixo.' : '');
+  const [notice, setNotice] = useState(returned ? 'Estamos confirmando sua assinatura no Mercado Pago.' : '');
   const load = useCallback(async () => {
     if (!accountId) return;
     const [catalog, billing] = await Promise.all([
@@ -39,20 +47,19 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
     setLoading(true);
     void load().catch(reason => setError(reason.message)).finally(() => setLoading(false));
   }, [accountId, load]);
-  // Poll only our database after checkout. Returning from Mercado Pago never grants access.
   useEffect(() => {
     if (!returned || !accountId) return;
     let attempts = 0;
     const timer = window.setInterval(() => {
       if (++attempts >= 12) window.clearInterval(timer);
-      void load().catch(() => {});
+      void load().then(() => access.refresh()).catch(() => {});
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [returned, accountId, load]);
+  }, [returned, accountId, load, access]);
 
   async function act(action: 'checkout' | 'sync' | 'cancel', id: string) {
     if (!accountId || busy) return;
-    if (action === 'cancel' && !window.confirm('Cancelar as próximas cobranças? O acesso permanece até o fim do período já pago.')) return;
+    if (action === 'cancel' && !window.confirm('Cancelar as próximas cobranças? O acesso permanece até o fim do período já liberado.')) return;
     setBusy(id); setError(''); setNotice('');
     try {
       const result = await billingRequest<{ url?: string }>({ action, accountId, [action === 'checkout' ? 'planId' : 'subscriptionId']: id });
@@ -62,7 +69,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
         window.location.assign(url.href); return;
       }
       await load(); await access.refresh();
-      setNotice(action === 'cancel' ? 'Renovação cancelada. O período já pago continua disponível.' : 'Status consultado no Mercado Pago.');
+      setNotice(action === 'cancel' ? 'Renovação cancelada. O período já liberado continua disponível até vencer.' : 'Status consultado no Mercado Pago.');
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(''); }
   }
@@ -83,24 +90,24 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
         <select id="billing-app" value={selected} onChange={event => setSelected(event.target.value)}>{apps.map(app => <option value={app.slug} key={app.slug}>{app.name} — {app.category}</option>)}</select>
         <div className="billing-plans">{plans.filter(plan => plan.app_id === selected).map(plan => <article key={plan.id} style={initialPlan === plan.id ? { outline: "2px solid #a5762d" } : undefined}>
           <h2>{cycles[plan.billing_interval]}{initialPlan === plan.id ? " · Selecionado" : ""}</h2><strong>{money(plan.amount_cents)}</strong>
-          <p>{plan.billing_interval === 'monthly' ? 'A cada mês' : plan.billing_interval === 'semiannual' ? 'A cada 6 meses' : 'A cada 12 meses'}. Renovação automática.</p>
+          <p>7 dias grátis na primeira assinatura elegível. Depois, {plan.billing_interval === 'monthly' ? 'cobrança mensal' : plan.billing_interval === 'semiannual' ? 'cobrança a cada 6 meses' : 'cobrança a cada 12 meses'} com renovação automática.</p>
           <button className="primary" disabled={!!busy || !ready} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo pagamento…' : 'Assinar com Mercado Pago'}</button>
         </article>)}</div>
-        <p className="billing-caption">O acesso é liberado após a confirmação do pagamento. Cancele a renovação quando precisar.</p>
+        <p className="billing-caption">No primeiro uso elegível, o Mercado Pago salva o meio de pagamento e a primeira cobrança acontece somente após os 7 dias grátis.</p>
       </section>
-      <TrialActivation app={selected} user={access.user} account={access.account} owner={access.member?.role === 'owner'} refresh={access.refresh} />
       <section className="billing-panel"><h2>Suas assinaturas</h2>
         {subscriptions.length === 0 ? <p>Nenhuma assinatura iniciada.</p> : subscriptions.map(subscription => {
           const paid = !!subscription.current_period_end && Date.parse(subscription.current_period_end) > Date.now();
+          const trial = subscription.trial_requested && !!subscription.trial_ends_at && Date.parse(subscription.trial_ends_at) > Date.now();
           return <article className="billing-subscription" key={subscription.id}><div>
             <h3>{apps.find(app => app.slug === subscription.app_id)?.name || subscription.app_id}</h3>
             <p>{money(subscription.amount_cents)} a cada {subscription.frequency} {subscription.frequency === 1 ? 'mês' : 'meses'}</p>
             <p>{statuses[subscription.status] || subscription.status}</p>
-            <strong>{paid ? `Período pago até ${new Date(subscription.current_period_end!).toLocaleDateString('pt-BR')}` : 'Sem período pago vigente'}</strong>
+            <strong>{trial ? `7 dias grátis até ${new Date(subscription.trial_ends_at!).toLocaleString('pt-BR')}` : paid ? `Período pago até ${new Date(subscription.current_period_end!).toLocaleDateString('pt-BR')}` : 'Sem período pago vigente'}</strong>
           </div><div className="billing-actions">
             {subscription.status !== 'failed' && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('sync', subscription.id)}>{busy === subscription.id ? 'Aguarde…' : 'Atualizar status'}</button>}
             {['pending', 'authorized', 'paused'].includes(subscription.status) && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('cancel', subscription.id)}>Cancelar renovação</button>}
-            {paid && <Link className="primary" href={`/${subscription.app_id}`}>Abrir aplicativo</Link>}
+            {(paid || trial) && <Link className="primary" href={`/${subscription.app_id}`}>Abrir aplicativo</Link>}
           </div></article>;
         })}
       </section>
