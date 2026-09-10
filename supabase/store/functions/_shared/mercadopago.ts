@@ -47,6 +47,9 @@ export function hasSevenDayTrial(remote: Json) {
 
 function correlatedSubscription(local: Json, remote: Json) {
   if (remote?.external_reference === local.id) return true;
+  if (local.dedicated_trial_plan === true && local.preapproval_plan_id) {
+    return String(remote?.preapproval_plan_id || '') === String(local.preapproval_plan_id);
+  }
   return !!local.preapproval_plan_id
     && !!local.payer_email
     && String(remote?.preapproval_plan_id || '') === String(local.preapproval_plan_id)
@@ -112,9 +115,12 @@ function remoteFitsLocal(local: Json, remote: Json) {
   const sameWindow = !Number.isNaN(createdAt) && !Number.isNaN(remoteCreatedAt)
     ? remoteCreatedAt >= createdAt - 5 * 60 * 1000 && remoteCreatedAt <= createdAt + 24 * 60 * 60 * 1000
     : true;
+  const identityMatches = local.dedicated_trial_plan === true
+    ? String(remote.preapproval_plan_id || '') === String(local.preapproval_plan_id || '')
+    : String(remote.preapproval_plan_id || '') === String(local.preapproval_plan_id || '')
+      && normalizeEmail(remote.payer_email) === normalizeEmail(local.payer_email);
   return String(remote.application_id) === applicationId
-    && String(remote.preapproval_plan_id || '') === String(local.preapproval_plan_id || '')
-    && normalizeEmail(remote.payer_email) === normalizeEmail(local.payer_email)
+    && identityMatches
     && Math.round(Number(remote.auto_recurring?.transaction_amount) * 100) === Number(local.amount_cents)
     && remote.auto_recurring?.currency_id === local.currency
     && Number(remote.auto_recurring?.frequency) === Number(local.frequency)
@@ -124,8 +130,16 @@ function remoteFitsLocal(local: Json, remote: Json) {
 
 export async function findRemoteForLocal(local: Json) {
   if (local.preapproval_id) return mp(`/preapproval/${encodeURIComponent(local.preapproval_id)}`);
-  if (!local.preapproval_plan_id || !local.payer_email) return null;
-  const found = await mp(`/preapproval/search?preapproval_plan_id=${encodeURIComponent(local.preapproval_plan_id)}&payer_email=${encodeURIComponent(local.payer_email)}&limit=30&offset=0`);
+  if (!local.preapproval_plan_id) return null;
+
+  const query = local.dedicated_trial_plan === true
+    ? `/preapproval/search?preapproval_plan_id=${encodeURIComponent(local.preapproval_plan_id)}&limit=30&offset=0`
+    : local.payer_email
+      ? `/preapproval/search?preapproval_plan_id=${encodeURIComponent(local.preapproval_plan_id)}&payer_email=${encodeURIComponent(local.payer_email)}&limit=30&offset=0`
+      : '';
+  if (!query) return null;
+
+  const found = await mp(query);
   const matches = Array.isArray(found.results) ? found.results.filter((item: Json) => remoteFitsLocal(local, item)) : [];
   if (!matches.length) return null;
 
@@ -149,8 +163,17 @@ export async function findLocal(remote: Json) {
   }
 
   const planId = String(remote.preapproval_plan_id || '');
+  if (!planId) return null;
+
+  const { data: dedicated, error: dedicatedError } = await db.from('mp_subscriptions').select('*')
+    .eq('preapproval_plan_id', planId)
+    .eq('dedicated_trial_plan', true)
+    .maybeSingle();
+  check(dedicatedError);
+  if (dedicated && remoteFitsLocal(dedicated, remote)) return dedicated;
+
   const payerEmail = normalizeEmail(remote.payer_email);
-  if (!planId || !payerEmail) return null;
+  if (!payerEmail) return null;
   const { data, error } = await db.from('mp_subscriptions').select('*')
     .eq('preapproval_plan_id', planId)
     .eq('payer_email', payerEmail)
