@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { apps } from '@/lib/catalog';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
-import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 import { billingRequest } from '@/lib/billing';
 
 type Plan = { id: string; app_id: string; billing_interval: string; amount_cents: number; currency: string };
@@ -25,13 +24,6 @@ const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 
 const cycles: Record<string, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
 const statuses: Record<string, string> = { creating: 'Conferindo criação', pending: 'Aguardando autorização', authorized: 'Renovação automática autorizada', paused: 'Renovação pausada', cancelled: 'Renovação cancelada', failed: 'Não concluída' };
 
-function brazilPhone(value: string) {
-  const digits = value.replace(/\D/g, '');
-  const normalized = digits.length === 11 ? `55${digits}` : digits;
-  if (!/^55\d{11}$/.test(normalized)) throw new Error('Informe um celular brasileiro com DDD.');
-  return `+${normalized}`;
-}
-
 export function Subscriptions({ initialApp, initialPlan, returned }: { initialApp?: string; initialPlan?: string; returned: boolean }) {
   const access = useStoreAccess();
   const accountId = access.account?.id;
@@ -43,15 +35,8 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
   const [ready, setReady] = useState<boolean | null>(null);
   const [billingLoaded, setBillingLoaded] = useState(false);
   const [busy, setBusy] = useState('');
-  const [identityBusy, setIdentityBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(returned ? 'Estamos confirmando sua assinatura no Mercado Pago.' : '');
-  const [trialDocument, setTrialDocument] = useState('');
-  const [trialPhone, setTrialPhone] = useState('');
-  const [sentPhone, setSentPhone] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
-  const [identityMessage, setIdentityMessage] = useState('');
   const [skipTrial, setSkipTrial] = useState(false);
 
   const load = useCallback(async () => {
@@ -67,9 +52,11 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
       const billing = billingResult.value;
       setSubscriptions(billing.subscriptions || []);
       setTrialEligibleApps(billing.trialEligibleApps || []);
-      setReady(billing.ready); setBillingLoaded(true);
+      setReady(billing.ready);
+      setBillingLoaded(true);
     } else {
-      setReady(null); setBillingLoaded(false);
+      setReady(null);
+      setBillingLoaded(false);
       problems.push('Não foi possível consultar sua assinatura. Seus planos continuam disponíveis abaixo.');
     }
     setError(problems.join(' '));
@@ -92,17 +79,6 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
   }, [returned, accountId, load, access.refresh]);
 
   useEffect(() => {
-    let alive = true;
-    void fetch(`${STORE_SUPABASE.url}/auth/v1/settings`, { headers: { apikey: STORE_SUPABASE.publishableKey } })
-      .then(response => response.ok ? response.json() : null)
-      .then(settings => { if (alive) setSmsEnabled(settings?.external?.phone === true && settings?.phone_autoconfirm === false); })
-      .catch(() => { if (alive) setSmsEnabled(false); });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
-    setTrialDocument('');
-    setIdentityMessage('');
     setSkipTrial(false);
   }, [selected]);
 
@@ -110,67 +86,32 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
   const canOpen = access.hasApp(selected as Parameters<typeof access.hasApp>[0]);
   const currentSubscription = subscriptions.find(item => item.app_id === selected && ['creating', 'pending', 'authorized', 'paused'].includes(item.status));
   const trialEligible = trialEligibleApps.includes(selected);
-  const phoneVerified = !!access.user?.phone && !!access.user?.phone_confirmed_at;
   const usingTrial = trialEligible && !skipTrial;
-
-  async function sendPhoneCode() {
-    if (identityBusy) return;
-    setIdentityBusy(true); setIdentityMessage(''); setError('');
-    try {
-      const phone = brazilPhone(trialPhone);
-      const result = await createStoreClient().auth.updateUser({ phone });
-      if (result.error) throw result.error;
-      setSentPhone(phone);
-      setIdentityMessage('Código enviado. Digite o código recebido por SMS.');
-    } catch (reason) {
-      setError((reason as Error).message || 'Não foi possível enviar o código.');
-    } finally { setIdentityBusy(false); }
-  }
-
-  async function confirmPhoneCode() {
-    if (identityBusy || !sentPhone || !phoneCode.trim()) return;
-    setIdentityBusy(true); setIdentityMessage(''); setError('');
-    try {
-      const result = await createStoreClient().auth.verifyOtp({ phone: sentPhone, token: phoneCode.trim(), type: 'phone_change' });
-      if (result.error) throw result.error;
-      setSentPhone(''); setPhoneCode('');
-      await access.refresh();
-      setIdentityMessage('Celular confirmado. Complete o CPF/CNPJ e siga para o Mercado Pago.');
-    } catch {
-      setError('Código inválido ou expirado. Confira o SMS e tente novamente.');
-    } finally { setIdentityBusy(false); }
-  }
 
   async function act(action: 'checkout' | 'sync' | 'cancel', id: string) {
     if (!accountId || busy) return;
     if (action === 'cancel' && !window.confirm('Cancelar as próximas cobranças? O acesso permanece até o fim do período já liberado.')) return;
-    if (action === 'checkout' && usingTrial) {
-      if (!phoneVerified) { setError('Confirme seu celular para receber os 7 dias grátis.'); return; }
-      if (!trialDocument.trim()) { setError('Informe seu CPF ou CNPJ para validar os 7 dias grátis.'); return; }
-    }
-    setBusy(id); setError(''); setNotice('');
+    setBusy(id);
+    setError('');
+    setNotice('');
     try {
       const payload: Record<string, unknown> = { action, accountId, [action === 'checkout' ? 'planId' : 'subscriptionId']: id };
-      if (action === 'checkout') {
-        payload.skipTrial = !usingTrial;
-        if (usingTrial) payload.trialDocument = trialDocument;
-      }
+      if (action === 'checkout') payload.skipTrial = !usingTrial;
       const result = await billingRequest<{ url?: string; trialApplied?: boolean }>(payload);
       if (action === 'checkout' && result.url) {
         const url = new URL(result.url);
         if (url.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(url.hostname)) throw new Error('Link de pagamento inválido.');
-        window.location.assign(url.href); return;
+        window.location.assign(url.href);
+        return;
       }
-      await load(); await access.refresh();
+      await load();
+      await access.refresh();
       setNotice(action === 'cancel' ? 'Renovação cancelada. O período já liberado continua disponível até vencer.' : 'Status consultado no Mercado Pago.');
     } catch (reason) {
-      const message = (reason as Error).message || 'Não foi possível concluir.';
-      if (action === 'checkout' && (message.includes('já utilizou o teste grátis') || message.includes('teste grátis não está disponível'))) {
-        setSkipTrial(true);
-        setError(`${message} Se quiser continuar, a próxima tentativa será uma assinatura normal com cobrança imediata.`);
-        void load().catch(() => {});
-      } else setError(message);
-    } finally { setBusy(''); }
+      setError((reason as Error).message || 'Não foi possível concluir.');
+    } finally {
+      setBusy('');
+    }
   }
 
   if (!access.ready) return <p role="status">Carregando sua conta…</p>;
@@ -192,34 +133,26 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
         <div className="billing-access-summary" role="status">
           <span className="eyebrow">Seu acesso</span>
           <h2>{canOpen ? entitlement?.status === 'trialing' ? 'Teste grátis ativo' : 'Aplicativo liberado' : entitlement?.status === 'suspended' ? 'Acesso suspenso' : entitlement ? 'Seu acesso venceu' : currentSubscription ? 'Conclua sua assinatura' : billingLoaded ? 'Escolha como começar' : 'Consultando seu acesso'}</h2>
-          <p>{canOpen ? entitlement?.currentPeriodEnd ? `Disponível até ${new Date(entitlement.currentPeriodEnd).toLocaleString('pt-BR')}.` : 'Sua empresa já pode utilizar o aplicativo.' : entitlement ? 'Seus dados estão preservados. Gerencie sua assinatura para continuar.' : currentSubscription ? 'Confira a assinatura em andamento abaixo para continuar ou atualizar o status.' : billingLoaded ? 'Escolha um plano e continue no Mercado Pago. O teste de 7 dias exige a confirmação do celular e a autorização da assinatura.' : 'Você pode consultar os preços enquanto verificamos sua assinatura.'}</p>
+          <p>{canOpen ? entitlement?.currentPeriodEnd ? `Disponível até ${new Date(entitlement.currentPeriodEnd).toLocaleString('pt-BR')}.` : 'Sua empresa já pode utilizar o aplicativo.' : entitlement ? 'Seus dados estão preservados. Gerencie sua assinatura para continuar.' : currentSubscription ? 'A autorização ainda precisa ser concluída no Mercado Pago antes de liberar o aplicativo.' : billingLoaded ? 'Escolha um plano e continue no Mercado Pago. O aplicativo só é liberado depois que a assinatura ou o teste for autorizado lá.' : 'Você pode consultar os preços enquanto verificamos sua assinatura.'}</p>
           {canOpen && <Link className="primary" href={`/${selected}`}>Abrir {apps.find(item => item.slug === selected)?.name}</Link>}
           {currentSubscription && !canOpen && <a className="ghost" href="#minhas-assinaturas">Ver assinatura em andamento</a>}
         </div>
 
         {trialEligible && <div className="billing-trial-identity">
-          <div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Validação dos 7 dias grátis</h3><p>Confirme seu celular e informe seu CPF/CNPJ. Depois, autorize a assinatura no Mercado Pago para começar os 7 dias grátis.</p></div>
+          <div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Ativação pelo Mercado Pago</h3><p>O teste só começa depois que você autorizar a assinatura no Mercado Pago. Não usamos SMS e você não precisa informar CPF/CNPJ nesta tela.</p></div>
           {!skipTrial ? <>
-            {!phoneVerified ? <div className="billing-trial-grid">
-              {smsEnabled === null ? <p>Verificando confirmação por SMS…</p> : smsEnabled ? <>
-                <label htmlFor="trial-phone">Celular com DDD<input id="trial-phone" type="tel" autoComplete="tel" value={trialPhone} onChange={event => setTrialPhone(event.target.value)} placeholder="(91) 99999-9999" disabled={identityBusy}/></label>
-                <button className="ghost" type="button" disabled={identityBusy || !trialPhone} onClick={() => void sendPhoneCode()}>{identityBusy ? 'Aguarde…' : 'Enviar código por SMS'}</button>
-                {sentPhone && <><label htmlFor="trial-code">Código recebido<input id="trial-code" inputMode="numeric" autoComplete="one-time-code" value={phoneCode} onChange={event => setPhoneCode(event.target.value)} maxLength={10} disabled={identityBusy}/></label><button className="ghost" type="button" disabled={identityBusy || !phoneCode} onClick={() => void confirmPhoneCode()}>Confirmar celular</button></>}
-              </> : <p>A confirmação por SMS está indisponível agora. Você ainda pode assinar normalmente sem o período grátis.</p>}
-            </div> : <p className="billing-trial-status">✓ Celular confirmado: {access.user.phone}</p>}
-            {phoneVerified && <label className="billing-trial-document" htmlFor="trial-document">CPF do responsável ou CNPJ da empresa<input id="trial-document" inputMode="numeric" autoComplete="off" value={trialDocument} onChange={event => setTrialDocument(event.target.value)} maxLength={18} placeholder="Somente para validar a elegibilidade"/></label>}
-            {identityMessage && <p className="billing-trial-status" role="status">{identityMessage}</p>}
-            <p className="billing-caption">Um teste por empresa e aplicativo. A primeira cobrança acontece após os 7 dias; você pode cancelar a renovação antes.</p>
+            <p className="billing-trial-status">A validação acontece com o pagador e o meio de pagamento retornados pelo próprio Mercado Pago após a autorização.</p>
+            <p className="billing-caption">Um teste por pagador e aplicativo. Se o mesmo pagador ou cartão já tiver usado o período grátis, o teste não libera o acesso novamente.</p>
             <button className="text-action billing-skip-trial" type="button" onClick={() => setSkipTrial(true)}>Prefiro assinar sem teste grátis</button>
-          </> : <div className="billing-no-trial"><strong>Assinatura sem teste grátis</strong><p>A cobrança começa agora conforme o plano escolhido. Nenhum período gratuito será solicitado ao Mercado Pago.</p><button className="ghost" type="button" onClick={() => { setSkipTrial(false); setError(''); }}>Tentar validar os 7 dias grátis</button></div>}
+          </> : <div className="billing-no-trial"><strong>Assinatura sem teste grátis</strong><p>A cobrança começa agora conforme o plano escolhido. Nenhum período gratuito será solicitado ao Mercado Pago.</p><button className="ghost" type="button" onClick={() => { setSkipTrial(false); setError(''); }}>Usar 7 dias grátis</button></div>}
         </div>}
 
         <div className="billing-plans">{plans.filter(plan => plan.app_id === selected).map(plan => <article key={plan.id} style={initialPlan === plan.id ? { outline: '2px solid #a5762d' } : undefined}>
           <h2>{cycles[plan.billing_interval]}{initialPlan === plan.id ? ' · Selecionado' : ''}</h2><strong>{money(plan.amount_cents)}</strong>
-          <p>{usingTrial ? '7 dias grátis se a validação for aprovada. Depois, ' : ''}{plan.billing_interval === 'monthly' ? 'cobrança mensal' : plan.billing_interval === 'semiannual' ? 'cobrança a cada 6 meses' : 'cobrança a cada 12 meses'} com renovação automática.</p>
-          <button className="primary" disabled={!!busy || ready !== true || canOpen || entitlement?.status === 'suspended' || (usingTrial && (!phoneVerified || !trialDocument.trim()))} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo pagamento…' : canOpen ? 'Acesso já liberado' : usingTrial ? 'Assinar com 7 dias grátis' : trialEligible ? 'Assinar sem teste grátis' : 'Assinar com Mercado Pago'}</button>
+          <p>{usingTrial ? '7 dias grátis após a autorização no Mercado Pago. Depois, ' : ''}{plan.billing_interval === 'monthly' ? 'cobrança mensal' : plan.billing_interval === 'semiannual' ? 'cobrança a cada 6 meses' : 'cobrança a cada 12 meses'} com renovação automática.</p>
+          <button className="primary" disabled={!!busy || ready !== true || canOpen || entitlement?.status === 'suspended'} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo Mercado Pago…' : canOpen ? 'Acesso já liberado' : usingTrial ? 'Ativar 7 dias no Mercado Pago' : trialEligible ? 'Assinar sem teste grátis' : 'Assinar com Mercado Pago'}</button>
         </article>)}</div>
-        <p className="billing-caption">{usingTrial ? 'A primeira cobrança acontece somente após os 7 dias grátis. Se a identidade já tiver usado o teste, o período grátis é bloqueado.' : 'A assinatura segue diretamente para cobrança pelo Mercado Pago.'}</p>
+        <p className="billing-caption">{usingTrial ? 'O acesso permanece bloqueado até o Mercado Pago confirmar a autorização do teste. A primeira cobrança acontece após os 7 dias.' : 'A assinatura segue diretamente para cobrança pelo Mercado Pago.'}</p>
       </section>
       <section className="billing-panel" id="minhas-assinaturas"><h2>Suas assinaturas</h2>
         {!billingLoaded ? <p>A consulta da assinatura está indisponível. Tente atualizar novamente.</p> : subscriptions.length === 0 ? <p>Você ainda não iniciou uma assinatura. Escolha um dos planos acima.</p> : subscriptions.map(subscription => {
@@ -229,7 +162,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
             <h3>{apps.find(app => app.slug === subscription.app_id)?.name || subscription.app_id}</h3>
             <p>{money(subscription.amount_cents)} a cada {subscription.frequency} {subscription.frequency === 1 ? 'mês' : 'meses'}</p>
             <p>{statuses[subscription.status] || subscription.status}</p>
-            <strong>{trial ? `7 dias grátis até ${new Date(subscription.trial_ends_at!).toLocaleString('pt-BR')}` : paid ? `Período pago até ${new Date(subscription.current_period_end!).toLocaleDateString('pt-BR')}` : 'Sem período pago vigente'}</strong>
+            <strong>{trial ? `7 dias grátis até ${new Date(subscription.trial_ends_at!).toLocaleString('pt-BR')}` : paid ? `Período pago até ${new Date(subscription.current_period_end!).toLocaleDateString('pt-BR')}` : subscription.trial_requested && subscription.status === 'pending' ? 'Aguardando autorização do teste no Mercado Pago' : 'Sem período pago vigente'}</strong>
           </div><div className="billing-actions">
             {subscription.status !== 'failed' && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('sync', subscription.id)}>{busy === subscription.id ? 'Aguarde…' : 'Atualizar status'}</button>}
             {['pending', 'authorized', 'paused'].includes(subscription.status) && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('cancel', subscription.id)}>Cancelar renovação</button>}
