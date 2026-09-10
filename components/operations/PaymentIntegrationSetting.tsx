@@ -50,7 +50,7 @@ export function PaymentIntegrationSetting({ app }: { app: AppId }) {
   }
 
   if (trialing) return <Section title="Pagamentos pelo Mercado Pago">
-    <div className="op-config-group" data-trial-restricted="A integração de pagamentos ficará disponível após a ativação da assinatura.">
+    <div className="op-config-group">
       <div className="op-row"><span className="op-config-choice-icon"><LockKeyhole size={18} /></span><div className="op-grow"><strong>Integração protegida no modo teste</strong><small>Conexão, configuração e uso do Mercado Pago ficam disponíveis após a ativação da assinatura.</small></div><Badge>Assinatura necessária</Badge></div>
       <Link className="op-button secondary" href="/assinaturas">Assine agora para liberar <ExternalLink size={15} /></Link>
     </div>
