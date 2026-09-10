@@ -35,6 +35,10 @@ export function checkoutUrl(value: unknown): string {
   } catch { /* Reject unexpected redirects. */ }
   throw new HttpError(502, 'Link de pagamento inválido.');
 }
+export function hasSevenDayTrial(remote: Json) {
+  const trial = remote?.auto_recurring?.free_trial;
+  return Number(trial?.frequency) === 7 && trial?.frequency_type === 'days';
+}
 export function assertSubscription(local: Json, remote: Json) {
   const recurring = remote.auto_recurring;
   if (String(remote.application_id) !== applicationId || remote.external_reference !== local.id ||
@@ -42,7 +46,9 @@ export function assertSubscription(local: Json, remote: Json) {
     !['pending', 'authorized', 'paused', 'cancelled'].includes(remote.status) ||
     Math.round(Number(recurring?.transaction_amount) * 100) !== local.amount_cents ||
     recurring?.currency_id !== local.currency || recurring?.frequency !== local.frequency ||
-    recurring?.frequency_type !== 'months' || !remote.last_modified) {
+    recurring?.frequency_type !== 'months' || !remote.last_modified ||
+    (local.preapproval_plan_id && remote.preapproval_plan_id !== local.preapproval_plan_id) ||
+    (local.trial_requested === true && remote.status !== 'cancelled' && !hasSevenDayTrial(remote))) {
     throw new HttpError(409, 'Os dados da assinatura precisam de conferência pelo suporte.');
   }
 }
@@ -55,6 +61,29 @@ export function assertPayment(local: Json, remote: Json, payment: Json) {
 export async function applySnapshot(local: Json, remote: Json, payment?: Json) {
   assertSubscription(local, remote);
   if (payment) assertPayment(local, remote, payment);
+
+  if (local.trial_requested === true && remote.status === 'authorized' && (!payment || payment.status !== 'approved')) {
+    const trialEnds = String(remote.next_payment_date || '');
+    if (!trialEnds || Number.isNaN(Date.parse(trialEnds))) throw new HttpError(409, 'O Mercado Pago não informou o fim do teste grátis.');
+    const db = admin();
+    const { data: accepted, error: trialError } = await db.rpc('mp_register_checkout_trial', {
+      local_id: local.id,
+      provider_payer_id: remote.payer_id == null ? '' : String(remote.payer_id),
+      provider_card_id: remote.card_id == null ? '' : String(remote.card_id),
+      trial_ends: trialEnds,
+    });
+    check(trialError);
+    if (!accepted) {
+      const cancelled = await mp(`/preapproval/${encodeURIComponent(remote.id)}`, 'PUT', { status: 'cancelled' });
+      assertSubscription(local, cancelled);
+      const { error: cancelSnapshotError } = await db.rpc('mp_apply_snapshot', {
+        local_id: local.id, subscription: cancelled, payment: null,
+      });
+      check(cancelSnapshotError);
+      return;
+    }
+  }
+
   const { error } = await admin().rpc('mp_apply_snapshot', {
     local_id: local.id, subscription: remote, payment: payment || null,
   });
