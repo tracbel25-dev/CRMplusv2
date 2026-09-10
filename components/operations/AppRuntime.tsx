@@ -34,6 +34,7 @@ import { AppSettings } from './Settings';
 import { ArtemisSettings } from './ArtemisSettings';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
+import { PostCompletionPayments } from './PostCompletionPayments';
 
 const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
@@ -138,6 +139,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <main id="op-main" className="op-main">
             {!recordId && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
             {body}
+            {w.ready && <PostCompletionPayments w={w} app={app} page={page} recordId={recordId} />}
           </main>
 
           <footer className="op-local-status"><span>{corporateDeveloperLine()}</span><Link href={`/${app}/configuracoes`}>{corporateUi.settingsLabel} <ArrowUpRight size={13} /></Link></footer>
