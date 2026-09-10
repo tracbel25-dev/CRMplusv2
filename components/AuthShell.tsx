@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
@@ -20,40 +20,63 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [checkingSession,setCheckingSession]=useState(true);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
+  const [pendingConfirmation,setPendingConfirmation]=useState(false);
   const requestedDestination=redirectTo&&redirectTo.startsWith('/')&&!redirectTo.startsWith('//')&&!redirectTo.includes('\\')?redirectTo:'/conta';
+
+  const continueAfterAuth=useCallback(async()=>{
+    const supabase=createStoreClient();
+    const {data:factors,error:factorsError}=await supabase.auth.mfa.listFactors();
+    const hasVerifiedTotp=!factorsError&&factors.totp.some(item=>item.status==='verified');
+    if(hasVerifiedTotp){
+      const {data:aal,error:aalError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if(aalError)throw aalError;
+      if(aal.currentLevel!=='aal2'&&aal.nextLevel==='aal2'){
+        router.replace(`/verificar-2fa?redirect=${encodeURIComponent(requestedDestination)}`);
+        router.refresh();
+        return;
+      }
+    }
+    router.replace(requestedDestination);
+    router.refresh();
+  },[requestedDestination,router]);
 
   useEffect(()=>{
     let active=true;
     const supabase=createStoreClient();
 
-    void supabase.auth.getSession().then(({data})=>{
-      if(!active) return;
+    void supabase.auth.getSession().then(async({data})=>{
+      if(!active)return;
       if(data.session?.user){
-        router.replace(requestedDestination);
-        router.refresh();
+        try{await continueAfterAuth();}catch{router.replace(requestedDestination);router.refresh();}
         return;
       }
       setCheckingSession(false);
-    }).catch(()=>{
-      if(active) setCheckingSession(false);
-    });
+    }).catch(()=>{if(active)setCheckingSession(false);});
 
     const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
-      if(!active||!session?.user) return;
-      router.replace(requestedDestination);
-      router.refresh();
+      if(!active||!session?.user)return;
+      void continueAfterAuth().catch(()=>{router.replace(requestedDestination);router.refresh();});
     });
 
-    return ()=>{
-      active=false;
-      data.subscription.unsubscribe();
-    };
-  },[requestedDestination,router]);
+    return()=>{active=false;data.subscription.unsubscribe();};
+  },[continueAfterAuth,requestedDestination,router]);
+
+  const resendConfirmation=async()=>{
+    const normalized=email.trim().toLowerCase();
+    if(!normalized){setError('Informe o e-mail usado no cadastro.');return;}
+    setError('');setMessage('');setLoading(true);
+    try{
+      const supabase=createStoreClient();
+      const {error:resendError}=await supabase.auth.resend({type:'signup',email:normalized,options:{emailRedirectTo:`${window.location.origin}/auth/confirm`}});
+      if(resendError)throw resendError;
+      setMessage('Novo e-mail de confirmação enviado. Confira também a caixa de spam.');
+    }catch(reason){setError((reason as Error).message||'Não foi possível reenviar a confirmação.');}
+    finally{setLoading(false);}
+  };
 
   const submit=async(event:FormEvent)=>{
     event.preventDefault();
-    setError('');
-    setMessage('');
+    setError('');setMessage('');setPendingConfirmation(false);
     if(password.length<8){setError('Use uma senha com pelo menos 8 caracteres.');return;}
     setLoading(true);
     try{
@@ -64,12 +87,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           email:email.trim().toLowerCase(),
           password,
           options:{
-            data:{
-              name:name.trim(),
-              business:business.trim(),
-              requested_app:selectedApp,
-              signup_redirect:requestedDestination
-            },
+            data:{name:name.trim(),business:business.trim(),requested_app:selectedApp,signup_redirect:requestedDestination},
             emailRedirectTo:`${window.location.origin}/auth/confirm`
           }
         });
@@ -78,27 +96,23 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           const {error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
           await supabase.auth.updateUser({data:{signup_redirect:null}});
-          router.replace(requestedDestination);
-          router.refresh();
+          await continueAfterAuth();
         }else{
-          setMessage('Conta criada. Confira seu e-mail para confirmar o acesso e continuar exatamente de onde parou.');
+          setPendingConfirmation(true);
+          setMessage('Conta criada. Enviamos um e-mail para confirmar seu endereço e ativar o acesso.');
         }
       }else{
-        const {error:loginError}=await supabase.auth.signInWithPassword({
-          email:email.trim().toLowerCase(),
-          password
-        });
+        const {error:loginError}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
         if(loginError)throw loginError;
-        router.replace(requestedDestination);
-        router.refresh();
+        await continueAfterAuth();
       }
     }catch(reason){
       const text=(reason as {message?:string}).message||'Não foi possível concluir o acesso.';
       setError(text==='Invalid login credentials'?'E-mail ou senha incorretos.':text);
-    }finally{setLoading(false)}
+    }finally{setLoading(false);}
   };
 
-  if(checkingSession) return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Acesso</span><h1>Carregando sua conta…</h1><p>Verificando sua sessão.</p></section></main>;
+  if(checkingSession)return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Acesso</span><h1>Carregando sua conta…</h1><p>Verificando sua sessão.</p></section></main>;
 
   return <main className="auth-shell">
     <Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link>
@@ -114,6 +128,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
         {error&&<p className="auth-error" role="alert">{error}</p>}
         {message&&<p className="auth-success" role="status">{message}</p>}
         <button type="submit" className="primary" disabled={loading}>{loading?'Aguarde…':signup?'Criar conta':'Entrar'}</button>
+        {signup&&pendingConfirmation&&<button type="button" className="ghost" disabled={loading} onClick={()=>void resendConfirmation()}>Reenviar e-mail de confirmação</button>}
       </form>
       {!signup&&<small><Link href="/recuperar-senha">Esqueci minha senha</Link></small>}
       <small>{signup?<>Já possui conta? <Link href={`/login?redirect=${encodeURIComponent(requestedDestination)}${app?`&app=${app}`:''}`}>Entrar</Link></>:<>Ainda não possui conta? <Link href={`/cadastro?redirect=${encodeURIComponent(requestedDestination)}${app?`&app=${app}`:''}`}>Criar conta</Link></>}</small>
