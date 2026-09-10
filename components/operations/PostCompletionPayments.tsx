@@ -171,6 +171,8 @@ function ArtemisReadyPayments({ w }: { w: Workspace }) {
   }), [w.data]);
 
   if (!ready.length) return null;
+  if (!w.data.shifts.some(shift => !shift.closedAt)) return <Section title="Cobrança de comandas pelo Mercado Pago"><Empty>Abra o caixa do Artemis antes de receber a comanda. O pagamento digital será registrado no turno aberto.</Empty></Section>;
+
   return <section style={{ marginTop: 20 }}>
     {ready.map(table => {
       const orders = tableOrders(w.data, table).filter(order => order.status !== 'Cancelado');
