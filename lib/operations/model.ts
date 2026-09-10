@@ -244,6 +244,7 @@ export function advanceJob(d: Data, id: string, expectedStage?: string) {
   if (index < 0) index = flow.indexOf('Execução') - 1;
   if (job.stage === 'Diagnóstico' && !job.diagnosis.trim()) throw new Error('Registre o diagnóstico antes de avançar.');
   if (job.stage === 'Orçamento' && d.settings.budgetEnabled && effectiveQuoteStatus(job.quote) !== 'Aprovado') throw new Error(effectiveQuoteStatus(job.quote) === 'Expirado' ? 'O orçamento venceu. Abra uma nova versão antes de iniciar a execução.' : 'Registre a aprovação do orçamento antes de iniciar a execução.');
+  if (job.stage === 'Execução' && !job.tasks.length) throw new Error('Registre ao menos uma tarefa real da execução antes da conferência.');
   if (job.stage === 'Execução' && job.tasks.some(l => !l.done)) throw new Error('Conclua os serviços antes da conferência.');
   if (index === flow.length - 1) { job.status = 'Encerrado'; job.events.push(event('Entrega registrada e atendimento encerrado')); return; }
   job.stage = flow[index + 1];
@@ -307,7 +308,10 @@ export function advanceOrder(d: Data, id: string, expectedStatus?: string) {
   if (index === 2 && o.lines.some(l => !l.done)) throw new Error('Marque todos os itens como prontos.');
   if (index === 3 && o.channel === 'Delivery' && o.delivery !== 'Entregue') throw new Error('Confirme a entrega antes de concluir.');
   o.status = flow[index + 1];
-  o.events.push(event(`Pedido ${o.status.toLowerCase()}`));
+  const pendingBalance = o.status === 'Concluído' ? balance(d, o) : 0;
+  o.events.push(event(pendingBalance > 0
+    ? `Pedido concluído operacionalmente · saldo pendente: ${money(pendingBalance)}`
+    : `Pedido ${o.status.toLowerCase()}`));
 }
 export function advanceDelivery(d: Data, id: string) {
   const order = d.orders.find(item => item.id === id);
@@ -340,6 +344,7 @@ export function receivePayment(d: Data, orderId: string, amount: number, method:
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > balance(d, o)) throw new Error('O recebimento deve ser maior que zero e não pode exceder o saldo.');
   d.payments.push({ id: uid(), orderId, shiftId: shift.id, amount, method, at: now(), refunded: 0 });
   o.events.push(event(`Recebimento confirmado manualmente: ${money(amount)} em ${method}`));
+  if (o.status === 'Concluído' && balance(d, o) === 0) o.events.push(event('Saldo quitado após a conclusão operacional'));
 }
 export function receiveTablePayment(d: Data, tableId: string, amount: number, method: string) {
   const table = d.tables.find(item => item.id === tableId && item.openedAt);
