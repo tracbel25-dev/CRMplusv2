@@ -28,6 +28,7 @@ export default function ConfirmPage() {
   const processing = useRef(false);
   const [error, setError] = useState('');
   const [destination, setDestination] = useState('/conta');
+  const [phase,setPhase]=useState<'account'|'payment'>('account');
 
   useEffect(() => {
     let active = true;
@@ -43,7 +44,7 @@ export default function ConfirmPage() {
         let user = sessionData.session?.user || null;
         if (!user) {
           const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData.user) throw userError || new Error('Não foi possível validar sua confirmação.');
+          if (userError || !userData.user) throw userError || new Error('Não foi possível validar a confirmação do e-mail. Abra novamente o link enviado para sua caixa de entrada.');
           user = userData.user;
         }
 
@@ -60,10 +61,11 @@ export default function ConfirmPage() {
         }
 
         if (planId && accountId) {
+          if(active)setPhase('payment');
           const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId });
-          if (!result.url) throw new Error('O Mercado Pago não retornou o link de pagamento.');
+          if (!result.url) throw new Error('Sua conta foi confirmada, mas o Mercado Pago não retornou o link de pagamento.');
           const paymentUrl = new URL(result.url);
-          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('O link de pagamento retornado é inválido.');
+          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas o link de pagamento retornado é inválido.');
           await supabase.auth.updateUser({ data: { signup_redirect: null } });
           window.location.replace(paymentUrl.href);
           return;
@@ -75,7 +77,7 @@ export default function ConfirmPage() {
         router.refresh();
       } catch (reason) {
         processing.current = false;
-        if (active) setError((reason as Error).message || 'Não foi possível confirmar seu acesso.');
+        if (active) setError((reason as Error).message || 'Não foi possível concluir a confirmação da conta.');
       }
     };
 
@@ -98,14 +100,14 @@ export default function ConfirmPage() {
       {!error ? <>
         <div className="confirm-icon is-loading"><LoaderCircle size={26}/></div>
         <span className="eyebrow">Confirmação de acesso</span>
-        <h1>Preparando seu pagamento.</h1>
-        <p>Seu e-mail foi confirmado. Sua sessão continua ativa e o Mercado Pago será aberto automaticamente para o plano escolhido.</p>
+        <h1>{phase==='payment'?'Conta confirmada. Preparando pagamento.':'Confirmando sua conta.'}</h1>
+        <p>{phase==='payment'?'Seu e-mail já foi confirmado. Estamos abrindo o Mercado Pago para o plano escolhido.':'Estamos validando seu e-mail e preparando a área da sua conta CRM PLUS.'}</p>
         <div className="confirm-progress"><span/></div>
       </> : <>
         <div className="confirm-icon"><CheckCircle2 size={26}/></div>
-        <span className="eyebrow">Conta confirmada</span>
-        <h1>Falta somente o Mercado Pago.</h1>
-        <p>Sua conta continua logada e o plano escolhido foi preservado.</p>
+        <span className="eyebrow">Confirmação</span>
+        <h1>Precisamos concluir uma etapa.</h1>
+        <p>Seu acesso foi preservado. Você pode continuar pela sua conta ou tentar novamente pelo link recebido.</p>
         <p className="confirm-error" role="alert">{error}</p>
         <div className="confirm-actions"><Link className="primary" href={destination}>Continuar</Link><Link className="ghost" href="/conta">Minha conta</Link></div>
       </>}
