@@ -166,9 +166,9 @@ export function useStoreAccess() {
   }, [refresh]);
 
   const isOwner = member?.role === 'owner';
-  const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status)).map(item => item.appId) || []), [account]);
-  const hasApp = (app: AppId) => !!account && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app));
-  const canConfigureApp = (app: AppId) => !!account && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app && item.canConfigure));
+  const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status) && (!item.currentPeriodEnd || Date.parse(item.currentPeriodEnd) > Date.now())).map(item => item.appId) || []), [account]);
+  const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app));
+  const canConfigureApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app && item.canConfigure));
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar acessos.');
