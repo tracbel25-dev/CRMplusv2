@@ -7,8 +7,12 @@ import type { AppId } from '@/lib/operations/model';
 import { navigation } from '@/lib/operations/navigation';
 import './trial-protection.css';
 
-const CLIPBOARD_NOTICE = 'Conteúdo protegido pelo CRM PLUS Store. Ative sua assinatura para copiar, exportar, imprimir ou compartilhar informações.';
 const RESTRICTED_ACTION = /(copiar|copy|exportar|export|baixar|download|imprimir|print|pdf|csv|xlsx|excel|compartilhar|share)/i;
+
+function protectedClipboardText() {
+  const origin = window.location.origin;
+  return `CONTEÚDO PROTEGIDO — CRM PLUS Store\n\nModo teste: copiar, exportar, imprimir e compartilhar informações ficam disponíveis somente após a ativação da assinatura.\n\nAssine agora para ter acesso completo:\n${origin}/assinaturas\n\nCRM PLUS Store\nProdutos digitais próprios para rotinas diferentes.\n\nNavegação\nInício — ${origin}/inicio\nAplicativos — ${origin}/aplicativos\nPlanos — ${origin}/planos\n\nCRM PLUS\nSobre — ${origin}/sobre\nSuporte — ${origin}/suporte\nContato — ${origin}/contato\n\nLegal\nTermos de Uso — ${origin}/termos\nPolítica de Privacidade — ${origin}/privacidade\nPrivacidade e IA — ${origin}/privacidade/ia\nCookies — ${origin}/cookies\n\n© 2026 CRM PLUS Store. Todos os direitos reservados.`;
+}
 
 function actionText(target: Element) {
   return [
@@ -56,7 +60,7 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
           configurable: true,
           value: async () => {
             showBlocked('Copiar conteúdo está bloqueado no modo teste. Assine agora para ter acesso completo.');
-            try { await originalWriteText(CLIPBOARD_NOTICE); } catch { /* clipboard can be unavailable outside a user gesture */ }
+            try { await originalWriteText(protectedClipboardText()); } catch { /* clipboard can be unavailable outside a user gesture */ }
           }
         });
         clipboardPatched = true;
@@ -66,14 +70,14 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
     const onCopy = (event: ClipboardEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      event.clipboardData?.setData('text/plain', CLIPBOARD_NOTICE);
+      event.clipboardData?.setData('text/plain', protectedClipboardText());
       showBlocked('Copiar conteúdo está bloqueado no modo teste. Assine agora para ter acesso completo.');
     };
 
     const onCut = (event: ClipboardEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      event.clipboardData?.setData('text/plain', CLIPBOARD_NOTICE);
+      event.clipboardData?.setData('text/plain', protectedClipboardText());
       showBlocked('Recortar conteúdo está bloqueado no modo teste.');
     };
 
@@ -112,7 +116,7 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
       if (screenshot) {
         shieldScreen();
         showBlocked('Captura de tela está bloqueada no modo teste. Assine agora para ter acesso completo.');
-        if (originalWriteText) window.setTimeout(() => { void originalWriteText(CLIPBOARD_NOTICE).catch(() => undefined); }, 60);
+        if (originalWriteText) window.setTimeout(() => { void originalWriteText(protectedClipboardText()).catch(() => undefined); }, 60);
         return;
       }
       showBlocked(developerShortcut
@@ -124,9 +128,10 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
       if (event.key !== 'PrintScreen') return;
       event.preventDefault();
       shieldScreen();
-      if (originalWriteText) void originalWriteText(CLIPBOARD_NOTICE).catch(() => undefined);
+      if (originalWriteText) void originalWriteText(protectedClipboardText()).catch(() => undefined);
     };
 
+    const onBlur = () => shieldScreen();
     const onBeforePrint = () => {
       document.documentElement.classList.add('crm-trial-printing');
       showBlocked('Impressão bloqueada no modo teste. Esta função ficará disponível após a ativação da assinatura.');
@@ -144,6 +149,7 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
     document.addEventListener('click', onClick, true);
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('blur', onBlur);
     window.addEventListener('beforeprint', onBeforePrint);
     window.addEventListener('afterprint', onAfterPrint);
 
@@ -158,6 +164,7 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
       document.removeEventListener('click', onClick, true);
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
+      window.removeEventListener('blur', onBlur);
       window.removeEventListener('beforeprint', onBeforePrint);
       window.removeEventListener('afterprint', onAfterPrint);
       try { window.print = originalPrint; } catch { /* noop */ }
