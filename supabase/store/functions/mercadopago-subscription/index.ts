@@ -43,6 +43,35 @@ async function ensureTrialPlan(db: ReturnType<typeof admin>, plan: Record<string
   return String(created.id);
 }
 
+function trialIdentityError(result: string) {
+  if (result === 'phone_required') return new HttpError(422, 'Confirme seu celular para receber os 7 dias grátis.');
+  if (result === 'document_invalid') return new HttpError(422, 'Informe um CPF ou CNPJ válido para validar o teste grátis.');
+  if (result === 'identity_used') return new HttpError(409, 'Este CPF/CNPJ ou celular já utilizou o teste grátis deste aplicativo. Você pode assinar normalmente sem os 7 dias.');
+  return new HttpError(409, 'O teste grátis não está disponível para este aplicativo nesta conta.');
+}
+
+async function prepareTrialIdentity(
+  db: ReturnType<typeof admin>,
+  accountId: string,
+  appId: string,
+  userId: string,
+  verifiedPhone: string,
+  document: string,
+  localId: string | null,
+) {
+  const { data, error } = await db.rpc('mp_prepare_trial_identity', {
+    target_account: accountId,
+    target_app: appId,
+    target_user: userId,
+    verified_phone: verifiedPhone,
+    document,
+    local_id: localId,
+  });
+  check(error);
+  const result = String(data || 'not_eligible');
+  if (result !== 'eligible') throw trialIdentityError(result);
+}
+
 export async function handler(request: Request) {
   const origin = request.headers.get('origin');
   const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store',
@@ -73,10 +102,23 @@ export async function handler(request: Request) {
       if (!permission) throw new HttpError(403, 'Somente o titular ou responsável financeiro pode gerenciar assinaturas.');
     }
     if (body.action === 'list') {
-      const { data, error } = await db.from('mp_subscriptions')
-        .select('id,app_id,status,amount_cents,frequency,current_period_end,trial_requested,trial_ends_at,created_at')
-        .eq('account_id', body.accountId).order('created_at', { ascending: false });
-      check(error); return reply({ subscriptions: data, ready: configured() });
+      const [{ data: subscriptions, error: subscriptionsError }, { data: activeApps, error: appsError }] = await Promise.all([
+        db.from('mp_subscriptions')
+          .select('id,app_id,status,amount_cents,frequency,current_period_end,trial_requested,trial_ends_at,created_at')
+          .eq('account_id', body.accountId).order('created_at', { ascending: false }),
+        db.from('apps').select('id').eq('status', 'active'),
+      ]);
+      check(subscriptionsError); check(appsError);
+      const eligibility = await Promise.all((activeApps || []).map(async app => {
+        const { data, error } = await db.rpc('mp_trial_eligible', {
+          target_account: body.accountId,
+          target_app: app.id,
+          target_user: auth.user.id,
+        });
+        check(error);
+        return data === true ? String(app.id) : null;
+      }));
+      return reply({ subscriptions: subscriptions || [], ready: configured(), trialEligibleApps: eligibility.filter(Boolean) });
     }
     if (!configured()) throw new HttpError(503, 'As assinaturas estão em configuração. Tente novamente em breve.');
     if (body.action === 'checkout') {
@@ -103,7 +145,14 @@ export async function handler(request: Request) {
         target_user: auth.user.id,
       });
       check(eligibilityError);
-      const trialEligible = eligible === true;
+      const basicTrialEligible = eligible === true;
+      const wantsTrial = basicTrialEligible && body.skipTrial !== true;
+      const trialDocument = typeof body.trialDocument === 'string' ? body.trialDocument : '';
+      const verifiedPhone = auth.user.phone_confirmed_at && auth.user.phone ? auth.user.phone : '';
+
+      if (wantsTrial) {
+        await prepareTrialIdentity(db, body.accountId, plan.app_id, auth.user.id, verifiedPhone, trialDocument, null);
+      }
 
       const { data: open, error: openError } = await db.from('mp_subscriptions').select('*')
         .eq('account_id', body.accountId).eq('app_id', plan.app_id)
@@ -116,13 +165,15 @@ export async function handler(request: Request) {
 
         if (open.preapproval_id) {
           const remoteOpen = await mp(`/preapproval/${encodeURIComponent(open.preapproval_id)}`);
-          if (open.trial_requested === true && hasSevenDayTrial(remoteOpen)) {
+          const sameMode = open.trial_requested === wantsTrial;
+          if (sameMode && wantsTrial && hasSevenDayTrial(remoteOpen)) {
+            await prepareTrialIdentity(db, body.accountId, plan.app_id, auth.user.id, verifiedPhone, trialDocument, open.id);
             await applySnapshot(open, remoteOpen);
-            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point) });
+            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point), trialApplied: true });
           }
-          if (!trialEligible && open.trial_requested !== true) {
+          if (sameMode && !wantsTrial && open.trial_requested !== true) {
             await applySnapshot(open, remoteOpen);
-            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point) });
+            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point), trialApplied: false });
           }
           if (remoteOpen.status !== 'pending') {
             await applySnapshot(open, remoteOpen);
@@ -135,7 +186,7 @@ export async function handler(request: Request) {
         }
       }
 
-      const preapprovalPlanId = trialEligible ? await ensureTrialPlan(db, plan, app.name, frequency) : null;
+      const preapprovalPlanId = wantsTrial ? await ensureTrialPlan(db, plan, app.name, frequency) : null;
       const { data: local, error: insertError } = await db.from('mp_subscriptions').insert({
         account_id: body.accountId,
         app_id: plan.app_id,
@@ -143,16 +194,26 @@ export async function handler(request: Request) {
         amount_cents: plan.amount_cents,
         currency: 'BRL',
         frequency,
-        trial_requested: trialEligible,
+        trial_requested: wantsTrial,
         created_by_user_id: auth.user.id,
         preapproval_plan_id: preapprovalPlanId,
       }).select('*').single();
       check(insertError);
       if (!local) throw new HttpError(500, 'Não foi possível iniciar a assinatura.');
 
+      if (wantsTrial) {
+        try {
+          await prepareTrialIdentity(db, body.accountId, plan.app_id, auth.user.id, verifiedPhone, trialDocument, local.id);
+        } catch (error) {
+          const failed = await db.from('mp_subscriptions').update({ status: 'failed' }).eq('id', local.id).eq('status', 'creating');
+          check(failed.error);
+          throw error;
+        }
+      }
+
       let remote;
       try {
-        remote = trialEligible
+        remote = wantsTrial
           ? await mp('/preapproval', 'POST', {
               preapproval_plan_id: preapprovalPlanId,
               reason: `CRM PLUS Store — ${app.name}`,
@@ -177,7 +238,7 @@ export async function handler(request: Request) {
         throw error;
       }
       await applySnapshot(local, remote);
-      return reply({ url: checkoutUrl(remote.init_point) });
+      return reply({ url: checkoutUrl(remote.init_point), trialApplied: wantsTrial });
     }
     if (!['sync', 'cancel'].includes(body.action) || !/^[0-9a-f-]{36}$/i.test(body.subscriptionId || '')) throw new HttpError(400, 'Solicitação inválida.');
     const { data: local, error } = await db.from('mp_subscriptions').select('*').eq('id', body.subscriptionId).eq('account_id', body.accountId).maybeSingle();
