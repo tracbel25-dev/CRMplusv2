@@ -25,13 +25,21 @@ export function findCustomerFromInput(data: Data, input: string, draft: Customer
   const direct = data.customers.find(customer => customer.id === raw);
   if (direct) return direct;
 
-  const nameKey = normalize(raw);
   const phone = cleanPhone(draft.phone);
-  const email = cleanEmail(draft.email);
+  if (phone) {
+    const byPhone = data.customers.find(customer => cleanPhone(customer.phone) === phone);
+    if (byPhone) return byPhone;
+  }
 
-  return data.customers.find(customer => normalize(customer.name) === nameKey)
-    || (phone ? data.customers.find(customer => cleanPhone(customer.phone) === phone) : undefined)
-    || (email ? data.customers.find(customer => cleanEmail(customer.email) === email) : undefined);
+  const email = cleanEmail(draft.email);
+  if (email) {
+    const byEmail = data.customers.find(customer => cleanEmail(customer.email) === email);
+    if (byEmail) return byEmail;
+  }
+
+  const nameKey = normalize(raw);
+  const byName = data.customers.filter(customer => normalize(customer.name) === nameKey);
+  return byName.length === 1 ? byName[0] : undefined;
 }
 
 export function resolveCustomer(data: Data, input: string, draft?: CustomerDraft, options?: { optional?: false }): Customer;
@@ -51,6 +59,11 @@ export function resolveCustomer(data: Data, input: string, draft: CustomerDraft 
     if (!existing.email && email) existing.email = email;
     if (!existing.notes && draft.notes?.trim()) existing.notes = draft.notes.trim();
     return existing;
+  }
+
+  const sameName = data.customers.filter(customer => normalize(customer.name) === normalize(name));
+  if (sameName.length > 1) {
+    throw new Error('Há mais de um cliente com esse nome. Informe telefone ou e-mail para o sistema reaproveitar o cadastro correto.');
   }
 
   const customer: Customer = {
