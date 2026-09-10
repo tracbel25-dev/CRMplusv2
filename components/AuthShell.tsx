@@ -20,7 +20,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [checkingSession,setCheckingSession]=useState(true);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
-  const requestedDestination=redirectTo&&redirectTo.startsWith('/')&&!redirectTo.startsWith('//')&&!redirectTo.includes('\\')?redirectTo:'/entrar';
+  const requestedDestination=redirectTo&&redirectTo.startsWith('/')&&!redirectTo.startsWith('//')&&!redirectTo.includes('\\')?redirectTo:'/conta';
 
   useEffect(()=>{
     let active=true;
@@ -70,8 +70,6 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
               requested_app:selectedApp,
               signup_redirect:requestedDestination
             },
-            // Always return to one stable route. The final destination is kept in
-            // user metadata so confirmation links do not lose query parameters.
             emailRedirectTo:`${window.location.origin}/auth/confirm`
           }
         });
@@ -107,7 +105,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
     <section className="auth-card">
       <span className="eyebrow">{signup?'Criar conta':'Acesso'}</span>
       <h1>{signup?'Crie sua conta CRM PLUS.':'Entre na sua conta.'}</h1>
-      <p>{signup?'A conta centraliza sua assinatura, os aplicativos contratados e quem pode acessar ou configurar cada um.':app?`Depois do acesso, você pode seguir para o ${apps.find(item=>item.slug===app)?.name||'aplicativo'} ou abrir seus aplicativos pela Store.`:'Veja os aplicativos contratados e liberados para o seu usuário.'}</p>
+      <p>{signup?'A conta centraliza sua assinatura, os aplicativos contratados e quem pode acessar ou configurar cada um.':app?`Depois do acesso, você pode seguir para o ${apps.find(item=>item.slug===app)?.name||'aplicativo'} ou abrir sua área do cliente.`:'Acesse sua área do cliente, aplicativos e assinaturas.'}</p>
       <form onSubmit={submit}>
         {signup&&<><label>Seu nome<input type="text" value={name} onChange={event=>setName(event.target.value)} placeholder="Nome do titular" autoComplete="name" required/></label><label>Nome do negócio<input type="text" value={business} onChange={event=>setBusiness(event.target.value)} placeholder="Nome da empresa" autoComplete="organization" required/></label></>}
         {signup&&<label>Aplicativo de interesse<select value={selectedApp} onChange={event=>setSelectedApp(event.target.value as AppId)}>{apps.map(item=><option key={item.slug} value={item.slug}>{item.name} — {item.category}</option>)}</select><small>Isso não libera o aplicativo. A liberação acontece pela contratação da Store.</small></label>}
