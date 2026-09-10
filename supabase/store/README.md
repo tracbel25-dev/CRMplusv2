@@ -5,14 +5,14 @@ Retorno temporário: `https://crmplusv2.vercel.app/assinaturas?retorno=1`.
 
 ## Estado desta entrega
 
-Código preparado para revisão. **A alteração do banco foi bloqueada pela revisão automática e NÃO foi aplicada. As funções NÃO foram publicadas.**
-Autorizar explicitamente a criação das tabelas de cobrança e atualização das regras de acesso antes de aplicar `mercadopago.sql` no projeto central.
-O último status do Vercel no commit base indica limite diário de deploy. A conexão Vercel desta sessão pertence a outra equipe; acompanhar a publicação pelo GitHub/conta correta.
+Migration aplicada e funções `mercadopago-subscription` e `mercadopago-webhook` publicadas no Supabase central em 10/09/2026, após autorização explícita do titular.
+O webhook responde HTTP 200 no health check. O checkout exige autenticação (HTTP 401 sem sessão). A ativação de novas cobranças permanece bloqueada até cadastrar `MERCADO_PAGO_WEBHOOK_SECRET`.
+A prévia do Vercel deste PR foi publicada com sucesso; o limite de deploy observado no commit base não impediu a prévia.
 
-## Publicação após autorização
+## Configuração e manutenção
 
-1. Aplicar `mercadopago.sql` como migration no Supabase central, testar atomicidade/RLS com transação revertida e executar Security Advisor.
-2. Publicar `mercadopago-subscription` e `mercadopago-webhook`, incluindo `_shared/mercadopago.ts`, com a configuração deste diretório. A primeira valida o JWT em `auth.getUser()` e verifica empresa, membro e permissão financeira; a segunda valida HMAC. As duas usam autenticação própria, com `verify_jwt=false`.
+1. `mercadopago.sql` já foi aplicado como migration no projeto central. Não reaplicar. O teste `tests/billing.transaction.sql` valida sincronização, duplicidade, estorno, cancelamento, isolamento e vencimento com ROLLBACK.
+2. Funções já publicadas. Para atualizar `mercadopago-subscription` e `mercadopago-webhook`, incluir `_shared/mercadopago.ts`, com a configuração deste diretório. A primeira valida o JWT em `auth.getUser()` e verifica empresa, membro e permissão financeira; a segunda valida HMAC. As duas usam autenticação própria, com `verify_jwt=false`.
 3. O usuário já cadastrou `MERCADO_PAGO_ACCESS_TOKEN` nos Secrets. Nunca versionar seu valor.
 4. No Mercado Pago → CRMPlus Assinaturas → Webhooks, configurar produção:
    `https://sodcfarvfhkdjecjmdwc.supabase.co/functions/v1/mercadopago-webhook`
@@ -38,6 +38,7 @@ O último status do Vercel no commit base indica limite diário de deploy. A con
 
 `node --test tests/billing.test.mjs` cobre HMAC, autenticação, autorização financeira, correlação, valor, moeda, modo de produção e URLs de checkout.
 `npm run build` verifica TypeScript e compilação Next.js. Edge Functions têm verificação de tipos separada.
-SQL/RLS, execução das Edge Functions em produção e pagamento ponta a ponta permanecem pendentes da aplicação autorizada.
+SQL/RLS passaram nos testes transacionais com ROLLBACK, incluindo acesso entre empresas e eventos repetidos/atrasados. Security Advisor: nenhum alerta WARN/ERROR; apenas INFO esperado em `mp_payments` (RLS sem policies, tabela exclusiva do backend). [Explicação do lint](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+As Edge Functions foram publicadas e os checks HTTP passaram. Pagamento ponta a ponta depende da configuração do webhook e de uma transação de teste autorizada; nenhuma cobrança real foi criada.
 
 Referências: [Assinaturas](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/overview), [Webhooks](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks), [tipos oficiais PreApproval](https://github.com/mercadopago/sdk-nodejs/blob/master/src/clients/preApproval/commonTypes.ts), [autenticação de Edge Functions](https://supabase.com/docs/guides/functions/auth).
