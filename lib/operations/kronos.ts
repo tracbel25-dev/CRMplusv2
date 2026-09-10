@@ -1,5 +1,5 @@
 import type { Data, Deal } from './model';
-import { event, normalize, now, syncDealNextActivity, uid } from './model';
+import { now, syncDealNextActivity, uid } from './model';
 
 export type KronosMotion = 'Ativa' | 'Reativa' | '';
 export type KronosTemperature = 'Fria' | 'Morna' | 'Quente' | '';
@@ -59,24 +59,6 @@ const finite = (value: unknown) => Number.isFinite(Number(value)) ? Number(value
 const coordinate = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : null;
 const visitTaskId = (visitId: string) => `kronos-visit:${visitId}`;
 
-function proposalStageIndex(data: Data) {
-  return data.settings.salesStages.findIndex(stage => {
-    const key = normalize(stage);
-    return key.includes('proposta') || key.includes('orcamento') || key.includes('cotacao');
-  });
-}
-
-function alignDealStageWithQuote(data: Data, dealId: string, quoteStatus: KronosQuoteStatus) {
-  if (!['Em elaboração', 'Enviada', 'Aprovada'].includes(quoteStatus)) return;
-  const deal = data.deals.find(item => item.id === dealId);
-  if (!deal || isClosedDeal(deal)) return;
-  const targetIndex = proposalStageIndex(data);
-  const currentIndex = data.settings.salesStages.indexOf(deal.stage);
-  if (targetIndex < 0 || currentIndex < 0 || currentIndex >= targetIndex) return;
-  deal.stage = data.settings.salesStages[targetIndex];
-  deal.events.push(event(`Momento atualizado automaticamente para ${deal.stage} após avanço da cotação`));
-}
-
 function syncVisitTask(data: Data, visit: KronosVisit, previousDealId = '') {
   const taskId = visitTaskId(visit.id);
   const existing = data.tasks.find(task => task.id === taskId);
@@ -126,7 +108,6 @@ export function setKronosDealMeta(data: Data, dealId: string, patch: Partial<Kro
   if (patch.lastContactAt !== undefined) values[META_KEYS.lastContactAt] = patch.lastContactAt;
   if (patch.lastOutcome !== undefined) values[META_KEYS.lastOutcome] = patch.lastOutcome;
   data.customFieldValues[dealId] = values;
-  if (patch.quoteStatus !== undefined) alignDealStageWithQuote(data, dealId, patch.quoteStatus);
 }
 
 function parseVisit(value: unknown): KronosVisit | null {
