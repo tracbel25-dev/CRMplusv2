@@ -52,6 +52,7 @@ export default function ConfirmPage() {
         if (active) setDestination(nextDestination);
         const planId = checkoutPlan(nextDestination);
         const business = typeof user.user_metadata?.business === 'string' ? user.user_metadata.business.trim() : '';
+        const identityReservation = typeof user.user_metadata?.identity_reservation === 'string' ? user.user_metadata.identity_reservation.trim() : '';
         let accountId = '';
 
         if (business) {
@@ -60,18 +61,26 @@ export default function ConfirmPage() {
           accountId = typeof createdAccount === 'string' ? createdAccount : '';
         }
 
+        if (identityReservation && accountId) {
+          const {error:identityError}=await supabase.rpc('finalize_signup_identity',{
+            reservation_token:identityReservation,
+            target_account:accountId,
+          });
+          if(identityError)throw new Error('Seu e-mail foi confirmado, mas não foi possível concluir a validação do CPF. Entre em contato com o suporte.');
+        }
+
         if (planId && accountId) {
           if(active)setPhase('payment');
           const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId });
           if (!result.url) throw new Error('Sua conta foi confirmada, mas o Mercado Pago não retornou o link de pagamento.');
           const paymentUrl = new URL(result.url);
           if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas o link de pagamento retornado é inválido.');
-          await supabase.auth.updateUser({ data: { signup_redirect: null } });
+          await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null } });
           window.location.replace(paymentUrl.href);
           return;
         }
 
-        await supabase.auth.updateUser({ data: { signup_redirect: null } });
+        await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null } });
         if (!active) return;
         router.replace(nextDestination);
         router.refresh();
