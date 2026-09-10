@@ -77,7 +77,7 @@ export async function handler(request: Request) {
 
     if (body.action === 'list') {
       const loadSubscriptions = () => db.from('mp_subscriptions')
-        .select('id,app_id,status,amount_cents,frequency,current_period_end,trial_requested,trial_ends_at,created_at,preapproval_id,preapproval_plan_id,dedicated_trial_plan,init_point')
+        .select('id,app_id,plan_id,status,amount_cents,frequency,current_period_end,trial_requested,trial_ends_at,created_at,updated_at,preapproval_id,preapproval_plan_id,dedicated_trial_plan,init_point')
         .eq('account_id', body.accountId).order('created_at', { ascending: false });
 
       let { data: subscriptions, error: subscriptionsError } = await loadSubscriptions();
@@ -86,6 +86,17 @@ export async function handler(request: Request) {
         const refreshed = await loadSubscriptions();
         check(refreshed.error);
         subscriptions = refreshed.data;
+      }
+
+      const subscriptionIds = (subscriptions || []).map(item => item.id);
+      let payments: Record<string, any>[] = [];
+      if (subscriptionIds.length) {
+        const paymentResult = await db.from('mp_payments')
+          .select('id,subscription_id,status,amount_cents,paid_at,period_end,provider_updated_at')
+          .in('subscription_id', subscriptionIds)
+          .order('provider_updated_at', { ascending: false });
+        check(paymentResult.error);
+        payments = paymentResult.data || [];
       }
 
       const { data: activeApps, error: appsError } = await db.from('apps').select('id').eq('status', 'active');
@@ -99,7 +110,27 @@ export async function handler(request: Request) {
         check(error);
         return data === true ? String(app.id) : null;
       }));
-      return reply({ subscriptions: subscriptions || [], ready: configured(), trialEligibleApps: eligibility.filter(Boolean) });
+
+      const customerSubscriptions = (subscriptions || []).map(item => ({
+        id: item.id,
+        app_id: item.app_id,
+        plan_id: item.plan_id,
+        status: item.status,
+        amount_cents: item.amount_cents,
+        frequency: item.frequency,
+        current_period_end: item.current_period_end,
+        trial_requested: item.trial_requested,
+        trial_ends_at: item.trial_ends_at,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      }));
+
+      return reply({
+        subscriptions: customerSubscriptions,
+        payments,
+        ready: configured(),
+        trialEligibleApps: eligibility.filter(Boolean),
+      });
     }
 
     if (!configured()) throw new HttpError(503, 'As assinaturas estão em configuração. Tente novamente em breve.');
