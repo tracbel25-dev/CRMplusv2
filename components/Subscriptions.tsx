@@ -13,7 +13,7 @@ const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 
 const cycles: Record<string, string> = { monthly: 'Mensal', semiannual: 'Semestral', annual: 'Anual' };
 const statuses: Record<string, string> = { creating: 'Conferindo criação', pending: 'Aguardando autorização', authorized: 'Renovação automática autorizada', paused: 'Renovação pausada', cancelled: 'Renovação cancelada', failed: 'Não concluída' };
 
-export function Subscriptions({ initialApp, returned }: { initialApp?: string; returned: boolean }) {
+export function Subscriptions({ initialApp, initialPlan, returned }: { initialApp?: string; initialPlan?: string; returned: boolean }) {
   const access = useStoreAccess();
   const accountId = access.account?.id;
   const [selected, setSelected] = useState(apps.some(app => app.slug === initialApp) ? initialApp! : apps[0].slug);
@@ -68,7 +68,7 @@ export function Subscriptions({ initialApp, returned }: { initialApp?: string; r
 
   if (!access.ready) return <p role="status">Carregando sua conta…</p>;
   if (!access.user) {
-    const redirect = encodeURIComponent(`/assinaturas?app=${selected}`);
+    const redirect = encodeURIComponent(`/assinaturas?app=${selected}${initialPlan ? `&plano=${encodeURIComponent(initialPlan)}` : ""}`);
     return <section className="billing-panel"><h2>Entre para assinar um aplicativo.</h2><p>A assinatura ficará vinculada à sua empresa.</p><div className="billing-actions"><Link className="primary" href={`/login?redirect=${redirect}`}>Entrar</Link><Link className="ghost" href={`/cadastro?app=${selected}&redirect=${redirect}`}>Criar conta</Link></div></section>;
   }
   if (access.error || !access.account) return <p role="alert">{access.error || 'Conclua o cadastro da sua empresa para continuar.'}</p>;
@@ -80,8 +80,8 @@ export function Subscriptions({ initialApp, returned }: { initialApp?: string; r
       {!ready && <p className="billing-notice">As novas assinaturas estarão disponíveis em breve.</p>}
       <section className="billing-panel"><label htmlFor="billing-app">Escolha seu aplicativo</label>
         <select id="billing-app" value={selected} onChange={event => setSelected(event.target.value)}>{apps.map(app => <option value={app.slug} key={app.slug}>{app.name} — {app.category}</option>)}</select>
-        <div className="billing-plans">{plans.filter(plan => plan.app_id === selected).map(plan => <article key={plan.id}>
-          <h2>{cycles[plan.billing_interval]}</h2><strong>{money(plan.amount_cents)}</strong>
+        <div className="billing-plans">{plans.filter(plan => plan.app_id === selected).map(plan => <article key={plan.id} style={initialPlan === plan.id ? { outline: "2px solid #a5762d" } : undefined}>
+          <h2>{cycles[plan.billing_interval]}{initialPlan === plan.id ? " · Selecionado" : ""}</h2><strong>{money(plan.amount_cents)}</strong>
           <p>{plan.billing_interval === 'monthly' ? 'A cada mês' : plan.billing_interval === 'semiannual' ? 'A cada 6 meses' : 'A cada 12 meses'}. Renovação automática.</p>
           <button className="primary" disabled={!!busy || !ready} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo pagamento…' : 'Assinar com Mercado Pago'}</button>
         </article>)}</div>

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import Image from 'next/image';
 import { ArrowLeft, ArrowRight, Pause, Play, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -52,7 +53,7 @@ const impacts: Impact[] = [
   },
 ];
 
-export function HomeExperience() {
+export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
   const [hero, setHero] = useState(0);
   const [impact, setImpact] = useState(0);
   const [query, setQuery] = useState('');
@@ -111,6 +112,7 @@ export function HomeExperience() {
             <p>Escolha a ferramenta que entende a sua operação — sem transformar tudo no mesmo sistema.</p>
             <div className="store-cover-actions">
               <Link className="primary" href="/aplicativos">Explorar aplicativos</Link>
+              <Link className="ghost" href="#planos">Ver planos</Link>
               <Link className="ghost" href="/login">Já sou cliente</Link>
             </div>
           </div>
@@ -200,6 +202,8 @@ export function HomeExperience() {
           ))}
         </div>
       </section>
+
+      {pricing}
 
       <section className="store-story" id="sobre">
         <div className="story-number">01</div>
