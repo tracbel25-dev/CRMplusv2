@@ -35,18 +35,26 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           email:email.trim().toLowerCase(),
           password,
           options:{
-            data:{name:name.trim(),business:business.trim(),requested_app:selectedApp},
-            emailRedirectTo:`${window.location.origin}${requestedDestination}`
+            data:{
+              name:name.trim(),
+              business:business.trim(),
+              requested_app:selectedApp,
+              signup_redirect:requestedDestination
+            },
+            // Always return to one stable route. The final destination is kept in
+            // user metadata so confirmation links do not lose query parameters.
+            emailRedirectTo:`${window.location.origin}/auth/confirm`
           }
         });
         if(signUpError)throw signUpError;
         if(data.session){
           const {error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
+          await supabase.auth.updateUser({data:{signup_redirect:null}});
           router.push(requestedDestination);
           router.refresh();
         }else{
-          setMessage('Conta criada. Confira seu e-mail para confirmar o acesso e concluir o cadastro.');
+          setMessage('Conta criada. Confira seu e-mail para confirmar o acesso e continuar exatamente de onde parou.');
         }
       }else{
         const {error:loginError}=await supabase.auth.signInWithPassword({

@@ -1,5 +1,13 @@
 project_id = "sodcfarvfhkdjecjmdwc"
 
+[auth]
+site_url = "https://crmplusv2.vercel.app"
+additional_redirect_urls = ["https://crmplusv2.vercel.app/auth/confirm", "http://localhost:3000/auth/confirm"]
+
+[auth.email.template.confirmation]
+subject = "Confirme seu acesso | CRM PLUS Store"
+content_path = "./templates/confirmation.html"
+
 [functions.mercadopago-subscription]
 # Handler validates Supabase Auth with getUser and account billing permissions.
 verify_jwt = false
