@@ -83,14 +83,11 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   const activatedSubscriptions=useMemo(()=>subscriptions.filter(item=>!!item.trial_ends_at||!!item.current_period_end||paidSubscriptionIds.has(item.id)),[subscriptions,paidSubscriptionIds]);
   const current=useMemo(()=>activatedSubscriptions.filter(item=>{
     const end=serviceEnd(item);
-    if(item.status==='failed')return false;
-    if(item.status!=='cancelled')return true;
     return !!end&&Date.parse(end)>Date.now();
   }),[activatedSubscriptions]);
   const history=useMemo(()=>activatedSubscriptions.filter(item=>{
-    if(item.status!=='cancelled')return false;
     const end=serviceEnd(item);
-    return !end||Date.parse(end)<=Date.now();
+    return !!end&&Date.parse(end)<=Date.now();
   }),[activatedSubscriptions]);
   const activeApps=access.account?.apps.filter(item=>['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now()))||[];
   const trialCount=activeApps.filter(item=>item.status==='trialing').length;
@@ -128,20 +125,20 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     <section className="billing-management-card">
       <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Assinaturas da sua empresa</h2><p>Somente testes realmente ativados e períodos efetivamente liberados aparecem aqui. Aberturas e cancelamentos de checkout sem ativação não viram histórico.</p></div><Link className="primary small" href="/aplicativos">Adicionar aplicativo <ArrowRight size={15}/></Link></div>
       {ready===false&&<div className="billing-portal-message is-warning">A integração de cobrança está temporariamente indisponível.</div>}
-      {current.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhuma assinatura ativa ou período vigente.</h3><p>Escolha um aplicativo na Store para testar, ativar ou reativar.</p><Link className="primary" href="/aplicativos">Explorar aplicativos</Link></div>:<div className="billing-current-list">{current.map(subscription=>{
+      {current.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhuma assinatura ou teste vigente.</h3><p>Escolha um aplicativo na Store para testar, ativar ou reativar.</p><Link className="primary" href="/aplicativos">Explorar aplicativos</Link></div>:<div className="billing-current-list">{current.map(subscription=>{
         const app=apps.find(item=>item.slug===subscription.app_id);
         const entitlement=appAccess.get(subscription.app_id as AppId);
         const hasAccess=access.hasApp(subscription.app_id as AppId);
         const end=serviceEnd(subscription);
         const trialActive=entitlement?.status==='trialing'&&!!entitlement.currentPeriodEnd&&Date.parse(entitlement.currentPeriodEnd)>Date.now();
-        const remaining=subscription.status==='cancelled'&&!!end&&Date.parse(end)>Date.now();
+        const remaining=subscription.status==='cancelled';
         const label=trialActive?'Teste grátis ativo':subscription.status==='authorized'?'Ativa':subscription.status==='paused'?'Pausada':remaining?'Renovação cancelada':'Ativa';
         const tone=trialActive||subscription.status==='authorized'?'is-good':subscription.status==='paused'||remaining?'is-neutral':'';
         return <article className="billing-product" key={subscription.id}>
           <div className="billing-product-main"><div className="billing-product-title"><div><span className={`billing-status ${tone}`}>{label}</span><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div><div className="billing-price"><strong>{money(subscription.amount_cents)}</strong><span>{cycle(subscription.frequency)}</span></div></div>
-          <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:end?`Até ${date(end)}`:'Sem período vigente'}</strong></div><div><span>Cobrança</span><strong>Mercado Pago</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
+          <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div><div><span>Cobrança</span><strong>Mercado Pago</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
           <div className="billing-product-actions">
-            {subscription.status!=='creating'&&<button className="ghost" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?<><RefreshCw size={14}/> Atualizando…</>:'Atualizar status'}</button>}
+            {subscription.status!=='creating'&&subscription.status!=='cancelled'&&<button className="ghost" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?<><RefreshCw size={14}/> Atualizando…</>:'Atualizar status'}</button>}
             {['authorized','paused'].includes(subscription.status)&&<button className="text-danger" disabled={!!busy||ready!==true} onClick={()=>void act('cancel',subscription)}>Cancelar renovação</button>}
             {hasAccess&&<Link className="ghost" href={`/${subscription.app_id}`}>Abrir aplicativo <ArrowRight size={14}/></Link>}
           </div>
@@ -158,6 +155,10 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
       })}</div>}
     </section>
 
-    {history.length>0&&<section className="billing-history"><details><summary>Assinaturas encerradas <span>{history.length}</span></summary><div>{history.slice(0,12).map(subscription=><div className="billing-history-row" key={subscription.id}><span>{apps.find(item=>item.slug===subscription.app_id)?.name||subscription.app_id}</span><span>{cycle(subscription.frequency)}</span><span>{money(subscription.amount_cents)}</span><span>Encerrada em {date(serviceEnd(subscription)||subscription.created_at)}</span></div>)}</div></details></section>}
+    {history.length>0&&<section className="billing-history"><details><summary>Histórico de assinaturas <span>{history.length}</span></summary><div>{history.slice(0,12).map(subscription=>{
+      const end=serviceEnd(subscription);
+      const canStartAgain=subscription.status==='cancelled';
+      return <div className="billing-history-row" key={subscription.id}><span>{apps.find(item=>item.slug===subscription.app_id)?.name||subscription.app_id}</span><span>{cycle(subscription.frequency)}</span><span>{money(subscription.amount_cents)}</span><span className="billing-history-end"><span>Período encerrado em {date(end||subscription.created_at)}</span>{canStartAgain?<Link href={`/planos?app=${encodeURIComponent(subscription.app_id)}`}>{subscription.trial_requested?'Ativar':'Reativar'}</Link>:<button type="button" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?'Conferindo…':'Conferir renovação'}</button>}</span></div>;
+    })}</div></details></section>}
   </>;
 }
