@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Copy, CreditCard, ExternalLink, MessageCircle, QrCode, RefreshCw, WalletCards } from 'lucide-react';
+import { CheckCircle2, Copy, CreditCard, ExternalLink, MessageCircle, RefreshCw } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import { event, money, paid, receiveTablePayment, tableBalance, tableOrders, total } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { mercadoPagoConnectRequest, type MercadoPagoConnectStatus } from '@/lib/mercadopagoConnect';
 import { mercadoPagoChargeRequest, type MercadoPagoCharge, type MercadoPagoChargeItem } from '@/lib/mercadopagoCharge';
 import { mercadoPagoInPersonRequest, type MercadoPagoInPersonCapabilities } from '@/lib/mercadopagoInPerson';
+import { MercadoPagoTapGuide } from './MercadoPagoTapGuide';
 import { Badge, Button, Empty, Section } from './ui';
 
 type ChargePanelProps = {
@@ -149,14 +150,17 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
     {error && <p className="op-error">{error}</p>}
 
     {!charge && <>
-      {pdvTerminals.length > 1 && <label className="op-field" style={{ maxWidth: 520 }}><span>Point que receberá a cobrança</span><select value={terminalId} onChange={event => setTerminalId(event.target.value)}>{pdvTerminals.map(item => <option key={item.id} value={item.id}>{item.id.split('__').pop() || item.id}</option>)}</select></label>}
-      <div className="op-actions" style={{ flexWrap: 'wrap' }}>
-        <Button disabled={!!busy || amountCents <= 0} onClick={() => { void createCheckout(); }}><WalletCards size={16} />{busy === 'checkout' ? 'Gerando…' : 'Enviar link'}</Button>
-        <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.qrReady === false} onClick={() => { void createInPerson('qr'); }}><QrCode size={16} />{busy === 'qr' ? 'Gerando QR…' : 'Mostrar QR Code'}</Button>
-        <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.pointReady === false || !terminalId} onClick={() => { void createInPerson('point'); }}><CreditCard size={16} />{busy === 'point' ? 'Enviando…' : 'Cobrar na Point'}</Button>
+      <div className="op-callout"><strong>Escolha como cobrar</strong><span> Link e QR Code são digitais. Point física envia a venda para uma maquininha compatível. Tap no celular usa o NFC do próprio smartphone pelo app do Mercado Pago.</span></div>
+      {pdvTerminals.length > 1 && <label className="op-field" style={{ maxWidth: 520 }}><span>Point física que receberá a cobrança</span><select value={terminalId} onChange={event => setTerminalId(event.target.value)}>{pdvTerminals.map(item => <option key={item.id} value={item.id}>{item.id.split('__').pop() || item.id}</option>)}</select></label>}
+      <div className="op-actions" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <Button disabled={!!busy || amountCents <= 0} onClick={() => { void createCheckout(); }}>{busy === 'checkout' ? 'Gerando…' : 'Enviar link'}</Button>
+        <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.qrReady === false} onClick={() => { void createInPerson('qr'); }}>{busy === 'qr' ? 'Gerando QR…' : 'Mostrar QR Code'}</Button>
+        <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.pointReady === false || !terminalId} onClick={() => { void createInPerson('point'); }}>{busy === 'point' ? 'Enviando…' : 'Point física'}</Button>
+        <MercadoPagoTapGuide amountCents={amountCents} reference={reference} />
       </div>
       {capabilities && !capabilities.qrReady && <p className="op-muted">QR Code presencial: configure uma loja e ao menos um caixa no Mercado Pago. O QR integrado depende desse cadastro do próprio Mercado Pago.</p>}
-      {capabilities && !capabilities.pointReady && <p className="op-muted">Point: é necessário ter uma maquininha compatível associada à conta, loja e caixa e configurada em modo PDV no Mercado Pago.</p>}
+      {capabilities && !capabilities.pointReady && <p className="op-muted">Point física: é necessário ter uma maquininha compatível associada à conta, loja e caixa e configurada em modo PDV no Mercado Pago.</p>}
+      <p className="op-muted">Tap no celular: não depende de uma Point física cadastrada. Use um celular compatível com NFC e o aplicativo Mercado Pago com Point Tap (Android) ou Tap to Pay (iPhone) habilitado.</p>
     </>}
 
     {charge && <div className="op-actions" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -166,7 +170,7 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
         <Button variant="secondary" onClick={() => { void copyLink(); }}><Copy size={16} />{copied ? 'Link copiado' : 'Copiar link'}</Button>
         {phone && <Button variant="secondary" onClick={whatsapp}><MessageCircle size={16} />Enviar pelo WhatsApp</Button>}
       </>}
-      {charge.channel === 'point' && charge.status === 'pending' && <span className="op-muted"><CreditCard size={15} /> Cobrança enviada para a Point{charge.terminal_id ? ` · ${charge.terminal_id.split('__').pop()}` : ''}. Finalize no terminal.</span>}
+      {charge.channel === 'point' && charge.status === 'pending' && <span className="op-muted"><CreditCard size={15} /> Cobrança enviada para a Point física{charge.terminal_id ? ` · ${charge.terminal_id.split('__').pop()}` : ''}. Finalize no terminal.</span>}
       {charge.status === 'pending' && <Button variant="text" disabled={!!busy} onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar pagamento</Button>}
       {charge.status === 'approved' && <span className="op-muted"><CheckCircle2 size={15} /> Pagamento confirmado pelo Mercado Pago.</span>}
     </div>}
