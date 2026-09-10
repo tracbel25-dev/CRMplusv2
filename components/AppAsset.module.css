@@ -19,7 +19,7 @@
 }
 
 .ready {
-  animation: appAssetFadeIn .22s ease-out both;
+  animation: none;
 }
 
 .fallback {
@@ -36,12 +36,6 @@
   to { background-position-x: -220%; }
 }
 
-@keyframes appAssetFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .loading,
-  .ready { animation: none; }
+  .loading { animation: none; }
 }
