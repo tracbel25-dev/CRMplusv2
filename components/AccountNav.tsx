@@ -13,6 +13,9 @@ const items = [
 export function AccountNav() {
   const pathname = usePathname();
   return <nav className="account-nav" aria-label="Área do cliente">
-    {items.map(item => <Link key={item.href} href={item.href} className={pathname === item.href ? 'is-active' : undefined}>{item.label}</Link>)}
+    {items.map(item => {
+      const active=pathname===item.href||(item.href==='/minhas-informacoes'&&pathname==='/seguranca');
+      return <Link key={item.href} href={item.href} className={active?'is-active':undefined}>{item.label}</Link>;
+    })}
   </nav>;
 }
