@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { MfaGate } from '@/components/MfaGate';
 import { StoreAccessProvider } from '@/lib/account/storeAccess';
 import './globals.css';
 import './compact.css';
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({children}:{children:React.ReactNode}){
-  return <html lang="pt-BR"><body><StoreAccessProvider>{children}</StoreAccessProvider></body></html>;
+  return <html lang="pt-BR"><body><StoreAccessProvider><MfaGate>{children}</MfaGate></StoreAccessProvider></body></html>;
 }
