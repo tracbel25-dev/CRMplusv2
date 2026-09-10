@@ -17,7 +17,7 @@ type ChargePanelProps = {
   amountCents: number;
   items: MercadoPagoChargeItem[];
   phone?: string;
-  onApproved?: () => void | Promise<void>;
+  onApproved?: () => unknown | Promise<unknown>;
 };
 
 function phoneForWhatsapp(phone: string) {
