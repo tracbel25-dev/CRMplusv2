@@ -1,4 +1,47 @@
-import { admin, applySnapshot, check, checkoutUrl, configured, HttpError, mp, siteUrl, syncSubscription } from '../_shared/mercadopago.ts';
+import { admin, applicationId, applySnapshot, check, checkoutUrl, configured, hasSevenDayTrial, HttpError, mp, siteUrl, syncSubscription } from '../_shared/mercadopago.ts';
+
+function validTrialPlan(remote: Record<string, any>, plan: Record<string, any>, frequency: number) {
+  const recurring = remote?.auto_recurring;
+  const trial = recurring?.free_trial;
+  return String(remote?.application_id) === applicationId && remote?.status === 'active' && !!remote?.id &&
+    Number(recurring?.frequency) === frequency && recurring?.frequency_type === 'months' &&
+    Math.round(Number(recurring?.transaction_amount) * 100) === Number(plan.amount_cents) &&
+    recurring?.currency_id === 'BRL' && Number(trial?.frequency) === 7 && trial?.frequency_type === 'days';
+}
+
+async function ensureTrialPlan(db: ReturnType<typeof admin>, plan: Record<string, any>, appName: string, frequency: number) {
+  const { data: mapping, error: mappingError } = await db.from('mp_plan_mappings')
+    .select('preapproval_plan_id').eq('plan_id', plan.id).maybeSingle();
+  check(mappingError);
+  if (mapping?.preapproval_plan_id) {
+    try {
+      const existing = await mp(`/preapproval_plan/${encodeURIComponent(mapping.preapproval_plan_id)}`);
+      if (validTrialPlan(existing, plan, frequency)) return String(existing.id);
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 404) throw error;
+    }
+  }
+
+  const created = await mp('/preapproval_plan', 'POST', {
+    reason: `CRM PLUS Store — ${appName}`,
+    auto_recurring: {
+      frequency,
+      frequency_type: 'months',
+      transaction_amount: plan.amount_cents / 100,
+      currency_id: 'BRL',
+      free_trial: { frequency: 7, frequency_type: 'days' },
+    },
+    back_url: `${siteUrl()}/assinaturas?retorno=1`,
+  });
+  if (!validTrialPlan(created, plan, frequency)) throw new HttpError(502, 'O Mercado Pago não confirmou os 7 dias grátis.');
+  const { error: saveError } = await db.from('mp_plan_mappings').upsert({
+    plan_id: plan.id,
+    preapproval_plan_id: String(created.id),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'plan_id' });
+  check(saveError);
+  return String(created.id);
+}
 
 export async function handler(request: Request) {
   const origin = request.headers.get('origin');
@@ -13,7 +56,6 @@ export async function handler(request: Request) {
     const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     if (!token) throw new HttpError(401, 'Entre na sua conta para continuar.');
     const db = admin();
-    // Custom authentication validates the real Supabase user, including asymmetric JWTs.
     const { data: auth, error: authError } = await db.auth.getUser(token);
     if (authError || !auth.user) throw new HttpError(401, 'Sua sessão expirou. Entre novamente.');
     const body = await request.json().catch(() => null);
@@ -31,7 +73,8 @@ export async function handler(request: Request) {
       if (!permission) throw new HttpError(403, 'Somente o titular ou responsável financeiro pode gerenciar assinaturas.');
     }
     if (body.action === 'list') {
-      const { data, error } = await db.from('mp_subscriptions').select('id,app_id,status,amount_cents,frequency,current_period_end,created_at')
+      const { data, error } = await db.from('mp_subscriptions')
+        .select('id,app_id,status,amount_cents,frequency,current_period_end,trial_requested,trial_ends_at,created_at')
         .eq('account_id', body.accountId).order('created_at', { ascending: false });
       check(error); return reply({ subscriptions: data, ready: configured() });
     }
@@ -53,33 +96,80 @@ export async function handler(request: Request) {
       const frequencies: Record<string, number> = { monthly: 1, semiannual: 6, annual: 12 };
       const frequency = frequencies[plan.billing_interval];
       if (!frequency) throw new HttpError(400, 'Ciclo inválido.');
-      const { data: inserted, error: insertError } = await db.from('mp_subscriptions').insert({
-        account_id: body.accountId, app_id: plan.app_id, plan_id: plan.id,
-        amount_cents: plan.amount_cents, currency: 'BRL', frequency,
-      }).select('*').single();
-      let local = inserted;
-      if (insertError?.code === '23505') {
-        const existing = await db.from('mp_subscriptions').select('*').eq('account_id', body.accountId).eq('app_id', plan.app_id)
-          .in('status', ['creating', 'pending', 'authorized', 'paused']).single();
-        check(existing.error); local = existing.data;
-        if (local?.plan_id !== plan.id) throw new HttpError(409, 'Cancele a assinatura pendente antes de escolher outro ciclo.');
-        if (local?.status === 'creating') throw new HttpError(409, 'A criação anterior ainda está sendo conferida. Não será gerada outra cobrança. Atualize o status abaixo.');
-        if (local?.status !== 'pending') throw new HttpError(409, 'Já existe uma assinatura para este aplicativo. Atualize o status abaixo.');
-        return reply({ url: checkoutUrl(local.init_point) });
+
+      const { data: eligible, error: eligibilityError } = await db.rpc('mp_trial_eligible', {
+        target_account: body.accountId,
+        target_app: plan.app_id,
+        target_user: auth.user.id,
+      });
+      check(eligibilityError);
+      const trialEligible = eligible === true;
+
+      const { data: open, error: openError } = await db.from('mp_subscriptions').select('*')
+        .eq('account_id', body.accountId).eq('app_id', plan.app_id)
+        .in('status', ['creating', 'pending', 'authorized', 'paused']).maybeSingle();
+      check(openError);
+      if (open) {
+        if (open.plan_id !== plan.id) throw new HttpError(409, 'Cancele a assinatura pendente antes de escolher outro ciclo.');
+        if (open.status === 'creating') throw new HttpError(409, 'A criação anterior ainda está sendo conferida. Não será gerada outra cobrança. Atualize o status abaixo.');
+        if (open.status !== 'pending') throw new HttpError(409, 'Já existe uma assinatura para este aplicativo. Atualize o status abaixo.');
+
+        if (open.preapproval_id) {
+          const remoteOpen = await mp(`/preapproval/${encodeURIComponent(open.preapproval_id)}`);
+          if (open.trial_requested === true && hasSevenDayTrial(remoteOpen)) {
+            await applySnapshot(open, remoteOpen);
+            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point) });
+          }
+          if (!trialEligible && open.trial_requested !== true) {
+            await applySnapshot(open, remoteOpen);
+            return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point) });
+          }
+          if (remoteOpen.status !== 'pending') {
+            await applySnapshot(open, remoteOpen);
+            throw new HttpError(409, 'A assinatura anterior mudou de status. Atualize a página antes de tentar novamente.');
+          }
+          const cancelled = await mp(`/preapproval/${encodeURIComponent(open.preapproval_id)}`, 'PUT', { status: 'cancelled' });
+          await applySnapshot(open, cancelled);
+        } else {
+          throw new HttpError(409, 'A criação anterior ainda precisa de conferência. Atualize o status abaixo.');
+        }
       }
+
+      const preapprovalPlanId = trialEligible ? await ensureTrialPlan(db, plan, app.name, frequency) : null;
+      const { data: local, error: insertError } = await db.from('mp_subscriptions').insert({
+        account_id: body.accountId,
+        app_id: plan.app_id,
+        plan_id: plan.id,
+        amount_cents: plan.amount_cents,
+        currency: 'BRL',
+        frequency,
+        trial_requested: trialEligible,
+        created_by_user_id: auth.user.id,
+        preapproval_plan_id: preapprovalPlanId,
+      }).select('*').single();
       check(insertError);
       if (!local) throw new HttpError(500, 'Não foi possível iniciar a assinatura.');
+
       let remote;
       try {
-        remote = await mp('/preapproval', 'POST', {
-          reason: `CRM PLUS Store — ${app.name}`, external_reference: local.id,
-          payer_email: auth.user.email, status: 'pending',
-          auto_recurring: { frequency, frequency_type: 'months', transaction_amount: plan.amount_cents / 100, currency_id: 'BRL' },
-          back_url: `${siteUrl()}/assinaturas?retorno=1`,
-        });
+        remote = trialEligible
+          ? await mp('/preapproval', 'POST', {
+              preapproval_plan_id: preapprovalPlanId,
+              reason: `CRM PLUS Store — ${app.name}`,
+              external_reference: local.id,
+              payer_email: auth.user.email,
+              status: 'pending',
+              back_url: `${siteUrl()}/assinaturas?retorno=1`,
+            })
+          : await mp('/preapproval', 'POST', {
+              reason: `CRM PLUS Store — ${app.name}`,
+              external_reference: local.id,
+              payer_email: auth.user.email,
+              status: 'pending',
+              auto_recurring: { frequency, frequency_type: 'months', transaction_amount: plan.amount_cents / 100, currency_id: 'BRL' },
+              back_url: `${siteUrl()}/assinaturas?retorno=1`,
+            });
       } catch (error) {
-        // Only definitive validation failures can release the unique creation lock.
-        // A timeout/5xx is ambiguous: retain it and reconcile; never blindly POST twice.
         if (error instanceof HttpError && [400,401,403,404,422].includes(error.status)) {
           const failed = await db.from('mp_subscriptions').update({ status: 'failed' }).eq('id', local.id).eq('status', 'creating');
           check(failed.error);
