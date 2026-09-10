@@ -92,9 +92,11 @@ export function MercadoPagoConnection({ returned }: { returned?: string }) {
 
     <div className="mp-connect-facts" aria-label="Como funciona">
       <div><ShieldCheck size={17} /><span><strong>Conexão por login OAuth</strong><small>Não pedimos sua senha, chave Pix, dados bancários ou Access Token.</small></span></div>
-      <div><CheckCircle2 size={17} /><span><strong>CRM PLUS recebe R$ 0,00</strong><small>Não configuramos comissão, percentual, split ou repasse para o CRM PLUS nesta integração.</small></span></div>
-      <div><AlertTriangle size={17} /><span><strong>Taxas são do Mercado Pago</strong><small>Tarifas, prazos, chargebacks, retenções e demais condições são definidos pelo Mercado Pago para a conta conectada.</small></span></div>
+      <div><CheckCircle2 size={17} /><span><strong>CRM PLUS recebe R$ 0,00</strong><small>O CRM PLUS não recebe valor da venda, comissão, percentual, split, tarifa ou repasse da transação.</small></span></div>
+      <div><AlertTriangle size={17} /><span><strong>Taxas não são do CRM PLUS</strong><small>Tarifas, taxas, prazos, retenções, chargebacks e demais condições são exclusivamente definidos pelo Mercado Pago/Mercado Livre para a conta conectada. O relacionamento financeiro é entre o estabelecimento e o provedor.</small></span></div>
     </div>
+
+    <div className="billing-portal-message is-warning"><AlertTriangle size={17} /><span><strong>Importante:</strong> o CRM PLUS apenas envia a solicitação de cobrança em nome da conta conectada. Não recebe nem movimenta o dinheiro do estabelecimento e não se responsabiliza pelas taxas cobradas pelo Mercado Pago/Mercado Livre.</span></div>
 
     {error && <div className="billing-portal-message is-error"><p>{error}</p></div>}
     {notice && <div className="billing-portal-message"><CheckCircle2 size={17} /><span>{notice}</span></div>}
