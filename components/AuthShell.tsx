@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
@@ -17,9 +17,38 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
   const [loading,setLoading]=useState(false);
+  const [checkingSession,setCheckingSession]=useState(true);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const requestedDestination=redirectTo&&redirectTo.startsWith('/')&&!redirectTo.startsWith('//')&&!redirectTo.includes('\\')?redirectTo:'/entrar';
+
+  useEffect(()=>{
+    let active=true;
+    const supabase=createStoreClient();
+
+    void supabase.auth.getSession().then(({data})=>{
+      if(!active) return;
+      if(data.session?.user){
+        router.replace(requestedDestination);
+        router.refresh();
+        return;
+      }
+      setCheckingSession(false);
+    }).catch(()=>{
+      if(active) setCheckingSession(false);
+    });
+
+    const {data}=supabase.auth.onAuthStateChange((_event,session)=>{
+      if(!active||!session?.user) return;
+      router.replace(requestedDestination);
+      router.refresh();
+    });
+
+    return ()=>{
+      active=false;
+      data.subscription.unsubscribe();
+    };
+  },[requestedDestination,router]);
 
   const submit=async(event:FormEvent)=>{
     event.preventDefault();
@@ -51,7 +80,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           const {error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
           await supabase.auth.updateUser({data:{signup_redirect:null}});
-          router.push(requestedDestination);
+          router.replace(requestedDestination);
           router.refresh();
         }else{
           setMessage('Conta criada. Confira seu e-mail para confirmar o acesso e continuar exatamente de onde parou.');
@@ -62,7 +91,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           password
         });
         if(loginError)throw loginError;
-        router.push(requestedDestination);
+        router.replace(requestedDestination);
         router.refresh();
       }
     }catch(reason){
@@ -70,6 +99,8 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
       setError(text==='Invalid login credentials'?'E-mail ou senha incorretos.':text);
     }finally{setLoading(false)}
   };
+
+  if(checkingSession) return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Acesso</span><h1>Carregando sua conta…</h1><p>Verificando sua sessão.</p></section></main>;
 
   return <main className="auth-shell">
     <Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link>
