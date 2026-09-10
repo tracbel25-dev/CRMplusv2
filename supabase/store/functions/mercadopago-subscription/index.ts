@@ -1,5 +1,12 @@
 import { admin, applicationId, applySnapshot, check, checkoutUrl, configured, findRemoteForLocal, HttpError, mp, siteUrl, syncSubscription } from '../_shared/mercadopago.ts';
 
+const clientIp = (request: Request) => {
+  const direct = request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip');
+  if (direct) return direct.trim();
+  const forwarded = request.headers.get('x-forwarded-for');
+  return forwarded ? forwarded.split(',')[0].trim() : '';
+};
+
 function validTrialPlan(remote: Record<string, any>, plan: Record<string, any>, frequency: number) {
   const recurring = remote?.auto_recurring;
   const trial = recurring?.free_trial;
@@ -74,6 +81,7 @@ export async function handler(request: Request) {
 
     const body = await request.json().catch(() => null);
     if (!body || !/^[0-9a-f-]{36}$/i.test(body.accountId || '')) throw new HttpError(400, 'Conta inválida.');
+    const ip = clientIp(request);
 
     const { data: member, error: memberError } = await db.from('account_members').select('role,status')
       .eq('account_id', body.accountId).eq('user_id', auth.user.id).maybeSingle();
@@ -121,15 +129,16 @@ export async function handler(request: Request) {
 
       const { data: activeApps, error: appsError } = await db.from('apps').select('id').eq('status', 'active');
       check(appsError);
-      const eligibility = await Promise.all((activeApps || []).map(async app => {
-        const { data, error } = await db.rpc('mp_trial_eligible', {
+      const eligibility = ip ? await Promise.all((activeApps || []).map(async app => {
+        const { data, error } = await db.rpc('mp_trial_eligible_ip', {
           target_account: body.accountId,
           target_app: app.id,
           target_user: auth.user.id,
+          client_ip: ip,
         });
         check(error);
         return data === true ? String(app.id) : null;
-      }));
+      })) : [];
 
       return reply({
         subscriptions: visibleSubscriptions.map(publicSubscription),
@@ -163,13 +172,24 @@ export async function handler(request: Request) {
       const frequency = frequencies[plan.billing_interval];
       if (!frequency) throw new HttpError(400, 'Ciclo inválido.');
 
-      const { data: eligible, error: eligibilityError } = await db.rpc('mp_trial_eligible', {
+      const { data: eligible, error: eligibilityError } = ip ? await db.rpc('mp_trial_eligible_ip', {
         target_account: body.accountId,
         target_app: plan.app_id,
         target_user: auth.user.id,
-      });
+        client_ip: ip,
+      }) : { data: false, error: null };
       check(eligibilityError);
       const wantsTrial = eligible === true && body.skipTrial !== true;
+      if (wantsTrial) {
+        const { data: reserved, error: reserveError } = await db.rpc('mp_reserve_trial_ip', {
+          target_account: body.accountId,
+          target_app: plan.app_id,
+          target_user: auth.user.id,
+          client_ip: ip,
+        });
+        check(reserveError);
+        if (reserved !== true) throw new HttpError(409, 'Este endereço de internet já foi usado para teste grátis em outra conta.');
+      }
 
       const { data: open, error: openError } = await db.from('mp_subscriptions').select('*')
         .eq('account_id', body.accountId).eq('app_id', plan.app_id)

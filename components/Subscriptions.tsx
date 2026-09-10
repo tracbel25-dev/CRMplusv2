@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apps } from '@/lib/catalog';
+import { reserveTrialNetwork } from '@/lib/antifraud';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { billingRequest } from '@/lib/billing';
@@ -84,8 +85,10 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
     setBusy(planId);
     setError('');
     setContinuationFailedPlan('');
-    setNotice(automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
+    setNotice(useTrial?'Validando identidade e rede do teste grátis…':automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
     try{
+      if(useTrial)await reserveTrialNetwork(accountId,targetPlan.app_id);
+      setNotice(automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
       const result=await billingRequest<{url?:string}>({action:'checkout',accountId,planId,skipTrial:!useTrial});
       if(!result.url)throw new Error('O Mercado Pago não retornou o link para continuar.');
       const url=new URL(result.url);
@@ -153,7 +156,7 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
         {!canOpen&&currentSubscription?.status==='paused'&&<Link className="primary" href="/assinaturas">Gerenciar assinatura</Link>}
       </div>
 
-      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">A validação contra repetição usa a identidade do pagador e o meio de pagamento devolvidos pelo Mercado Pago.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o ciclo escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
+      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">O teste é limitado por conta, usuário, pagador, meio de pagamento e endereço de internet. Um IP usado para teste em uma conta não libera teste grátis em outra.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o ciclo escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
 
       {!trialEligible&&!canOpen&&!providerStillOpen&&<div className="billing-no-trial"><strong>{flow==='reactivate'?'Reativação':'Ativação'}</strong><p>{flow==='reactivate'?'Seu período anterior terminou. Escolha um plano para voltar a usar o aplicativo.':'O teste grátis não está disponível para esta conta. Escolha um plano para ativar o aplicativo.'}</p></div>}
 
