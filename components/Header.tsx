@@ -44,7 +44,7 @@ export function Header(){
     <nav className={open?'nav nav-open':'nav'}><Link href="/inicio">Início</Link><Link href="/aplicativos">Aplicativos</Link><Link href="/suporte">Suporte</Link><Link href="/planos">Planos</Link></nav>
     <div className="header-actions">
       {authChecked && (authenticated
-        ? <Link className="primary small" href="/entrar">Minha conta</Link>
+        ? <Link className="primary small" href="/conta">Minha conta</Link>
         : <><Link className="text-action" href="/login">Entrar</Link><Link className="primary small" href="/cadastro">Criar conta</Link></>)}
     </div>
   </div></header>;
