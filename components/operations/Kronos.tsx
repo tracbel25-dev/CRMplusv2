@@ -1,1 +1,1 @@
-export { Kronos } from './KronosBranching';
+export { Kronos } from './KronosAdaptive';
