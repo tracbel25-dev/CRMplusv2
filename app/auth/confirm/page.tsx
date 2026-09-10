@@ -27,6 +27,7 @@ export default function ConfirmPage() {
   const router = useRouter();
   const processing = useRef(false);
   const [error, setError] = useState('');
+  const [destination, setDestination] = useState('/assinaturas');
 
   useEffect(() => {
     let active = true;
@@ -46,8 +47,9 @@ export default function ConfirmPage() {
           user = userData.user;
         }
 
-        const destination = safeDestination(user.user_metadata?.signup_redirect);
-        const planId = checkoutPlan(destination);
+        const nextDestination = safeDestination(user.user_metadata?.signup_redirect);
+        if (active) setDestination(nextDestination);
+        const planId = checkoutPlan(nextDestination);
         const business = typeof user.user_metadata?.business === 'string' ? user.user_metadata.business.trim() : '';
         let accountId = '';
 
@@ -57,9 +59,6 @@ export default function ConfirmPage() {
           accountId = typeof createdAccount === 'string' ? createdAccount : '';
         }
 
-        // If this signup started from a selected paid plan, confirmation is the
-        // last internal step: open Mercado Pago immediately instead of stopping
-        // on the subscriptions screen.
         if (planId && accountId) {
           const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId });
           if (!result.url) throw new Error('O Mercado Pago não retornou o link de pagamento.');
@@ -74,7 +73,7 @@ export default function ConfirmPage() {
 
         await supabase.auth.updateUser({ data: { signup_redirect: null } });
         if (!active) return;
-        router.replace(destination);
+        router.replace(nextDestination);
         router.refresh();
       } catch (reason) {
         processing.current = false;
@@ -102,15 +101,15 @@ export default function ConfirmPage() {
         <div className="confirm-icon is-loading"><LoaderCircle size={26}/></div>
         <span className="eyebrow">Confirmação de acesso</span>
         <h1>Preparando seu pagamento.</h1>
-        <p>Seu e-mail foi confirmado. Estamos vinculando sua empresa e abrindo o Mercado Pago para o plano escolhido.</p>
+        <p>Seu e-mail foi confirmado. Sua sessão continua ativa e o Mercado Pago será aberto automaticamente para o plano escolhido.</p>
         <div className="confirm-progress"><span/></div>
       </> : <>
         <div className="confirm-icon"><CheckCircle2 size={26}/></div>
-        <span className="eyebrow">Confirmação de acesso</span>
-        <h1>E-mail confirmado.</h1>
-        <p>O e-mail foi validado, mas não conseguimos abrir o pagamento automaticamente.</p>
+        <span className="eyebrow">Conta confirmada</span>
+        <h1>Falta somente o Mercado Pago.</h1>
+        <p>Sua conta continua logada e o plano escolhido foi preservado.</p>
         <p className="confirm-error" role="alert">{error}</p>
-        <div className="confirm-actions"><Link className="primary" href="/assinaturas">Ir para assinaturas</Link><Link className="ghost" href="/inicio">Voltar à Store</Link></div>
+        <div className="confirm-actions"><Link className="primary" href={destination}>Tentar abrir Mercado Pago</Link><Link className="ghost" href="/entrar">Minha conta</Link></div>
       </>}
     </section>
   </main>;
