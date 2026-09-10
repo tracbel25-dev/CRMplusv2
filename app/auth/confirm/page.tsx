@@ -9,14 +9,14 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import './confirm.css';
 
 function safeDestination(value: unknown) {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/entrar';
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/conta';
   return value;
 }
 
 function checkoutPlan(destination: string) {
   try {
     const url = new URL(destination, window.location.origin);
-    if (url.pathname !== '/assinaturas') return null;
+    if (url.pathname !== '/checkout') return null;
     return url.searchParams.get('plano');
   } catch {
     return null;
@@ -27,7 +27,7 @@ export default function ConfirmPage() {
   const router = useRouter();
   const processing = useRef(false);
   const [error, setError] = useState('');
-  const [destination, setDestination] = useState('/assinaturas');
+  const [destination, setDestination] = useState('/conta');
 
   useEffect(() => {
     let active = true;
@@ -63,9 +63,7 @@ export default function ConfirmPage() {
           const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId });
           if (!result.url) throw new Error('O Mercado Pago não retornou o link de pagamento.');
           const paymentUrl = new URL(result.url);
-          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) {
-            throw new Error('O link de pagamento retornado é inválido.');
-          }
+          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('O link de pagamento retornado é inválido.');
           await supabase.auth.updateUser({ data: { signup_redirect: null } });
           window.location.replace(paymentUrl.href);
           return;
@@ -109,7 +107,7 @@ export default function ConfirmPage() {
         <h1>Falta somente o Mercado Pago.</h1>
         <p>Sua conta continua logada e o plano escolhido foi preservado.</p>
         <p className="confirm-error" role="alert">{error}</p>
-        <div className="confirm-actions"><Link className="primary" href={destination}>Tentar abrir Mercado Pago</Link><Link className="ghost" href="/entrar">Minha conta</Link></div>
+        <div className="confirm-actions"><Link className="primary" href={destination}>Continuar</Link><Link className="ghost" href="/conta">Minha conta</Link></div>
       </>}
     </section>
   </main>;
