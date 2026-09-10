@@ -102,12 +102,48 @@ export function ZeusFilterBar({
   placeholder?: string;
 }) {
   const [openKey, setOpenKey] = useState('');
+  const [mobileFilterKey, setMobileFilterKey] = useState('');
   const count = Object.values(active).reduce((sum, values) => sum + values.length, 0);
-  const clear = () => { onActive({}); setOpenKey(''); };
+  const closeFilter = () => { setOpenKey(''); setMobileFilterKey(''); };
+  const clear = () => { onActive({}); closeFilter(); };
+  const selectMobileFilter = (key: string) => {
+    setMobileFilterKey(key);
+    setOpenKey(key ? `filter:${key}` : '');
+  };
+
   return <div className="zeus-filter-bar">
     <SearchBox value={query} onChange={onQuery} placeholder={placeholder} />
-    <div className="zeus-filter-set">{definitions.map(definition => <MultiFilter key={definition.key} definition={definition} selected={active[definition.key] || []} open={openKey === `filter:${definition.key}`} onOpen={() => setOpenKey(`filter:${definition.key}`)} onClose={() => setOpenKey('')} onApply={values => onActive({ ...active, [definition.key]: values })} />)}</div>
-    <SortMenu sort={sort} options={sortOptions} descending={descending} open={openKey === 'sort'} onOpen={() => setOpenKey('sort')} onClose={() => setOpenKey('')} onApply={(nextSort, nextDescending) => { onSort(nextSort); onDescending(nextDescending); }} />
+
+    <div className="zeus-mobile-filter-picker">
+      <Filter size={18} />
+      <select aria-label="Selecione o filtro" value={mobileFilterKey} onChange={event => selectMobileFilter(event.target.value)}>
+        <option value="">Selecione o filtro</option>
+        {definitions.map(definition => <option key={definition.key} value={definition.key}>{definition.label}{active[definition.key]?.length ? ` (${active[definition.key].length})` : ''}</option>)}
+      </select>
+      <ChevronsUpDown size={16} />
+    </div>
+
+    {count > 0 && <div className="zeus-mobile-active-filters">
+      {definitions.filter(definition => active[definition.key]?.length).map(definition => <button type="button" key={definition.key} onClick={() => selectMobileFilter(definition.key)}>{definition.label}: {active[definition.key].length}</button>)}
+    </div>}
+
+    <div className="zeus-filter-set">{definitions.map(definition => <MultiFilter key={definition.key} definition={definition} selected={active[definition.key] || []} open={openKey === `filter:${definition.key}`} onOpen={() => setOpenKey(`filter:${definition.key}`)} onClose={closeFilter} onApply={values => onActive({ ...active, [definition.key]: values })} />)}</div>
+    <SortMenu sort={sort} options={sortOptions} descending={descending} open={openKey === 'sort'} onOpen={() => setOpenKey('sort')} onClose={closeFilter} onApply={(nextSort, nextDescending) => { onSort(nextSort); onDescending(nextDescending); }} />
     {count > 0 && <button className="zeus-clear-filters" type="button" onClick={clear}><X size={14} />Limpar filtros ({count})</button>}
+
+    <style jsx global>{`
+      .zeus-mobile-filter-picker,.zeus-mobile-active-filters{display:none}
+      @media(max-width:720px){
+        .zeus-mobile-filter-picker{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 13px;border:1px solid var(--op-line);background:var(--op-paper);color:var(--op-ink);border-radius:var(--op-radius)}
+        .zeus-mobile-filter-picker>svg:first-child{flex:0 0 auto;color:var(--op-muted)}
+        .zeus-mobile-filter-picker>svg:last-child{flex:0 0 auto;color:var(--op-muted);pointer-events:none}
+        .zeus-mobile-filter-picker select{appearance:none;-webkit-appearance:none;min-width:0;flex:1;border:0!important;outline:0!important;background:transparent!important;color:var(--op-ink)!important;font:inherit;font-size:16px!important;box-shadow:none!important;padding:0!important}
+        .zeus-mobile-active-filters{display:flex;width:100%;gap:7px;flex-wrap:wrap}
+        .zeus-mobile-active-filters button{border:1px solid color-mix(in srgb,var(--op-accent) 34%,var(--op-line));background:var(--op-tint);color:var(--op-accent);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:650}
+        .zeus-filter-bar .zeus-filter-set{display:block!important;position:absolute;width:0;height:0;overflow:visible;margin:0;padding:0}
+        .zeus-filter-bar .zeus-filter-set .zeus-filter-menu{position:static}
+        .zeus-filter-bar .zeus-filter-set .zeus-filter-trigger{display:none!important}
+      }
+    `}</style>
   </div>;
 }
