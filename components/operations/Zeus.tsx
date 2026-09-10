@@ -209,7 +209,7 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
       { name: 'technician', label: 'Responsável', value: appointment?.technician },
       { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }
     ]} onClose={onClose} onSave={form => w.mutate(data => {
-      let selectedAsset = assetId ? w.data.assets.find(item => item.id === assetId) : undefined;
+      let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
       if (!selectedAsset) {
         const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(form.identifier));
         if (exact) selectedAsset = exact;
