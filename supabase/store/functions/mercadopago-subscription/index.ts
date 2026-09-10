@@ -1,4 +1,4 @@
-import { admin, applicationId, applySnapshot, check, checkoutUrl, configured, findRemoteForLocal, hasSevenDayTrial, HttpError, mp, siteUrl, syncSubscription } from '../_shared/mercadopago.ts';
+import { admin, applicationId, applySnapshot, check, checkoutUrl, configured, findRemoteForLocal, HttpError, mp, siteUrl, syncSubscription } from '../_shared/mercadopago.ts';
 
 function validTrialPlan(remote: Record<string, any>, plan: Record<string, any>, frequency: number) {
   const recurring = remote?.auto_recurring;
@@ -40,6 +40,20 @@ async function reconcilePendingTrials(rows: Record<string, any>[]) {
   }
   return changed;
 }
+
+const publicSubscription = (item: Record<string, any>) => ({
+  id: item.id,
+  app_id: item.app_id,
+  plan_id: item.plan_id,
+  status: item.status,
+  amount_cents: item.amount_cents,
+  frequency: item.frequency,
+  current_period_end: item.current_period_end,
+  trial_requested: item.trial_requested,
+  trial_ends_at: item.trial_ends_at,
+  created_at: item.created_at,
+  updated_at: item.updated_at,
+});
 
 export async function handler(request: Request) {
   const origin = request.headers.get('origin');
@@ -99,6 +113,12 @@ export async function handler(request: Request) {
         payments = paymentResult.data || [];
       }
 
+      const approvedIds = new Set(payments.filter(item => item.status === 'approved').map(item => String(item.subscription_id)));
+      const visibleSubscriptions = (subscriptions || []).filter(item =>
+        !!item.trial_ends_at || !!item.current_period_end || approvedIds.has(String(item.id))
+      );
+      const checkoutSubscriptions = (subscriptions || []).filter(item => item.status !== 'failed');
+
       const { data: activeApps, error: appsError } = await db.from('apps').select('id').eq('status', 'active');
       check(appsError);
       const eligibility = await Promise.all((activeApps || []).map(async app => {
@@ -111,22 +131,9 @@ export async function handler(request: Request) {
         return data === true ? String(app.id) : null;
       }));
 
-      const customerSubscriptions = (subscriptions || []).map(item => ({
-        id: item.id,
-        app_id: item.app_id,
-        plan_id: item.plan_id,
-        status: item.status,
-        amount_cents: item.amount_cents,
-        frequency: item.frequency,
-        current_period_end: item.current_period_end,
-        trial_requested: item.trial_requested,
-        trial_ends_at: item.trial_ends_at,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-      }));
-
       return reply({
-        subscriptions: customerSubscriptions,
+        subscriptions: visibleSubscriptions.map(publicSubscription),
+        checkoutSubscriptions: checkoutSubscriptions.map(publicSubscription),
         payments,
         ready: configured(),
         trialEligibleApps: eligibility.filter(Boolean),
@@ -170,28 +177,28 @@ export async function handler(request: Request) {
       check(openError);
 
       if (open) {
-        if (open.plan_id !== plan.id) throw new HttpError(409, 'Cancele a assinatura pendente antes de escolher outro ciclo.');
+        if (open.plan_id !== plan.id) throw new HttpError(409, 'Já existe uma autorização em andamento para outro ciclo. Conclua ou encerre essa tentativa antes de trocar o plano.');
         if (open.status === 'creating') throw new HttpError(409, 'A criação anterior ainda está sendo conferida. Tente novamente em instantes.');
-        if (open.status !== 'pending') throw new HttpError(409, 'Já existe uma assinatura para este aplicativo. Atualize o status abaixo.');
+        if (open.status !== 'pending') throw new HttpError(409, 'Já existe uma assinatura autorizada para este aplicativo. Confira o status antes de criar outra.');
 
         if (open.preapproval_id) {
           const remoteOpen = await mp(`/preapproval/${encodeURIComponent(open.preapproval_id)}`);
           await applySnapshot(open, remoteOpen);
           if (remoteOpen.status === 'pending') return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point), trialApplied: open.trial_requested === true });
-          throw new HttpError(409, 'A autorização do Mercado Pago já foi registrada. Atualize a página para liberar o acesso.');
+          throw new HttpError(409, 'A autorização do Mercado Pago já foi registrada. Atualize o status para conferir o acesso.');
         }
 
         if (open.trial_requested === true && open.dedicated_trial_plan === true && open.init_point) {
           const remoteOpen = await findRemoteForLocal(open);
           if (remoteOpen) {
             await applySnapshot(open, remoteOpen);
-            if (remoteOpen.status !== 'pending') throw new HttpError(409, 'A autorização do Mercado Pago já foi registrada. Atualize a página para liberar o acesso.');
+            if (remoteOpen.status !== 'pending') throw new HttpError(409, 'A autorização do Mercado Pago já foi registrada. Atualize o status para conferir o acesso.');
             return reply({ url: checkoutUrl(remoteOpen.init_point || open.init_point), trialApplied: true });
           }
           return reply({ url: checkoutUrl(open.init_point), trialApplied: true });
         }
 
-        throw new HttpError(409, 'A assinatura pendente precisa ser atualizada antes de continuar.');
+        throw new HttpError(409, 'A autorização pendente precisa ser atualizada antes de continuar.');
       }
 
       const payerEmail = String(auth.user.email || '').trim().toLowerCase();
@@ -260,7 +267,7 @@ export async function handler(request: Request) {
       const remote = await findRemoteForLocal(local);
       if (!remote) {
         if (body.action === 'cancel') {
-          const { error: cancelLocalError } = await db.from('mp_subscriptions').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', local.id);
+          const { error: cancelLocalError } = await db.from('mp_subscriptions').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', local.id);
           check(cancelLocalError);
           return reply({ ok: true });
         }
@@ -273,6 +280,14 @@ export async function handler(request: Request) {
     if (body.action === 'cancel') {
       const remote = await mp(`/preapproval/${encodeURIComponent(local.preapproval_id)}`, 'PUT', { status: 'cancelled' });
       await applySnapshot(local, remote);
+      const paymentResult = await db.from('mp_payments').select('id', { count: 'exact', head: true })
+        .eq('subscription_id', local.id).eq('status', 'approved');
+      check(paymentResult.error);
+      const wasActivated = !!local.trial_ends_at || !!local.current_period_end || (paymentResult.count || 0) > 0;
+      if (!wasActivated) {
+        const { error: hideAttemptError } = await db.from('mp_subscriptions').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', local.id);
+        check(hideAttemptError);
+      }
     } else await syncSubscription(local);
     return reply({ ok: true });
   } catch (error) {
