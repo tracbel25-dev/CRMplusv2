@@ -16,6 +16,11 @@ export type MercadoPagoCharge = {
   payment_id: string | null;
   paid_at: string | null;
   updated_at: string;
+  channel?: 'checkout' | 'qr' | 'point';
+  order_id?: string | null;
+  qr_data?: string | null;
+  qr_image?: string | null;
+  terminal_id?: string | null;
 };
 
 export async function mercadoPagoChargeRequest<T>(body: Record<string, unknown>): Promise<T> {
