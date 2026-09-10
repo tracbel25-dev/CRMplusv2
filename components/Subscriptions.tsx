@@ -40,7 +40,8 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [trialEligibleApps, setTrialEligibleApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [billingLoaded, setBillingLoaded] = useState(false);
   const [busy, setBusy] = useState('');
   const [identityBusy, setIdentityBusy] = useState(false);
   const [error, setError] = useState('');
@@ -55,15 +56,23 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
 
   const load = useCallback(async () => {
     if (!accountId) return;
-    const [catalog, billing] = await Promise.all([
+    const [catalogResult, billingResult] = await Promise.allSettled([
       createStoreClient().from('plans').select('id,app_id,billing_interval,amount_cents,currency').eq('active', true).order('amount_cents'),
       billingRequest<BillingList>({ action: 'list', accountId }),
     ]);
-    if (catalog.error) throw new Error('Não foi possível carregar os planos.');
-    setPlans(catalog.data || []);
-    setSubscriptions(billing.subscriptions || []);
-    setTrialEligibleApps(billing.trialEligibleApps || []);
-    setReady(billing.ready);
+    const problems: string[] = [];
+    if (catalogResult.status === 'fulfilled' && !catalogResult.value.error) setPlans(catalogResult.value.data || []);
+    else problems.push('Não foi possível carregar os planos.');
+    if (billingResult.status === 'fulfilled') {
+      const billing = billingResult.value;
+      setSubscriptions(billing.subscriptions || []);
+      setTrialEligibleApps(billing.trialEligibleApps || []);
+      setReady(billing.ready); setBillingLoaded(true);
+    } else {
+      setReady(null); setBillingLoaded(false);
+      problems.push('Não foi possível consultar sua assinatura. Seus planos continuam disponíveis abaixo.');
+    }
+    setError(problems.join(' '));
   }, [accountId]);
 
   useEffect(() => {
@@ -80,7 +89,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
       void load().then(() => access.refresh()).catch(() => {});
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [returned, accountId, load, access]);
+  }, [returned, accountId, load, access.refresh]);
 
   useEffect(() => {
     let alive = true;
@@ -97,6 +106,9 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
     setSkipTrial(false);
   }, [selected]);
 
+  const entitlement = access.account?.apps.find(item => item.appId === selected);
+  const canOpen = access.hasApp(selected as Parameters<typeof access.hasApp>[0]);
+  const currentSubscription = subscriptions.find(item => item.app_id === selected && ['creating', 'pending', 'authorized', 'paused'].includes(item.status));
   const trialEligible = trialEligibleApps.includes(selected);
   const phoneVerified = !!access.user?.phone && !!access.user?.phone_confirmed_at;
   const usingTrial = trialEligible && !skipTrial;
@@ -170,15 +182,23 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
 
   return <>
     <div className="billing-account"><strong>{access.account.name}</strong><Link href="/entrar">Meus aplicativos</Link></div>
-    {error && <p className="billing-error" role="alert">{error}</p>}
+    {error && <div className="billing-error" role="alert"><p>{error}</p><button className="ghost" disabled={loading} onClick={() => { setLoading(true); void load().finally(() => setLoading(false)); }}>Tentar novamente</button></div>}
     {notice && <p className="billing-notice" role="status">{notice}</p>}
     {loading ? <p role="status">Carregando assinaturas…</p> : <>
-      {!ready && <p className="billing-notice">As novas assinaturas estarão disponíveis em breve.</p>}
+      {ready === false && <p className="billing-notice">As novas assinaturas estarão disponíveis em breve.</p>}
       <section className="billing-panel"><label htmlFor="billing-app">Escolha seu aplicativo</label>
         <select id="billing-app" value={selected} onChange={event => setSelected(event.target.value)}>{apps.map(app => <option value={app.slug} key={app.slug}>{app.name} — {app.category}</option>)}</select>
 
+        <div className="billing-access-summary" role="status">
+          <span className="eyebrow">Seu acesso</span>
+          <h2>{canOpen ? entitlement?.status === 'trialing' ? 'Teste grátis ativo' : 'Aplicativo liberado' : entitlement?.status === 'suspended' ? 'Acesso suspenso' : entitlement ? 'Seu acesso venceu' : currentSubscription ? 'Conclua sua assinatura' : billingLoaded ? 'Escolha como começar' : 'Consultando seu acesso'}</h2>
+          <p>{canOpen ? entitlement?.currentPeriodEnd ? `Disponível até ${new Date(entitlement.currentPeriodEnd).toLocaleString('pt-BR')}.` : 'Sua empresa já pode utilizar o aplicativo.' : entitlement ? 'Seus dados estão preservados. Gerencie sua assinatura para continuar.' : currentSubscription ? 'Confira a assinatura em andamento abaixo para continuar ou atualizar o status.' : billingLoaded ? 'Escolha um plano e continue no Mercado Pago. O teste de 7 dias exige a confirmação do celular e a autorização da assinatura.' : 'Você pode consultar os preços enquanto verificamos sua assinatura.'}</p>
+          {canOpen && <Link className="primary" href={`/${selected}`}>Abrir {apps.find(item => item.slug === selected)?.name}</Link>}
+          {currentSubscription && !canOpen && <a className="ghost" href="#minhas-assinaturas">Ver assinatura em andamento</a>}
+        </div>
+
         {trialEligible && <div className="billing-trial-identity">
-          <div className="billing-trial-heading"><span>TESTE PROTEGIDO</span><h3>Validação dos 7 dias grátis</h3><p>O teste é liberado uma única vez por aplicativo. Validamos sua conta, celular confirmado e CPF/CNPJ; após a autorização, o Mercado Pago também valida o pagador e o meio de pagamento.</p></div>
+          <div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Validação dos 7 dias grátis</h3><p>Confirme seu celular e informe seu CPF/CNPJ. Depois, autorize a assinatura no Mercado Pago para começar os 7 dias grátis.</p></div>
           {!skipTrial ? <>
             {!phoneVerified ? <div className="billing-trial-grid">
               {smsEnabled === null ? <p>Verificando confirmação por SMS…</p> : smsEnabled ? <>
@@ -189,7 +209,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
             </div> : <p className="billing-trial-status">✓ Celular confirmado: {access.user.phone}</p>}
             {phoneVerified && <label className="billing-trial-document" htmlFor="trial-document">CPF do responsável ou CNPJ da empresa<input id="trial-document" inputMode="numeric" autoComplete="off" value={trialDocument} onChange={event => setTrialDocument(event.target.value)} maxLength={18} placeholder="Somente para validar a elegibilidade"/></label>}
             {identityMessage && <p className="billing-trial-status" role="status">{identityMessage}</p>}
-            <p className="billing-caption">No controle antifraude, CPF/CNPJ e celular são comparados por hashes com chave interna. O telefone confirmado permanece no Supabase Auth como dado da sua conta.</p>
+            <p className="billing-caption">Um teste por empresa e aplicativo. A primeira cobrança acontece após os 7 dias; você pode cancelar a renovação antes.</p>
             <button className="text-action billing-skip-trial" type="button" onClick={() => setSkipTrial(true)}>Prefiro assinar sem teste grátis</button>
           </> : <div className="billing-no-trial"><strong>Assinatura sem teste grátis</strong><p>A cobrança começa agora conforme o plano escolhido. Nenhum período gratuito será solicitado ao Mercado Pago.</p><button className="ghost" type="button" onClick={() => { setSkipTrial(false); setError(''); }}>Tentar validar os 7 dias grátis</button></div>}
         </div>}
@@ -197,14 +217,14 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
         <div className="billing-plans">{plans.filter(plan => plan.app_id === selected).map(plan => <article key={plan.id} style={initialPlan === plan.id ? { outline: '2px solid #a5762d' } : undefined}>
           <h2>{cycles[plan.billing_interval]}{initialPlan === plan.id ? ' · Selecionado' : ''}</h2><strong>{money(plan.amount_cents)}</strong>
           <p>{usingTrial ? '7 dias grátis se a validação for aprovada. Depois, ' : ''}{plan.billing_interval === 'monthly' ? 'cobrança mensal' : plan.billing_interval === 'semiannual' ? 'cobrança a cada 6 meses' : 'cobrança a cada 12 meses'} com renovação automática.</p>
-          <button className="primary" disabled={!!busy || !ready} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo pagamento…' : usingTrial ? 'Assinar com 7 dias grátis' : trialEligible ? 'Assinar sem teste grátis' : 'Assinar com Mercado Pago'}</button>
+          <button className="primary" disabled={!!busy || ready !== true || canOpen || entitlement?.status === 'suspended' || (usingTrial && (!phoneVerified || !trialDocument.trim()))} onClick={() => void act('checkout', plan.id)}>{busy === plan.id ? 'Abrindo pagamento…' : canOpen ? 'Acesso já liberado' : usingTrial ? 'Assinar com 7 dias grátis' : trialEligible ? 'Assinar sem teste grátis' : 'Assinar com Mercado Pago'}</button>
         </article>)}</div>
         <p className="billing-caption">{usingTrial ? 'A primeira cobrança acontece somente após os 7 dias grátis. Se a identidade já tiver usado o teste, o período grátis é bloqueado.' : 'A assinatura segue diretamente para cobrança pelo Mercado Pago.'}</p>
       </section>
-      <section className="billing-panel"><h2>Suas assinaturas</h2>
-        {subscriptions.length === 0 ? <p>Nenhuma assinatura iniciada.</p> : subscriptions.map(subscription => {
+      <section className="billing-panel" id="minhas-assinaturas"><h2>Suas assinaturas</h2>
+        {!billingLoaded ? <p>A consulta da assinatura está indisponível. Tente atualizar novamente.</p> : subscriptions.length === 0 ? <p>Você ainda não iniciou uma assinatura. Escolha um dos planos acima.</p> : subscriptions.map(subscription => {
           const paid = !!subscription.current_period_end && Date.parse(subscription.current_period_end) > Date.now();
-          const trial = subscription.trial_requested && !!subscription.trial_ends_at && Date.parse(subscription.trial_ends_at) > Date.now();
+          const trial = access.hasApp(subscription.app_id as Parameters<typeof access.hasApp>[0]) && subscription.trial_requested && !!subscription.trial_ends_at && Date.parse(subscription.trial_ends_at) > Date.now();
           return <article className="billing-subscription" key={subscription.id}><div>
             <h3>{apps.find(app => app.slug === subscription.app_id)?.name || subscription.app_id}</h3>
             <p>{money(subscription.amount_cents)} a cada {subscription.frequency} {subscription.frequency === 1 ? 'mês' : 'meses'}</p>
@@ -213,7 +233,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
           </div><div className="billing-actions">
             {subscription.status !== 'failed' && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('sync', subscription.id)}>{busy === subscription.id ? 'Aguarde…' : 'Atualizar status'}</button>}
             {['pending', 'authorized', 'paused'].includes(subscription.status) && <button className="ghost" disabled={!!busy || !ready} onClick={() => void act('cancel', subscription.id)}>Cancelar renovação</button>}
-            {(paid || trial) && <Link className="primary" href={`/${subscription.app_id}`}>Abrir aplicativo</Link>}
+            {access.hasApp(subscription.app_id as Parameters<typeof access.hasApp>[0]) && <Link className="primary" href={`/${subscription.app_id}`}>Abrir aplicativo</Link>}
           </div></article>;
         })}
       </section>

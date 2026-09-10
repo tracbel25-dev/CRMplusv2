@@ -70,3 +70,17 @@ A retenção desses identificadores deve acompanhar a política de exclusão e p
 Verificação: `tests/trials.transaction.sql` usa dados sintéticos dentro de uma transação revertida.
 Inclui prazo, repetição, telefone confirmado, isolamento da empresa, documento/telefone reutilizado,
 expiração, preservação de acesso pago e retenção do teste após exclusão.
+
+### Correção do carregamento de assinatura
+
+Aplique `billing-flow-fix.sql` depois das alterações de teste pelo Mercado Pago.
+As funções de cobrança usam `security invoker`; o papel `service_role` precisa de
+USAGE no schema privado e SELECT no histórico antigo e na chave de comparação.
+Essas permissões não são concedidas a `anon` ou `authenticated`.
+O registro repetido de um teste já autorizado é reconhecido antes de validar a janela
+de início, preservando o prazo original mesmo em notificações dos dias seguintes.
+
+`tests/billing-flow.transaction.sql` executa com o papel real do backend e desfaz
+as contas sintéticas. Verifica consulta, identidade, repetição de evento, prazo fixo
+e isolamento das tabelas privadas. O frontend carrega o catálogo independentemente
+da consulta de assinatura e distingue erro de consulta de pagamento não configurado.
