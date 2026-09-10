@@ -105,7 +105,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
     {page === 'clientes' && <CustomerManager w={w} title={`Clientes e ${s.assetLabel.toLowerCase()}s`} onOpen={customer => <><Section title={`${s.assetLabel}s`} action={<Button variant="secondary" onClick={() => setAssetCustomer(customer.id)}><Plus size={16} />Adicionar</Button>}>{d.assets.filter(asset => asset.customerId === customer.id).map(asset => <div className="op-row" key={asset.id}><div className="op-grow"><strong className="op-identifier">{asset.identifier}</strong><span>{asset.model} · {asset.year || 'Ano não informado'}</span></div><Badge>{d.jobs.filter(job => job.assetId === asset.id).length} OS</Badge></div>)}{!d.assets.some(asset => asset.customerId === customer.id) && <Empty>Nenhum cadastro associado.</Empty>}</Section><Section title="Histórico do cliente">{d.jobs.filter(job => job.customerId === customer.id).map(job => <div className="op-row" key={job.id}><strong>OS {job.number}</strong><span>{job.type} · {date(job.createdAt)}</span><Badge>{job.status}</Badge></div>)}</Section></>} />}
 
-    {create && <Modal title="Qual veículo ou equipamento será atendido?" wide onClose={() => setCreate(false)}><JobForm w={w} onClose={() => setCreate(false)} onCreated={id => { setCreate(false); setCreatedJobId(id); }} /></Modal>}
+    {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(false)}><JobForm w={w} onClose={() => setCreate(false)} onCreated={id => { setCreate(false); setCreatedJobId(id); }} /></Modal>}
     {schedule && <Modal title={schedule === 'new' ? 'Novo agendamento' : 'Reagendar atendimento'} wide onClose={() => setSchedule(null)}><AppointmentForm w={w} appointment={schedule === 'new' ? undefined : schedule} onClose={() => setSchedule(null)} /></Modal>}
     {confirm && <Confirm title="Iniciar atendimento?" label="Abrir ordem de serviço" onClose={() => setConfirm(null)} onConfirm={() => w.mutate(next => { const id = newJob(next, { customerId: confirm.customerId, assetId: confirm.assetId, type: confirm.type, technician: confirm.technician, due: '', complaint: confirm.notes, diagnosis: '', notes: '' }, confirm.id); const job = next.jobs.find(item => item.id === id)!; job.status = initialJobStatus(next.settings); job.quote.validUntil = defaultQuoteValidity(next); job.events.push(event(`Situação: ${job.status}`)); setCreatedJobId(id); }, 'Ordem de serviço aberta.')}>Os dados deste agendamento serão aproveitados na ordem de serviço.</Confirm>}
     {assetCustomer && <Modal title={`Cadastrar ${s.assetLabel.toLowerCase()}`} onClose={() => setAssetCustomer('')}><AssetForm w={w} customerId={assetCustomer} onClose={() => setAssetCustomer('')} /></Modal>}
@@ -209,7 +209,7 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
       { name: 'technician', label: 'Responsável', value: appointment?.technician },
       { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }
     ]} onClose={onClose} onSave={form => w.mutate(data => {
-      let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
+      let selectedAsset = assetId ? w.data.assets.find(item => item.id === assetId) : undefined;
       if (!selectedAsset) {
         const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(form.identifier));
         if (exact) selectedAsset = exact;
