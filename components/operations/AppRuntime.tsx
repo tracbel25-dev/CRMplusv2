@@ -23,8 +23,6 @@ const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
 const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.ZeusBudgets));
 const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
-const ZeusFiscal = dynamic(() => import('./ZeusFiscal').then(module => module.ZeusFiscal));
-const ArtemisFiscal = dynamic(() => import('./ArtemisFiscal').then(module => module.ArtemisFiscal));
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
@@ -76,8 +74,6 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
     : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
-    : app === 'zeus' && page === 'fiscal' ? <ZeusFiscal w={w} />
-    : app === 'artemis' && page === 'fiscal' ? <ArtemisFiscal w={w} />
     : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
     : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
     : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
