@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
@@ -21,7 +21,7 @@ export type StoreAccount = {
   members: StoreMember[];
 };
 
-export function useStoreAccess() {
+function useStoreAccessState() {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<StoreAccount | null>(null);
@@ -161,7 +161,9 @@ export function useStoreAccess() {
     void refresh();
     let supabase;
     try { supabase = createStoreClient(); } catch { return; }
-    const { data } = supabase.auth.onAuthStateChange(() => { void refresh(); });
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') void refresh();
+    });
     return () => data.subscription.unsubscribe();
   }, [refresh]);
 
@@ -218,4 +220,18 @@ export function useStoreAccess() {
   };
 
   return { ready, user, account, member, error, isOwner, hasApp, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, logout };
+}
+
+type StoreAccessContextValue = ReturnType<typeof useStoreAccessState>;
+const StoreAccessContext = createContext<StoreAccessContextValue | null>(null);
+
+export function StoreAccessProvider({ children }: { children: ReactNode }) {
+  const value = useStoreAccessState();
+  return createElement(StoreAccessContext.Provider, { value }, children);
+}
+
+export function useStoreAccess() {
+  const value = useContext(StoreAccessContext);
+  if (!value) throw new Error('useStoreAccess deve ser usado dentro de StoreAccessProvider.');
+  return value;
 }
