@@ -112,7 +112,7 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
             <p>Escolha a ferramenta que entende a sua operação — sem transformar tudo no mesmo sistema.</p>
             <div className="store-cover-actions">
               <Link className="primary" href="/aplicativos">Explorar aplicativos</Link>
-              <Link className="ghost" href="#planos">Ver planos</Link>
+              <Link className="ghost" href="/planos">Ver planos</Link>
               <Link className="ghost" href="/login">Já sou cliente</Link>
             </div>
           </div>
@@ -194,8 +194,8 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
                 <h3>{app.name}</h3>
                 <p>{app.description}</p>
                 <div className="cover-actions">
-                  <Link className="ghost small" href={`/${app.slug}`}>Abrir app</Link>
-                  <Link className="primary small" href={`/aplicativos/${app.slug}`}>Conheça agora</Link>
+                  <Link className="ghost small" href={`/aplicativos/${app.slug}`}>Conhecer</Link>
+                  <Link className="primary small" href={`/planos?app=${encodeURIComponent(app.slug)}`}>Ver preços</Link>
                 </div>
               </div>
             </article>
