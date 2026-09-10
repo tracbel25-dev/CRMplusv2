@@ -55,7 +55,7 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
     account_id: `eq.${membership.account_id}`,
     app_id: `eq.${app}`,
     status: 'in.(trialing,active)',
-    or: `(current_period_end.is.null,current_period_end.gt.${new Date().toISOString()})`,
+    or: `(and(status.eq.active,current_period_end.is.null),current_period_end.gt.${new Date().toISOString()})`,
     limit: '1',
   }), token) as Array<{ app_id: string }> | null;
   if (!accountApps?.length) return null;

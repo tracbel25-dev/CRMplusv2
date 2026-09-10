@@ -25,6 +25,7 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
     <div className="public-pricing-heading"><div><span className="eyebrow">Planos por aplicativo</span><h2 id="public-pricing-title">Seu aplicativo.<br/>Seu ritmo de pagamento.</h2></div><p>Escolha o aplicativo e o ciclo de assinatura. Confira o valor total antes de contratar.</p></div>
     {!fixedApp && <div className="pricing-app-options" aria-label="Escolha o aplicativo">{available.map(item => <button key={item.slug} type="button" aria-pressed={app.slug === item.slug} onClick={() => setSelected(item.slug)}><strong>{item.name}</strong><span>{item.category}</span></button>)}</div>}
     <div className="pricing-app-heading"><h3>{app.name} <span>· {app.category}</span></h3><Link href={`/aplicativos/${app.slug}`}>Conhecer o aplicativo <ArrowRight size={16}/></Link></div>
+    {['zeus', 'artemis'].includes(app.slug) && <p><Link className="ghost" href={`/assinaturas?app=${app.slug}#teste-gratis`}>Teste grátis por 7 dias</Link></p>}
     <div className="public-price-grid">{cycles.map(cycle => {
       const plan = appPlans.find(item => item.billing_interval === cycle.id);
       if (!plan) return null;

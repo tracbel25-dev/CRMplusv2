@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apps } from '@/lib/catalog';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { TrialActivation } from '@/components/TrialActivation';
 import { billingRequest } from '@/lib/billing';
 
 type Plan = { id: string; app_id: string; billing_interval: string; amount_cents: number; currency: string };
@@ -87,6 +88,7 @@ export function Subscriptions({ initialApp, initialPlan, returned }: { initialAp
         </article>)}</div>
         <p className="billing-caption">O acesso é liberado após a confirmação do pagamento. Cancele a renovação quando precisar.</p>
       </section>
+      <TrialActivation app={selected} user={access.user} account={access.account} owner={access.member?.role === 'owner'} refresh={access.refresh} />
       <section className="billing-panel"><h2>Suas assinaturas</h2>
         {subscriptions.length === 0 ? <p>Nenhuma assinatura iniciada.</p> : subscriptions.map(subscription => {
           const paid = !!subscription.current_period_end && Date.parse(subscription.current_period_end) > Date.now();

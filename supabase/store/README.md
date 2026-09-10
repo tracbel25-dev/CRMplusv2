@@ -42,3 +42,31 @@ SQL/RLS passaram nos testes transacionais com ROLLBACK, incluindo acesso entre e
 As Edge Functions foram publicadas e os checks HTTP passaram. Pagamento ponta a ponta depende da configuração do webhook e de uma transação de teste autorizada; nenhuma cobrança real foi criada.
 
 Referências: [Assinaturas](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/overview), [Webhooks](https://www.mercadopago.com.br/developers/pt/docs/subscriptions/additional-content/your-integrations/notifications/webhooks), [tipos oficiais PreApproval](https://github.com/mercadopago/sdk-nodejs/blob/master/src/clients/preApproval/commonTypes.ts), [autenticação de Edge Functions](https://supabase.com/docs/guides/functions/auth).
+
+## Teste grátis de 7 dias
+
+Aplique `trials.sql` uma vez após `mercadopago.sql` no projeto Store. A função
+`start_app_trial(target_account, target_app, document)` exige titular da empresa ativa,
+e-mail confirmado e telefone confirmado pelo Supabase Auth. Disponível para Zeus e Artemis.
+
+Antes de disponibilizar ao público, habilite Phone em Authentication / Sign In / Providers,
+configure um provedor de SMS com suas credenciais e mantenha confirmação de telefone obrigatória.
+Configure também os limites de envio no Auth; não habilite confirmação automática nem números
+fixos de teste em produção. Nenhuma mensagem SMS é enviada pelo deploy.
+A interface verifica a disponibilidade e bloqueia ativação enquanto Phone estiver desativado.
+
+Cada teste dura exatamente 168 horas desde a ativação, sem cartão ou cobrança automática.
+A autorização consulta o vencimento em cada operação; `trialing` sem data é negado. O rótulo
+no banco pode continuar `trialing` depois de vencer, mas isso não concede acesso. Dados e acesso
+à área de assinatura são preservados. Clientes pagantes e acessos existentes não são convertidos.
+
+Documento (validação de dígitos, sem comprovação de titularidade), telefone e e-mail são registrados
+como HMAC em tabelas privadas, com chave gerada no banco e sem leitura pública. Restrições únicas
+por aplicativo impedem repetir com a mesma conta, usuário, documento, telefone ou e-mail.
+O histórico não é apagado em cascata ao excluir contas. Trocar todas as identidades continua sendo
+uma limitação; IP e identificação do dispositivo não são usados como prova de identidade.
+A retenção desses identificadores deve acompanhar a política de exclusão e privacidade do produto.
+
+Verificação: `tests/trials.transaction.sql` usa dados sintéticos dentro de uma transação revertida.
+Inclui prazo, repetição, telefone confirmado, isolamento da empresa, documento/telefone reutilizado,
+expiração, preservação de acesso pago e retenção do teste após exclusão.

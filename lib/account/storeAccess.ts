@@ -166,7 +166,13 @@ export function useStoreAccess() {
   }, [refresh]);
 
   const isOwner = member?.role === 'owner';
-  const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status) && (!item.currentPeriodEnd || Date.parse(item.currentPeriodEnd) > Date.now())).map(item => item.appId) || []), [account]);
+  useEffect(() => {
+    if (!account?.apps.some(item => item.status === 'trialing' && item.currentPeriodEnd && Date.parse(item.currentPeriodEnd) > Date.now())) return;
+    const timer = window.setInterval(() => { void refresh(); }, 60000);
+    return () => window.clearInterval(timer);
+  }, [account, refresh]);
+
+  const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status) && ((item.status === 'active' && !item.currentPeriodEnd) || (!!item.currentPeriodEnd && Date.parse(item.currentPeriodEnd) > Date.now()))).map(item => item.appId) || []), [account]);
   const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app));
   const canConfigureApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app && item.canConfigure));
 
