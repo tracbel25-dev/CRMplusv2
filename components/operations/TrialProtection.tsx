@@ -164,7 +164,7 @@ export function TrialProtection({ app, accountName, email, children }: { app: Ap
       if (clipboard && clipboardPatched) {
         try {
           if (clipboardDescriptor) Object.defineProperty(clipboard, 'writeText', clipboardDescriptor);
-          else delete (clipboard as Clipboard & { writeText?: Clipboard['writeText'] }).writeText;
+          else Reflect.deleteProperty(clipboard, 'writeText');
         } catch { /* noop */ }
       }
     };
