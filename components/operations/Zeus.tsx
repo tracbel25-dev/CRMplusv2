@@ -47,8 +47,9 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       Responsável: Array.from(new Set(d.jobs.map(job => job.technician || 'Sem responsável'))).sort(),
       Cliente: Array.from(new Set(d.jobs.map(job => findCustomer(job.customerId)))).sort()
     };
-    return prefs.jobFilters.map(label => ({ key: label, label, options: values[label as keyof typeof values] || [] })).filter(item => item.options.length);
-  }, [d.jobs, prefs.jobFilters]);
+    const display: Record<string, string> = { Tipo: operation.label('type', 'Tipo'), Responsável: operation.label('technician', 'Responsável'), Cliente: operation.label('customer', 'Cliente') };
+    return prefs.jobFilters.map(key => ({ key, label: display[key] || key, options: values[key as keyof typeof values] || [] })).filter(item => item.options.length);
+  }, [d.jobs, prefs.jobFilters, operation]);
 
   const filteredJobs = (list: Job[]) => list.filter(job => {
     const values: Record<string, string> = { Status: job.status, Etapa: job.stage, Tipo: job.type, Responsável: job.technician || 'Sem responsável', Cliente: findCustomer(job.customerId) };
@@ -74,7 +75,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     const waiting = job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(approvalSince(job))}` : job.status === 'Aguardando diagnóstico' ? 'Identificação finalizada · diagnóstico ainda não iniciado' : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
     return <button key={job.id} className="op-job" onClick={() => setSelected(job.id)}>
       <div className="op-job-identity"><small>OS {String(job.number).padStart(4, '0')} · {job.type}</small><strong>{asset?.identifier}</strong><span>{findCustomer(job.customerId)}</span><small>{asset?.model}</small></div>
-      <div className="op-job-work"><strong>{job.stage}</strong><span>{job.technician || 'Sem responsável'}</span>{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter">{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
+      <div className="op-job-work"><strong>{job.stage}</strong><span>{job.technician || `Sem ${operation.label('technician', 'responsável').toLowerCase()}`}</span>{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter">{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
       <div className="op-job-state"><Badge tone={['Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status) ? 'warning' : ''}>{job.status}</Badge>{job.due && <small>{date(job.due, true)}</small>}<ArrowRight size={18} /></div>
     </button>;
   })}</div> : <Empty icon={<Wrench size={28} />}>{query ? 'Nenhum atendimento encontrado.' : 'As ordens de serviço aparecerão aqui.'}</Empty>;
@@ -92,8 +93,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     </>}
 
     {(page === 'atendimentos' || page === 'historico') && <>
-      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<><Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', 'Tipo', 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>{page !== 'historico' && <Button onClick={() => setCreate(true)}><Plus size={18} />Novo atendimento</Button>}</>} />
-      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de abertura' }, { value: 'number', label: 'Número da OS' }, { value: 'due', label: 'Prazo previsto' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, técnico ou OS`} />
+      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<><Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>{page !== 'historico' && <Button onClick={() => setCreate(true)}><Plus size={18} />Novo atendimento</Button>}</>} />
+      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de abertura' }, { value: 'number', label: 'Número da OS' }, { value: 'due', label: operation.label('due', 'Prazo previsto') }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
       {jobList(filteredJobs(searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job))))}
     </>}
 
@@ -114,7 +115,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 }
 
 function customFieldDefs(operation: ReturnType<typeof useOperationPreferences>, groups: string[]) {
-  return operation.preferences.customFields.filter(field => field.visible && groups.includes(field.group)).map(field => ({ name: `custom__${field.id}`, label: field.label, wide: true }));
+  const helpMap = ((operation.preferences as typeof operation.preferences & { fieldHelp?: Record<string, string> }).fieldHelp || {});
+  return operation.preferences.customFields.filter(field => field.visible && groups.includes(field.group)).map(field => ({ name: `custom__${field.id}`, label: field.label, wide: true, help: helpMap[`custom:${field.id}`] }));
 }
 function customFromForm(operation: ReturnType<typeof useOperationPreferences>, groups: string[], form: Record<string, string>) {
   return Object.fromEntries(operation.preferences.customFields.filter(field => field.visible && groups.includes(field.group)).map(field => [field.id, form[`custom__${field.id}`] || '']));
@@ -138,38 +140,32 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
     {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button></div>}
     <RecordForm draftKey="zeus-job:new" fields={[
       ...(!asset ? [
-        { name: 'customer', label: 'Cliente', required: true, suggestions, hint: 'Digite o nome. Se existir, o Zeus reaproveita; se não existir, cria automaticamente.' },
-        { name: 'phone', label: 'Telefone', type: 'tel' },
-        { name: 'identifier', label: s.identifierLabel, required: true, value: search },
-        { name: 'model', label: s.assetLabel, required: true },
-        { name: 'year', label: 'Ano' },
-        { name: 'meter', label: s.meterLabel }
+        { name: 'customer', label: operation.label('customer', 'Cliente'), required: true, suggestions, hint: 'Digite o nome. Se existir, o Zeus reaproveita; se não existir, cria automaticamente.', configKey: 'customer' },
+        { name: 'phone', label: operation.label('phone', 'Telefone'), type: 'tel', configKey: 'phone' },
+        { name: 'identifier', label: s.identifierLabel, required: true, value: search, configKey: 'identifier' },
+        { name: 'model', label: s.assetLabel, required: true, configKey: 'asset' },
+        { name: 'year', label: operation.label('year', 'Ano'), configKey: 'year' },
+        { name: 'meter', label: s.meterLabel, configKey: 'meter' }
       ] : []),
-      { name: 'type', label: 'Tipo de atendimento', required: true, options: serviceTypes.map(value => ({ value, label: value })) },
-      { name: 'technician', label: 'Responsável' },
-      { name: 'due', label: 'Prazo previsto', type: 'datetime-local' },
-      { name: 'complaint', label: 'Relato do cliente', type: 'textarea', wide: true, required: true },
+      { name: 'type', label: operation.label('type', 'Tipo de atendimento'), required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
+      { name: 'technician', label: operation.label('technician', 'Responsável'), configKey: 'technician' },
+      { name: 'due', label: operation.label('due', 'Prazo previsto'), type: 'datetime-local', configKey: 'due' },
+      { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), type: 'textarea', wide: true, required: true, configKey: 'complaint' },
       ...customFieldDefs(operation, customGroups)
     ]} submit="Finalizar identificação" onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
       let cid = selectedAsset?.customerId || '';
       let aid = selectedAsset?.id || '';
-
       if (!selectedAsset) {
         const identifier = form.identifier.trim();
         const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(identifier));
-        if (exact) {
-          selectedAsset = exact;
-          cid = exact.customerId;
-          aid = exact.id;
-        } else {
+        if (exact) { selectedAsset = exact; cid = exact.customerId; aid = exact.id; }
+        else {
           const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
-          cid = resolved.id;
-          aid = uid();
+          cid = resolved.id; aid = uid();
           data.assets.push({ id: aid, customerId: cid, identifier: identifier.toUpperCase(), model: form.model.trim(), year: form.year || '', meter: form.meter || '' });
         }
       }
-
       const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' });
       const job = data.jobs.find(item => item.id === id)!;
       job.status = initialJobStatus(data.settings);
@@ -185,6 +181,7 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
 }
 
 function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointment?: Appointment; onClose: () => void }) {
+  const operation = useOperationPreferences('zeus');
   const serviceTypes = useZeusServiceTypes();
   const [assetId, setAssetId] = useState(appointment?.assetId || '');
   const [search, setSearch] = useState('');
@@ -192,22 +189,21 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
   const customer = asset ? w.data.customers.find(item => item.id === asset.customerId) : undefined;
   const suggestions = customerSuggestions(w.data);
   const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(current => current.id === item.customerId)?.name)).slice(0, 8) : [];
-
   return <>
-    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId && !appointment) setAssetId(''); }} placeholder="Digite veículo, identificação ou cliente" />
+    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId && !appointment) setAssetId(''); }} placeholder={`Digite ${w.data.settings.assetLabel.toLowerCase()}, identificação ou cliente`} />
     {results.length > 0 && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => setAssetId(item.id)}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(current => current.id === item.customerId)?.name}</span></button>)}</div>}
     {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{customer?.name}</span>{!appointment && <button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button>}</div>}
     <RecordForm draftKey={`zeus-appointment:${appointment?.id || 'new'}`} fields={[
       ...(!asset ? [
-        { name: 'customer', label: 'Cliente', required: true, suggestions, hint: 'Digite e continue. Um cliente novo é criado automaticamente se não existir.' },
-        { name: 'phone', label: 'Telefone', type: 'tel' },
-        { name: 'identifier', label: w.data.settings.identifierLabel, required: true, value: search },
-        { name: 'model', label: w.data.settings.assetLabel, required: true }
+        { name: 'customer', label: operation.label('customer', 'Cliente'), required: true, suggestions, hint: 'Digite e continue. Um cliente novo é criado automaticamente se não existir.', configKey: 'customer' },
+        { name: 'phone', label: operation.label('phone', 'Telefone'), type: 'tel', configKey: 'phone' },
+        { name: 'identifier', label: w.data.settings.identifierLabel, required: true, value: search, configKey: 'identifier' },
+        { name: 'model', label: w.data.settings.assetLabel, required: true, configKey: 'asset' }
       ] : []),
-      { name: 'at', label: 'Data e horário', type: 'datetime-local', required: true, value: appointment?.at },
-      { name: 'type', label: 'Tipo', value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })) },
-      { name: 'technician', label: 'Responsável', value: appointment?.technician },
-      { name: 'notes', label: 'Observações', type: 'textarea', wide: true, value: appointment?.notes }
+      { name: 'at', label: operation.label('scheduleDate', 'Data e horário'), type: 'datetime-local', required: true, value: appointment?.at, configKey: 'scheduleDate' },
+      { name: 'type', label: operation.label('type', 'Tipo de atendimento'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
+      { name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' },
+      { name: 'notes', label: operation.label('internalNotes', 'Observações'), type: 'textarea', wide: true, value: appointment?.notes, configKey: 'internalNotes' }
     ]} onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
       if (!selectedAsset) {
@@ -227,6 +223,7 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
 }
 
 function AssetForm({ w, customerId, onClose }: { w: Workspace; customerId: string; onClose: () => void }) {
+  const operation = useOperationPreferences('zeus');
   const s = w.data.settings;
-  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: s.identifierLabel, required: true }, { name: 'model', label: s.assetLabel, required: true }, { name: 'year', label: 'Ano' }, { name: 'meter', label: s.meterLabel }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => assetKey(asset.identifier) === assetKey(form.identifier))) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
+  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: s.identifierLabel, required: true, configKey: 'identifier' }, { name: 'model', label: s.assetLabel, required: true, configKey: 'asset' }, { name: 'year', label: operation.label('year', 'Ano'), configKey: 'year' }, { name: 'meter', label: s.meterLabel, configKey: 'meter' }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => assetKey(asset.identifier) === assetKey(form.identifier))) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
 }

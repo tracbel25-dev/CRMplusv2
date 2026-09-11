@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import Image from 'next/image';
-import { ArrowLeft, ArrowRight, Pause, Play, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { apps, featured } from '@/lib/catalog';
 import { AppArtwork } from './AppArtwork';
@@ -58,7 +58,6 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
   const [impact, setImpact] = useState(0);
   const [query, setQuery] = useState('');
   const [segment, setSegment] = useState('Todos');
-  const [heroPaused, setHeroPaused] = useState(false);
   const [heroInteracting, setHeroInteracting] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const heroCount = featured.length + 1;
@@ -72,13 +71,13 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (heroPaused || heroInteracting || reducedMotion) return;
-    const id = setInterval(() => setHero((value) => (value + 1) % heroCount), 5000);
+    if (heroInteracting || reducedMotion) return;
+    const id = setInterval(() => setHero((value) => (value + 1) % heroCount), 10000);
     return () => clearInterval(id);
-  }, [heroPaused, heroInteracting, reducedMotion, heroCount]);
+  }, [heroInteracting, reducedMotion, heroCount]);
 
   useEffect(() => {
-    const id = setInterval(() => setImpact((value) => (value + 1) % impacts.length), 6500);
+    const id = setInterval(() => setImpact((value) => (value + 1) % impacts.length), 12000);
     return () => clearInterval(id);
   }, []);
 
@@ -165,11 +164,6 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
           </div>
           <div className="spotlight-controls">
             <span className="spotlight-position">{String(hero + 1).padStart(2, '0')} / {String(heroCount).padStart(2, '0')}</span>
-            {!reducedMotion && (
-              <button onClick={() => setHeroPaused((value) => !value)} aria-label={heroPaused ? 'Retomar destaques automáticos' : 'Pausar destaques automáticos'}>
-                {heroPaused ? <Play size={16} /> : <Pause size={16} />}
-              </button>
-            )}
             <button onClick={() => setHero((value) => (value - 1 + heroCount) % heroCount)} aria-label="Destaque anterior"><ArrowLeft size={19} /></button>
             <button onClick={() => setHero((value) => (value + 1) % heroCount)} aria-label="Próximo destaque"><ArrowRight size={19} /></button>
           </div>
