@@ -4,24 +4,54 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { StoreAccount } from '@/lib/account/storeAccess';
+import { reserveTrialNetwork } from '@/lib/antifraud';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 
 const errors: Record<string, string> = {
-  trial_already_used: 'O teste grátis deste aplicativo já foi utilizado. Escolha um plano para continuar.',
+  trial_already_used: 'O teste grátis deste aplicativo já foi utilizado por este titular ou empresa. Escolha um plano para continuar.',
   trial_phone_required: 'Confirme seu telefone antes de iniciar o teste.',
   trial_email_required: 'Confirme seu e-mail antes de iniciar o teste.',
-  trial_document_invalid: 'Informe um CPF ou CNPJ numérico válido.',
-  trial_identity_changed: 'Use o mesmo documento e telefone do primeiro teste da empresa.',
+  trial_document_invalid: 'Informe um CNPJ válido.',
+  trial_identity_changed: 'A identidade deste teste não corresponde ao titular da empresa.',
+  trial_identity_required: 'Conclua a validação do CPF do titular antes de iniciar o teste.',
+  trial_cnpj_required: 'Cadastre um CNPJ válido na empresa antes de iniciar o teste.',
+  trial_network_required: 'Não foi possível validar a rede usada para o teste grátis.',
   trial_owner_required: 'Somente o titular de uma empresa ativa pode iniciar o teste.',
   trial_already_active: 'Sua empresa já tem acesso ativo a este aplicativo.',
   trial_unavailable: 'O teste não está disponível para esta conta.',
 };
 
+function formatCnpj(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+function validCnpj(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false;
+  const digit = (length: number) => {
+    const numbers = digits.slice(0, length);
+    let factor = length - 7;
+    let total = 0;
+    for (const current of numbers) {
+      total += Number(current) * factor--;
+      if (factor < 2) factor = 9;
+    }
+    const result = 11 - (total % 11);
+    return result > 9 ? 0 : result;
+  };
+  return digit(12) === Number(digits[12]) && digit(13) === Number(digits[13]);
+}
+
 export function TrialActivation({ app, user, account, owner, refresh }: {
   app: string; user: User; account: StoreAccount; owner: boolean; refresh: () => Promise<void>;
 }) {
-  const [document, setDocument] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [phone, setPhone] = useState('');
   const [sentPhone, setSentPhone] = useState('');
   const [code, setCode] = useState('');
@@ -68,17 +98,25 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
         if (result.error) throw result.error;
         await refresh(); setSentPhone(''); setCode(''); setMessage('Telefone confirmado. Você já pode iniciar o teste.');
       } else {
-        const result = await client.rpc('start_app_trial', { target_account: account.id, target_app: app, document });
+        const cleanCnpj = cnpj.replace(/\D/g, '');
+        if (!validCnpj(cleanCnpj)) throw new Error('trial_document_invalid');
+        await reserveTrialNetwork(account.id, app);
+        // Keep the 3-argument call compatible with the currently deployed database.
+        // After the hardening migration, the backend ignores this browser value and
+        // derives CPF/CNPJ from the validated owner/account records.
+        const result = await client.rpc('start_app_trial', { target_account: account.id, target_app: app, document: cleanCnpj });
         if (result.error) throw result.error;
         await refresh();
       }
     } catch (reason) {
       const raw = (reason as Error).message;
-      setMessage(errors[raw] || (action === 'start' ? 'Não foi possível iniciar o teste. Tente novamente ou fale com o suporte.' : 'Não foi possível confirmar o telefone. Confira o número ou código e aguarde antes de tentar novamente.'));
+      setMessage(errors[raw] || (action === 'start' ? raw || 'Não foi possível iniciar o teste. Tente novamente ou fale com o suporte.' : 'Não foi possível confirmar o telefone. Confira o número ou código e aguarde antes de tentar novamente.'));
     } finally { setBusy(false); }
   }
+
+  const validCompanyDocument = validCnpj(cnpj);
   return <section className="billing-panel" id="teste-gratis"><h2>Experimente por 7 dias</h2>
-    <p>Sem cartão e sem cobrança automática. Um teste por empresa e aplicativo. Ao vencer, seus dados ficam preservados.</p>
+    <p>Sem cartão e sem cobrança automática. Um teste por CNPJ, titular e aplicativo. Ao vencer, seus dados ficam preservados.</p>
     {message && <p role="status">{message}</p>}
     {!user.email_confirmed_at && <p>Confirme o e-mail recebido no cadastro para continuar.</p>}
     {!verified && <>
@@ -89,10 +127,10 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
         {sentPhone && <><label htmlFor="trial-code">Código recebido</label><input id="trial-code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} maxLength={10}/><button className="ghost" type="button" disabled={busy || !code} onClick={() => void run('verify')}>Confirmar telefone</button></>}
       </>}
     </>}
-    {verified && <><p>Telefone confirmado.</p><label htmlFor="trial-document">CPF do responsável ou CNPJ da empresa</label>
-      <input id="trial-document" inputMode="numeric" value={document} maxLength={18} onChange={event => setDocument(event.target.value)} disabled={busy}/>
-      <p className="billing-caption">Usamos documento e telefone para evitar testes repetidos.</p>
-      <button className="primary" type="button" disabled={busy || !document || !user.email_confirmed_at} onClick={() => void run('start')}>{busy ? 'Aguarde…' : 'Iniciar meus 7 dias grátis'}</button>
+    {verified && <><p>Telefone confirmado.</p><label htmlFor="trial-cnpj">CNPJ da empresa</label>
+      <input id="trial-cnpj" inputMode="numeric" value={cnpj} maxLength={18} placeholder="00.000.000/0000-00" onChange={event => setCnpj(formatCnpj(event.target.value))} disabled={busy}/>
+      <p className="billing-caption">O CNPJ, o CPF validado do titular, o telefone e a rede são usados para impedir testes repetidos.</p>
+      <button className="primary" type="button" disabled={busy || !validCompanyDocument || !user.email_confirmed_at} onClick={() => void run('start')}>{busy ? 'Aguarde…' : 'Iniciar meus 7 dias grátis'}</button>
     </>}
   </section>;
 }
