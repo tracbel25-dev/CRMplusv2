@@ -121,6 +121,14 @@ export type Deal = {
   createdAt: string;
 };
 export type Task = { id: string; dealId: string; title: string; due: string; done: boolean };
+export type StoredOperationPreferences = {
+  version: 1;
+  fieldLabels: Record<string, string>;
+  fieldVisibility: Record<string, boolean>;
+  fieldHelp: Record<string, string>;
+  actionVisibility: Record<string, boolean>;
+  customFields: { id: string; label: string; group: string; visible: boolean }[];
+};
 export type Settings = {
   business: string;
   phone: string;
@@ -141,6 +149,7 @@ export type Settings = {
   deliveryAreas: string;
   hours: string;
   salesStages: string[];
+  operationPreferences?: StoredOperationPreferences;
 };
 export type Data = {
   version: 1;
