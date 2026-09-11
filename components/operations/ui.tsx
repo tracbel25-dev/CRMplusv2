@@ -1,7 +1,7 @@
 'use client';
 
 import { Children, Fragment, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, FileDown, Plus, Search, X } from 'lucide-react';
+import { ArrowRight, FileDown, HelpCircle, Plus, Search, X } from 'lucide-react';
 import {
   AppId, Customer, Data, Event, Line, Quote, advanceJob, date, decideQuote, effectiveQuoteStatus,
   money, normalize, now, reviseQuote, sendQuote, total, uid
@@ -46,15 +46,28 @@ export function Confirm({ title, children, onClose, onConfirm, label = 'Confirma
   return <Modal title={title} onClose={onClose}><p>{children}</p><div className="op-form-footer"><Button variant="secondary" onClick={onClose}>Voltar</Button><Button disabled={busy} onClick={async () => { setBusy(true); if (await onConfirm()) onClose(); setBusy(false); }}>{label}</Button></div></Modal>;
 }
 
-export type FieldDef = { name: string; label: string; type?: string; required?: boolean; options?: { value: string; label: string }[]; suggestions?: string[]; value?: string | number; wide?: boolean; min?: string | number; step?: string | number; hint?: string };
+export function FieldHelp({ text }: { text?: string }) {
+  if (!text?.trim()) return null;
+  return <span className="op-field-help" tabIndex={0} role="button" aria-label="Ajuda sobre este campo"><HelpCircle size={14} aria-hidden="true" /><span className="op-field-help-popover" role="tooltip">{text}</span></span>;
+}
+
+export type FieldDef = { name: string; label: string; type?: string; required?: boolean; options?: { value: string; label: string }[]; suggestions?: string[]; value?: string | number; wide?: boolean; min?: string | number; step?: string | number; hint?: string; help?: string; configKey?: string };
 
 function readDraft(key: string | undefined) {
   if (!key || typeof window === 'undefined') return {} as Record<string, string>;
   try { return JSON.parse(sessionStorage.getItem(`crmplus:draft:${key}`) || '{}') as Record<string, string>; } catch { return {}; }
 }
 
+const inferredFieldKey: Record<string, string> = {
+  identifier: 'identifier', model: 'asset', meter: 'meter', type: 'type', technician: 'technician', due: 'due', complaint: 'complaint',
+  diagnosis: 'diagnosis', notes: 'internalNotes', customer: 'customer', phone: 'phone', year: 'year', at: 'scheduleDate',
+};
+
 export function RecordForm({ fields, onSave, onClose, submit = 'Salvar', children, draftKey }: { fields: FieldDef[]; onSave: (values: Record<string, string>) => Promise<boolean>; onClose: () => void; submit?: string; children?: ReactNode; draftKey?: string }) {
   const [busy, setBusy] = useState(false);
+  const workspace = useCurrentWorkspace();
+  const operation = useOperationPreferences(workspace?.app || 'zeus');
+  const helpMap = ((operation.preferences as typeof operation.preferences & { fieldHelp?: Record<string, string> }).fieldHelp || {});
   const formId = useId();
   const savedDraft = useMemo(() => readDraft(draftKey), [draftKey]);
   const clearDraft = () => { if (draftKey && typeof window !== 'undefined') sessionStorage.removeItem(`crmplus:draft:${draftKey}`); };
@@ -78,8 +91,10 @@ export function RecordForm({ fields, onSave, onClose, submit = 'Salvar', childre
     <div className="op-fields">{fields.map(field => {
       const initial = savedDraft[field.name] ?? field.value;
       const listId = field.suggestions?.length ? `${formId}-${field.name}` : undefined;
+      const configKey = field.configKey || inferredFieldKey[field.name];
+      const help = field.help || (configKey ? helpMap[configKey] : '');
       return <label key={field.name} className={`op-field ${field.wide ? 'span-full' : ''}`}>
-        <span>{field.label}{field.required ? ' *' : ''}</span>
+        <span className="op-field-label">{field.label}{field.required ? ' *' : ''}<FieldHelp text={help} /></span>
         {field.options
           ? <select name={field.name} defaultValue={initial} required={field.required}>{!initial && <option value="">Selecionar</option>}{field.options.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
           : field.type === 'textarea'
