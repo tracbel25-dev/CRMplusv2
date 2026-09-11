@@ -61,11 +61,14 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'cozinha'].includes(page);
   const navigationPage = page === 'historico' ? (app === 'zeus' ? 'atendimentos' : app === 'kronos' ? 'oportunidades' : page) : page;
+  const zeusClientsLabel = `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s`;
   const pageLabel = page === 'configuracoes'
     ? corporateUi.settingsLabel
     : legacyArtemisOperation
       ? 'Operação'
-      : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
+      : app === 'zeus' && navigationPage === 'clientes'
+        ? zeusClientsLabel
+        : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
 
   const settingsBody = app === 'artemis'
     ? <ArtemisSettings w={w} />
@@ -102,7 +105,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <nav aria-label={`Navegação ${config.name}`}>
             {nav.map(item => {
               const Icon = icons[item.icon as keyof typeof icons];
-              const label = app === 'zeus' && item.path === 'clientes' ? `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s` : item.label;
+              const label = app === 'zeus' && item.path === 'clientes' ? zeusClientsLabel : item.label;
               const active = navigationPage === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
               return <Link key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
             })}
