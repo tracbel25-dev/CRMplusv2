@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "test": "node --test tests/trial-antifraud.test.mjs",
     "build": "next build",
     "start": "next start"
   },

@@ -26,23 +26,30 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Tests
+        id: tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
       - name: Build
         id: build
         shell: bash
         run: |
           set -o pipefail
           npm run build 2>&1 | tee build.log
-      - name: Report build failure
+      - name: Report verification failure
         if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const text = fs.existsSync('build.log') ? fs.readFileSync('build.log', 'utf8') : 'Build failed without build.log';
-            const excerpt = text.slice(-9000);
+            const test = fs.existsSync('test.log') ? fs.readFileSync('test.log', 'utf8') : '';
+            const build = fs.existsSync('build.log') ? fs.readFileSync('build.log', 'utf8') : '';
+            const excerpt = `${test}\n${build}`.slice(-9000) || 'Verification failed without logs.';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `### Verify — build falhou\n\n\`\`\`text\n${excerpt}\n\`\`\``
+              body: `### Verify — falhou\n\n\`\`\`text\n${excerpt}\n\`\`\``
             });
