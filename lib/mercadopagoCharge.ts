@@ -23,6 +23,19 @@ export type MercadoPagoCharge = {
   terminal_id?: string | null;
 };
 
+function edgeErrorMessage(status: number, raw: string) {
+  let parsed: Record<string, unknown> = {};
+  try { parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { /* resposta textual */ }
+
+  const detail = [parsed.error, parsed.message, parsed.details, parsed.hint, parsed.code]
+    .find(value => typeof value === 'string' && value.trim()) as string | undefined;
+  const text = !detail && raw && raw.length <= 700 ? raw.trim() : '';
+  const suffix = detail || text;
+  return suffix
+    ? `Mercado Pago (${status}): ${suffix}`
+    : `Mercado Pago respondeu com erro ${status}. Abra novamente a cobrança para tentar de novo.`;
+}
+
 export async function mercadoPagoChargeRequest<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await createStoreClient().auth.getSession();
   if (error || !data.session) throw new Error('Entre na sua conta para continuar.');
@@ -42,7 +55,10 @@ export async function mercadoPagoChargeRequest<T>(body: Record<string, unknown>)
   } catch {
     throw new Error('A cobrança do Mercado Pago não respondeu a tempo. Tente novamente.');
   }
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || 'Não foi possível criar a cobrança pelo Mercado Pago.');
-  return result as T;
+
+  const raw = await response.text();
+  if (!response.ok) throw new Error(edgeErrorMessage(response.status, raw));
+  if (!raw) return {} as T;
+  try { return JSON.parse(raw) as T; }
+  catch { throw new Error('A cobrança respondeu em um formato inválido. Tente novamente.'); }
 }
