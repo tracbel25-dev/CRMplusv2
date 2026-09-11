@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  BarChart3, BookOpen, Box, CalendarDays, ChefHat,
+  BarChart3, BookOpen, Box, CalendarDays, ChefHat, ClipboardCheck,
   FileText, History, Home, Inbox, Menu, MessageSquareText, Moon,
   PanelLeftClose, PanelLeftOpen, Settings2, ShoppingBag, Sun, Target, Users,
   UtensilsCrossed, Wallet, Wrench, X
@@ -25,6 +25,7 @@ const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(modul
 const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.ZeusBudgets));
 const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
 const ZeusBilling = dynamic(() => import('./ZeusBilling').then(module => module.ZeusBilling));
+const ZeusCheckIn = dynamic(() => import('./ZeusCheckIn').then(module => module.ZeusCheckIn));
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
@@ -41,12 +42,13 @@ const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
   bag: ShoppingBag, utensils: UtensilsCrossed, chef: ChefHat, book: BookOpen,
   wallet: Wallet, box: Box, chart: BarChart3, message: MessageSquareText,
-  inbox: Inbox, target: Target, file: FileText
+  inbox: Inbox, target: Target, file: FileText, checklist: ClipboardCheck
 };
 
 const zeusPagePermissions: Record<string,string> = {
   dashboard:'dashboard_view',
   agendamentos:'appointments_view',
+  checklist:'jobs_view',
   atendimentos:'jobs_view',
   historico:'jobs_view',
   orcamentos:'quotes_view',
@@ -95,6 +97,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     : !canUsePage ? restricted
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
     : app === 'zeus' && page === 'faturamento' ? <ZeusBilling w={w} />
+    : app === 'zeus' && page === 'checklist' ? <ZeusCheckIn w={w} />
     : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
     : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
     : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
@@ -168,6 +171,20 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           .zeus-dashboard-grid>div{min-width:0;padding:18px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper)}
           .zeus-dashboard-grid{align-items:start}
           @media(max-width:900px){.zeus-dashboard-grid{grid-template-columns:1fr!important}}
+          @media(max-width:720px){
+            .app-zeus .op-main{padding-left:14px!important;padding-right:14px!important}
+            .app-zeus .op-title{display:grid!important;gap:14px!important}
+            .app-zeus .op-title>.op-actions{width:100%;display:grid!important;grid-template-columns:1fr!important}
+            .app-zeus .op-title>.op-actions .op-button{width:100%}
+            .app-zeus .zeus-stage-rail{display:flex!important;overflow-x:auto!important;flex-wrap:nowrap!important;scroll-snap-type:x proximity;padding-bottom:7px}
+            .app-zeus .zeus-stage-rail>span{flex:0 0 auto;scroll-snap-align:start}
+            .app-zeus .zeus-workbench{grid-template-columns:1fr!important}
+            .app-zeus .zeus-context-stack{grid-template-columns:1fr 1fr!important;order:2}
+            .app-zeus .zeus-now{min-width:0}
+            .app-zeus .op-actions{flex-wrap:wrap}
+            .app-zeus .op-dialog.wide{width:calc(100vw - 16px)!important;max-width:none!important}
+          }
+          @media(max-width:430px){.app-zeus .zeus-context-stack{grid-template-columns:1fr!important}}
         `}</style>
       </div>
     </ErrorContext.Provider>
