@@ -13,6 +13,7 @@ const errors: Record<string, string> = {
   trial_phone_required: 'Confirme seu telefone antes de iniciar o teste.',
   trial_email_required: 'Confirme seu e-mail antes de iniciar o teste.',
   trial_document_invalid: 'Informe um CNPJ válido.',
+  trial_cnpj_used: 'Este CNPJ já está vinculado a outra empresa.',
   trial_identity_changed: 'A identidade deste teste não corresponde ao titular da empresa.',
   trial_identity_required: 'Conclua a validação do CPF do titular antes de iniciar o teste.',
   trial_cnpj_required: 'Cadastre um CNPJ válido na empresa antes de iniciar o teste.',
@@ -100,10 +101,18 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
       } else {
         const cleanCnpj = cnpj.replace(/\D/g, '');
         if (!validCnpj(cleanCnpj)) throw new Error('trial_document_invalid');
+
+        // Persist the company identity when the Store schema already supports it.
+        // 42703 is the legacy deployment where accounts.cnpj has not been migrated yet.
+        const companyUpdate = await client.from('accounts').update({ cnpj: cleanCnpj, updated_at: new Date().toISOString() }).eq('id', account.id);
+        if (companyUpdate.error && companyUpdate.error.code !== '42703') {
+          if (companyUpdate.error.code === '23505') throw new Error('trial_cnpj_used');
+          throw companyUpdate.error;
+        }
+
         await reserveTrialNetwork(account.id, app);
-        // Keep the 3-argument call compatible with the currently deployed database.
-        // After the hardening migration, the backend ignores this browser value and
-        // derives CPF/CNPJ from the validated owner/account records.
+        // Compatible with the legacy RPC. After the hardening migration the backend
+        // ignores this browser value and derives CPF/CNPJ from trusted records.
         const result = await client.rpc('start_app_trial', { target_account: account.id, target_app: app, document: cleanCnpj });
         if (result.error) throw result.error;
         await refresh();
