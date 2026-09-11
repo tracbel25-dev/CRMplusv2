@@ -25,12 +25,14 @@ export type CustomField = {
   label: string;
   group: string;
   visible: boolean;
+  help?: string;
 };
 
 export type OperationPreferences = {
   version: 1;
   fieldLabels: Record<string, string>;
   fieldVisibility: Record<string, boolean>;
+  fieldHelp: Record<string, string>;
   actionVisibility: Record<string, boolean>;
   customFields: CustomField[];
 };
@@ -49,14 +51,14 @@ export const segmentDefinitions: Record<AppId, SegmentDefinition> = {
     description: 'Defina a linguagem da oficina, o que aparece na ficha e quais ações fazem parte do fluxo real.',
     customFieldGroups: ['Cliente', 'Veículo / equipamento', 'Atendimento', 'Diagnóstico', 'Entrega'],
     fields: [
-      { key: 'customerName', label: 'Nome do cliente', group: 'Cliente', description: 'Pessoa ou empresa atendida.', required: true },
-      { key: 'customerPhone', label: 'Telefone', group: 'Cliente', description: 'Contato principal do cliente.' },
+      { key: 'customer', label: 'Cliente', group: 'Cliente', description: 'Pessoa ou empresa atendida.', required: true },
+      { key: 'phone', label: 'Telefone', group: 'Cliente', description: 'Contato principal do cliente.' },
       { key: 'identifier', label: 'Placa', group: 'Veículo / equipamento', description: 'Identificação principal usada na oficina.', required: true },
       { key: 'asset', label: 'Veículo', group: 'Veículo / equipamento', description: 'Nome usado para o item atendido.', required: true },
-      { key: 'model', label: 'Modelo', group: 'Veículo / equipamento', description: 'Modelo ou descrição do ativo.', required: true },
+      { key: 'model', label: 'Modelo', group: 'Veículo / equipamento', description: 'Modelo ou descrição do ativo.' },
       { key: 'year', label: 'Ano', group: 'Veículo / equipamento', description: 'Ano do veículo ou equipamento.' },
       { key: 'meter', label: 'Quilometragem', group: 'Veículo / equipamento', description: 'Quilometragem, horímetro ou outra medição.' },
-      { key: 'serviceType', label: 'Tipo de atendimento', group: 'Atendimento', description: 'Diagnóstico, revisão, reparo, retorno ou tipo equivalente.', required: true },
+      { key: 'type', label: 'Tipo de atendimento', group: 'Atendimento', description: 'Diagnóstico, revisão, reparo, retorno ou tipo equivalente.', required: true },
       { key: 'technician', label: 'Responsável', group: 'Atendimento', description: 'Técnico ou responsável pelo serviço.' },
       { key: 'due', label: 'Prazo previsto', group: 'Atendimento', description: 'Data ou horário prometido.' },
       { key: 'complaint', label: 'Relato do cliente', group: 'Atendimento', description: 'Sintoma ou solicitação informada pelo cliente.', required: true },
@@ -195,12 +197,23 @@ export const segmentDefinitions: Record<AppId, SegmentDefinition> = {
 
 export const configStorageKey = (app: AppId) => `crmplus:${app}:configuration:v1`;
 
+function legacyAliases(app: AppId, values: Record<string, string>) {
+  if (app !== 'zeus') return values;
+  return {
+    ...values,
+    customer: values.customer ?? values.customerName,
+    phone: values.phone ?? values.customerPhone,
+    type: values.type ?? values.serviceType,
+  };
+}
+
 export function defaultOperationPreferences(app: AppId): OperationPreferences {
   const definition = segmentDefinitions[app];
   return {
     version: 1,
     fieldLabels: Object.fromEntries(definition.fields.map(field => [field.key, field.label])),
     fieldVisibility: Object.fromEntries(definition.fields.map(field => [field.key, true])),
+    fieldHelp: Object.fromEntries(definition.fields.map(field => [field.key, field.description])),
     actionVisibility: Object.fromEntries(definition.actions.map(action => [action.key, true])),
     customFields: []
   };
@@ -212,13 +225,14 @@ export function readOperationPreferences(app: AppId): OperationPreferences {
   try {
     const raw = localStorage.getItem(configStorageKey(app));
     if (!raw) return fallback;
-    const value = JSON.parse(raw) as Partial<OperationPreferences>;
+    const value = JSON.parse(raw) as Partial<OperationPreferences> & { fieldHelp?: Record<string, string> };
     return {
       ...fallback,
       ...value,
       version: 1,
-      fieldLabels: { ...fallback.fieldLabels, ...(value.fieldLabels || {}) },
+      fieldLabels: { ...fallback.fieldLabels, ...legacyAliases(app, value.fieldLabels || {}) },
       fieldVisibility: { ...fallback.fieldVisibility, ...(value.fieldVisibility || {}) },
+      fieldHelp: { ...fallback.fieldHelp, ...legacyAliases(app, value.fieldHelp || {}) },
       actionVisibility: { ...fallback.actionVisibility, ...(value.actionVisibility || {}) },
       customFields: Array.isArray(value.customFields) ? value.customFields : []
     };
@@ -255,6 +269,7 @@ export function useOperationPreferences(app: AppId) {
   return useMemo(() => ({
     preferences,
     label: (key: string, fallback: string) => preferences.fieldLabels[key]?.trim() || fallback,
+    help: (key: string, fallback = '') => preferences.fieldHelp[key]?.trim() || fallback,
     fieldVisible: (key: string) => preferences.fieldVisibility[key] !== false,
     actionVisible: (key: string) => preferences.actionVisibility[key] !== false
   }), [preferences]);

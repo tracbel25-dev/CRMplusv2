@@ -37,6 +37,14 @@ function statusLabel(status: MercadoPagoCharge['status']) {
             : 'Falha na cobrança';
 }
 
+function newestCharge(charges: Array<MercadoPagoCharge | null | undefined>) {
+  return charges.filter(Boolean).sort((a, b) => String(b!.updated_at || '').localeCompare(String(a!.updated_at || '')))[0] || null;
+}
+
+function errorMessage(reason: unknown, fallback: string) {
+  return reason instanceof Error && reason.message ? reason.message : fallback;
+}
+
 function MercadoPagoChargePanel(props: ChargePanelProps) {
   const { accountId, appId, sourceId, reference, amountCents, items, phone, onApproved } = props;
   const [integration, setIntegration] = useState<MercadoPagoConnectStatus | null>(null);
@@ -44,43 +52,60 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
   const [charge, setCharge] = useState<MercadoPagoCharge | null>(null);
   const [terminalId, setTerminalId] = useState('');
   const [busy, setBusy] = useState('');
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const approvedHandled = useRef(false);
 
   const load = useCallback(async () => {
     if (!accountId) return;
-    const status = await mercadoPagoConnectRequest<MercadoPagoConnectStatus>({ action: 'status', accountId });
-    setIntegration(status);
-    const enabled = status.connection?.status === 'active' && status.appSettings.some(setting => setting.appId === appId && setting.enabled);
-    if (!enabled) return;
-
-    const inPerson = await mercadoPagoInPersonRequest<{ charge: MercadoPagoCharge | null }>({ action: 'status', accountId, appId, sourceId });
-    let latest = inPerson.charge || null;
-    if (latest?.channel === 'checkout' || (!latest?.channel && latest?.init_point)) {
-      const checkout = await mercadoPagoChargeRequest<{ charge: MercadoPagoCharge | null }>({ action: 'status', accountId, appId, sourceId });
-      latest = checkout.charge || latest;
-    }
-    setCharge(latest);
-
+    setChecking(true);
+    setError('');
     try {
-      const available = await mercadoPagoInPersonRequest<MercadoPagoInPersonCapabilities>({ action: 'capabilities', accountId, appId, sourceId });
-      setCapabilities(available);
-      const firstPdv = available.terminals.find(item => item.operatingMode.toUpperCase() === 'PDV');
-      setTerminalId(current => current || firstPdv?.id || '');
-    } catch {
-      setCapabilities({ pos: [], terminals: [], qrReady: false, pointReady: false });
+      const status = await mercadoPagoConnectRequest<MercadoPagoConnectStatus>({ action: 'status', accountId });
+      setIntegration(status);
+      const enabled = status.connection?.status === 'active' && status.appSettings.some(setting => setting.appId === appId && setting.enabled);
+      if (!enabled) {
+        setCharge(null);
+        setCapabilities(null);
+        return;
+      }
+
+      const [checkoutState, inPersonState] = await Promise.allSettled([
+        mercadoPagoChargeRequest<{ charge: MercadoPagoCharge | null }>({ action: 'status', accountId, appId, sourceId }),
+        mercadoPagoInPersonRequest<{ charge: MercadoPagoCharge | null }>({ action: 'status', accountId, appId, sourceId }),
+      ]);
+
+      const checkout = checkoutState.status === 'fulfilled' ? checkoutState.value.charge : null;
+      const inPerson = inPersonState.status === 'fulfilled' ? inPersonState.value.charge : null;
+      setCharge(newestCharge([checkout, inPerson]));
+
+      if (checkoutState.status === 'rejected' && inPersonState.status === 'rejected') {
+        setError(errorMessage(checkoutState.reason, errorMessage(inPersonState.reason, 'Não foi possível consultar cobranças existentes.')));
+      }
+
+      try {
+        const available = await mercadoPagoInPersonRequest<MercadoPagoInPersonCapabilities>({ action: 'capabilities', accountId, appId, sourceId });
+        setCapabilities(available);
+        const firstPdv = available.terminals.find(item => item.operatingMode.toUpperCase() === 'PDV');
+        setTerminalId(current => current || firstPdv?.id || '');
+      } catch {
+        setCapabilities({ pos: [], terminals: [], qrReady: false, pointReady: false });
+      }
+    } catch (reason) {
+      setIntegration(null);
+      setError(errorMessage(reason, 'Não foi possível consultar a integração com o Mercado Pago.'));
+    } finally {
+      setChecking(false);
     }
   }, [accountId, appId, sourceId]);
 
-  useEffect(() => {
-    void load().catch(reason => setError(reason instanceof Error ? reason.message : 'Não foi possível consultar a cobrança.'));
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     if (charge?.status !== 'pending') return;
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void load().catch(() => undefined);
+      if (document.visibilityState === 'visible') void load();
     }, 6000);
     return () => window.clearInterval(interval);
   }, [charge?.status, load]);
@@ -91,10 +116,22 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
     void Promise.resolve(onApproved?.()).catch(() => undefined);
   }, [charge?.status, onApproved]);
 
-  const appEnabled = !!integration?.appSettings.some(setting => setting.appId === appId && setting.enabled);
-  const connected = integration?.connection?.status === 'active';
-  if (!integration) return <Section title="Cobrança pelo Mercado Pago"><p className="op-muted"><RefreshCw size={14} /> Conferindo integração…</p></Section>;
-  if (!connected || !appEnabled) return null;
+  if (checking && !integration) {
+    return <Section title="Cobrança pelo Mercado Pago"><p className="op-muted"><RefreshCw size={14} /> Conferindo integração…</p></Section>;
+  }
+
+  if (!integration) {
+    return <Section title="Cobrança pelo Mercado Pago"><p className="op-error">{error || 'Não foi possível consultar o Mercado Pago.'}</p><Button variant="secondary" onClick={() => { void load(); }}><RefreshCw size={15} />Tentar novamente</Button></Section>;
+  }
+
+  const connected = integration.connection?.status === 'active';
+  const appEnabled = integration.appSettings.some(setting => setting.appId === appId && setting.enabled);
+  if (!connected) {
+    return <Section title="Cobrança pelo Mercado Pago"><Empty>Conecte a conta Mercado Pago na área financeira da sua conta para cobrar por aqui.</Empty><Button variant="secondary" onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar conexão</Button></Section>;
+  }
+  if (!appEnabled) {
+    return <Section title="Cobrança pelo Mercado Pago"><Empty>A conta Mercado Pago está conectada, mas a cobrança ainda não está liberada para este aplicativo.</Empty><Button variant="secondary" onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar</Button></Section>;
+  }
 
   const createCheckout = async () => {
     if (busy || amountCents <= 0) return;
@@ -104,7 +141,7 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
       const result = await mercadoPagoChargeRequest<{ charge: MercadoPagoCharge }>({ action: 'create', accountId, appId, sourceId, reference, amountCents, items });
       setCharge(result.charge);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível gerar a cobrança.');
+      setError(errorMessage(reason, 'Não foi possível gerar a cobrança.'));
     } finally { setBusy(''); }
   };
 
@@ -119,7 +156,7 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
       });
       setCharge(result.charge);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível gerar a cobrança presencial.');
+      setError(errorMessage(reason, 'Não foi possível gerar a cobrança presencial.'));
     } finally { setBusy(''); }
   };
 
@@ -140,8 +177,7 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
   const pdvTerminals = capabilities?.terminals.filter(item => item.operatingMode.toUpperCase() === 'PDV') || [];
 
   return <Section title="Cobrar cliente pelo Mercado Pago" action={charge?.status === 'approved' ? <Badge>Pago</Badge> : undefined}>
-    <div className="op-callout"><strong>Valor puxado do atendimento</strong><span> O valor abaixo vem dos serviços/produtos registrados no CRM PLUS e não pode ser alterado nesta cobrança.</span></div>
-    <div className="op-callout"><strong>CRM PLUS recebe R$ 0,00</strong><span> Nenhuma taxa, comissão ou parte do pagamento é repassada ao CRM PLUS. Taxas e condições de cobrança são exclusivamente da relação entre o estabelecimento e o Mercado Pago/Mercado Livre, conforme a conta e o meio de pagamento usados.</span></div>
+    <div className="op-callout"><strong>Valor do atendimento</strong><span> O valor vem do orçamento final da OS e não é alterado nesta tela.</span></div>
     <div className="op-document-lines">
       {items.filter(item => item.lineTotalCents !== 0).map((item, index) => <div key={`${item.description}-${index}`}><span><strong>{item.description}</strong><small>{item.kind}{item.quantity !== 1 ? ` · ${item.quantity}×` : ''}</small></span><b>{money(item.lineTotalCents)}</b></div>)}
     </div>
@@ -150,17 +186,17 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
     {error && <p className="op-error">{error}</p>}
 
     {!charge && <>
-      <div className="op-callout"><strong>Escolha como cobrar</strong><span> Link e QR Code são digitais. Point física envia a venda para uma maquininha compatível. Tap no celular usa o NFC do próprio smartphone pelo app do Mercado Pago.</span></div>
-      {pdvTerminals.length > 1 && <label className="op-field" style={{ maxWidth: 520 }}><span>Point física que receberá a cobrança</span><select value={terminalId} onChange={event => setTerminalId(event.target.value)}>{pdvTerminals.map(item => <option key={item.id} value={item.id}>{item.id.split('__').pop() || item.id}</option>)}</select></label>}
+      <div className="op-callout"><strong>Escolha como cobrar</strong><span> Gere um link, QR Code ou envie a cobrança para uma Point compatível.</span></div>
+      {pdvTerminals.length > 1 && <label className="op-field" style={{ maxWidth: 520 }}><span>Point física</span><select value={terminalId} onChange={event => setTerminalId(event.target.value)}>{pdvTerminals.map(item => <option key={item.id} value={item.id}>{item.id.split('__').pop() || item.id}</option>)}</select></label>}
       <div className="op-actions" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <Button disabled={!!busy || amountCents <= 0} onClick={() => { void createCheckout(); }}>{busy === 'checkout' ? 'Gerando…' : 'Enviar link'}</Button>
+        <Button disabled={!!busy || amountCents <= 0} onClick={() => { void createCheckout(); }}>{busy === 'checkout' ? 'Gerando…' : 'Gerar link'}</Button>
         <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.qrReady === false} onClick={() => { void createInPerson('qr'); }}>{busy === 'qr' ? 'Gerando QR…' : 'Mostrar QR Code'}</Button>
         <Button variant="secondary" disabled={!!busy || amountCents <= 0 || capabilities?.pointReady === false || !terminalId} onClick={() => { void createInPerson('point'); }}>{busy === 'point' ? 'Enviando…' : 'Point física'}</Button>
         <MercadoPagoTapGuide amountCents={amountCents} reference={reference} />
+        <Button variant="text" disabled={checking} onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar</Button>
       </div>
-      {capabilities && !capabilities.qrReady && <p className="op-muted">QR Code presencial: configure uma loja e ao menos um caixa no Mercado Pago. O QR integrado depende desse cadastro do próprio Mercado Pago.</p>}
-      {capabilities && !capabilities.pointReady && <p className="op-muted">Point física: é necessário ter uma maquininha compatível associada à conta, loja e caixa e configurada em modo PDV no Mercado Pago.</p>}
-      <p className="op-muted">Tap no celular: não depende de uma Point física cadastrada. Use um celular compatível com NFC e o aplicativo Mercado Pago com Point Tap (Android) ou Tap to Pay (iPhone) habilitado.</p>
+      {capabilities && !capabilities.qrReady && <p className="op-muted">Para QR Code presencial, a conta precisa ter loja e caixa configurados no Mercado Pago.</p>}
+      {capabilities && !capabilities.pointReady && <p className="op-muted">Para Point física, a maquininha precisa estar vinculada à conta e configurada para receber vendas do sistema.</p>}
     </>}
 
     {charge && <div className="op-actions" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -170,23 +206,23 @@ function MercadoPagoChargePanel(props: ChargePanelProps) {
         <Button variant="secondary" onClick={() => { void copyLink(); }}><Copy size={16} />{copied ? 'Link copiado' : 'Copiar link'}</Button>
         {phone && <Button variant="secondary" onClick={whatsapp}><MessageCircle size={16} />Enviar pelo WhatsApp</Button>}
       </>}
-      {charge.channel === 'point' && charge.status === 'pending' && <span className="op-muted"><CreditCard size={15} /> Cobrança enviada para a Point física{charge.terminal_id ? ` · ${charge.terminal_id.split('__').pop()}` : ''}. Finalize no terminal.</span>}
-      {charge.status === 'pending' && <Button variant="text" disabled={!!busy} onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar pagamento</Button>}
+      {charge.channel === 'point' && charge.status === 'pending' && <span className="op-muted"><CreditCard size={15} /> Cobrança enviada para a Point física{charge.terminal_id ? ` · ${charge.terminal_id.split('__').pop()}` : ''}.</span>}
+      {charge.status === 'pending' && <Button variant="text" disabled={checking || !!busy} onClick={() => { void load(); }}><RefreshCw size={15} />Atualizar pagamento</Button>}
       {charge.status === 'approved' && <span className="op-muted"><CheckCircle2 size={15} /> Pagamento confirmado pelo Mercado Pago.</span>}
     </div>}
 
     {charge?.channel === 'qr' && charge.status === 'pending' && <div style={{ marginTop: 18 }}>
-      {charge.qr_image ? <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}><img src={charge.qr_image} alt="QR Code Mercado Pago para pagamento" width={240} height={240} style={{ maxWidth: '100%', height: 'auto', background: '#fff', padding: 10 }} /><strong>Escaneie para pagar {money(amountCents)}</strong></div> : <p className="op-muted">QR Code criado no Mercado Pago. Use o QR do caixa configurado no estabelecimento para concluir o pagamento.</p>}
+      {charge.qr_image ? <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}><img src={charge.qr_image} alt="QR Code Mercado Pago para pagamento" width={240} height={240} style={{ maxWidth: '100%', height: 'auto', background: '#fff', padding: 10 }} /><strong>Escaneie para pagar {money(amountCents)}</strong></div> : <p className="op-muted">QR Code criado. Atualize a cobrança caso o pagamento já tenha sido feito.</p>}
     </div>}
   </Section>;
 }
 
 function ZeusCompletedPayment({ w, recordId }: { w: Workspace; recordId: string }) {
   const job = w.data.jobs.find(item => item.id === recordId);
-  if (!job || job.status !== 'Encerrado' || !job.quote?.lines?.length) return null;
+  if (!job || job.status !== 'Encerrado' || !job.quote?.lines?.length) return <Section title="Cobrança"><Empty>Esta OS ainda não possui um orçamento final disponível para cobrança.</Empty></Section>;
   const customer = w.data.customers.find(item => item.id === job.customerId);
   let amountCents = 0;
-  try { amountCents = total(job.quote.lines, job.quote.discount); } catch { return null; }
+  try { amountCents = total(job.quote.lines, job.quote.discount); } catch { return <Section title="Cobrança"><Empty>Confira os valores do orçamento desta OS antes de cobrar.</Empty></Section>; }
   if (amountCents <= 0) return <Section title="Cobrança"><Empty>Esta OS foi concluída sem valor financeiro registrado para cobrança.</Empty></Section>;
 
   const items: MercadoPagoChargeItem[] = job.quote.lines.map(line => ({ description: line.description, kind: line.kind, quantity: line.quantity, lineTotalCents: Math.round(line.price * line.quantity) }));
@@ -208,7 +244,7 @@ function ArtemisReadyPayments({ w }: { w: Workspace }) {
   }), [w.data]);
 
   if (!ready.length) return null;
-  if (!w.data.shifts.some(shift => !shift.closedAt)) return <Section title="Cobrança de comandas pelo Mercado Pago"><Empty>Abra o caixa do Artemis antes de receber a comanda. O pagamento digital será registrado no turno aberto.</Empty></Section>;
+  if (!w.data.shifts.some(shift => !shift.closedAt)) return <Section title="Cobrança de comandas pelo Mercado Pago"><Empty>Abra o caixa do Artemis antes de receber a comanda.</Empty></Section>;
 
   return <section style={{ marginTop: 20 }}>
     {ready.map(table => {
@@ -229,7 +265,7 @@ function ArtemisReadyPayments({ w }: { w: Workspace }) {
 }
 
 export function PostCompletionPayments({ w, app, page, recordId }: { w: Workspace; app: AppId; page: string; recordId: string }) {
-  if (!w.accountId || w.accountId === 'guest') return null;
+  if (!w.accountId || w.accountId === 'guest') return <Section title="Cobrança"><Empty>Entre com a conta da empresa para acessar o faturamento.</Empty></Section>;
   if (app === 'zeus' && recordId) return <ZeusCompletedPayment w={w} recordId={recordId} />;
   if (app === 'artemis' && page === 'mesas' && !recordId) return <ArtemisReadyPayments w={w} />;
   return null;

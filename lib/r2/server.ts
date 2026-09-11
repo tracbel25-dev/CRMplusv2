@@ -35,6 +35,8 @@ export function readR2Config(app: R2App): R2Config {
 
   if (missing.length) throw new Error(`Configuração R2 incompleta para ${app}: ${missing.join(', ')}.`);
   if (!/^[a-f0-9]{32}$/i.test(accountId)) throw new Error(`${prefix}_R2_ACCOUNT_ID não possui o formato esperado.`);
+  if (!accessKeyId || accessKeyId.length < 12) throw new Error(`${prefix}_R2_ACCESS_KEY_ID parece inválida.`);
+  if (!secretAccessKey || secretAccessKey.length < 20) throw new Error(`${prefix}_R2_SECRET_ACCESS_KEY parece inválida.`);
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/i.test(bucket)) throw new Error(`${prefix}_R2_BUCKET possui um nome inválido.`);
 
   return {
@@ -82,7 +84,6 @@ export function presignR2(app: R2App, method: 'GET' | 'PUT' | 'DELETE' | 'HEAD',
 
   const params: Record<string, string> = {
     'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
-    'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD',
     'X-Amz-Credential': `${config.accessKeyId}/${credentialScope}`,
     'X-Amz-Date': iso,
     'X-Amz-Expires': String(Math.min(Math.max(expires, 1), 604800)),
@@ -112,6 +113,20 @@ export function presignR2(app: R2App, method: 'GET' | 'PUT' | 'DELETE' | 'HEAD',
 
   const signature = createHmac('sha256', signingKey(config.secretAccessKey, date)).update(stringToSign).digest('hex');
   return `${config.endpoint}${path}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+export async function describeR2Failure(response: Response, action = 'operação') {
+  const raw = await response.text().catch(() => '');
+  const code = raw.match(/<Code>([^<]+)<\/Code>/i)?.[1] || '';
+  const messages: Record<string, string> = {
+    AccessDenied: 'A chave R2 não tem permissão para gravar neste bucket.',
+    InvalidAccessKeyId: 'A Access Key configurada não foi reconhecida pelo Cloudflare R2.',
+    SignatureDoesNotMatch: 'A assinatura das credenciais R2 não foi aceita. Revise Access Key e Secret.',
+    NoSuchBucket: 'O bucket configurado não existe ou pertence a outra conta Cloudflare.',
+    InvalidArgument: 'A configuração enviada ao R2 foi recusada.',
+  };
+  const detail = messages[code] || (code ? `Cloudflare R2 respondeu ${code}.` : `Cloudflare R2 recusou a ${action}.`);
+  return `${detail} Código HTTP ${response.status}.`;
 }
 
 async function storeFetch(path: string, token: string) {
@@ -149,7 +164,12 @@ export async function authorizeR2Request(request: NextRequest, app: R2App) {
   }), token) as Array<{ account_id: string; role: string }> | null;
   const membership = memberships?.[0];
   if (!membership?.account_id) return null;
-  const accounts = await storeFetch(restPath('accounts', { select: 'id', id: `eq.${membership.account_id}`, status: 'eq.active' }), token) as Array<{ id: string }> | null;
+
+  const accounts = await storeFetch(restPath('accounts', {
+    select: 'id',
+    id: `eq.${membership.account_id}`,
+    status: 'eq.active',
+  }), token) as Array<{ id: string }> | null;
   if (!accounts?.length) return null;
 
   const accountApps = await storeFetch(restPath('account_apps', {
