@@ -1,4 +1,5 @@
 import { ZeusCheckInPublic } from '@/components/external/ZeusCheckInPublic';
+import '../checklist-reference.css';
 
 export const metadata={title:'Checklist de entrada | Zeus'};
 

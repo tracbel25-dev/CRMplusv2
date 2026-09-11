@@ -1,0 +1,98 @@
+/* Checklist técnico do Zeus — direção visual aprovada */
+.check-page{background:#f4f7fb!important;color:#10233f!important;padding:0!important;min-height:100dvh!important}
+.check-page .check-wrap{max-width:1420px!important;margin:0 auto!important;padding:18px 22px 28px!important;gap:10px!important}
+.check-page .check-top{height:58px!important;background:#0f2747!important;border-radius:0!important;margin:0 -22px 4px!important;padding:0 26px!important;box-shadow:none!important;border:0!important}
+.check-page .brand{font-size:22px!important;letter-spacing:-.02em!important}
+.check-page .brand b{color:#55aaff!important;font-size:9px!important}
+.check-page .secure{font-weight:700!important;font-size:12px!important;letter-spacing:.02em!important}
+
+.check-page .check-heading{padding:16px 18px!important;border-radius:9px!important;box-shadow:none!important;border-color:#d7e1ec!important;background:#fff!important}
+.check-page .check-heading h1{font-size:28px!important;letter-spacing:-.02em!important}
+.check-page .check-heading .eyebrow{font-size:10px!important;color:#1768cc!important;margin-bottom:3px!important}
+.check-page .check-heading p{font-size:12px!important;color:#64758b!important}
+.check-page .status-pill{border-radius:7px!important;padding:7px 11px!important;background:#dff7e8!important;color:#0f7a49!important}
+
+.check-page .hero-data{border-radius:9px!important;padding:11px 14px!important;box-shadow:none!important;border-color:#d7e1ec!important}
+.check-page .hero-data>div{padding:3px 14px!important}
+.check-page .hero-data svg{color:#1768cc!important}
+.check-page .hero-data span{font-size:10px!important}
+.check-page .hero-data strong{font-size:13px!important}
+
+.check-page .top-grid,.check-page .bottom-grid{gap:10px!important}
+.check-page .form-card{border-radius:9px!important;padding:13px 14px!important;box-shadow:none!important;border-color:#d7e1ec!important;background:#fff!important}
+.check-page .section-title{margin-bottom:9px!important;gap:8px!important}
+.check-page .section-title>svg{color:#1768cc!important;margin-top:1px!important}
+.check-page .section-title h2{font-size:14px!important;font-weight:800!important}
+.check-page .section-title p{font-size:10px!important;margin-top:1px!important}
+
+.check-page .fields{gap:7px!important}
+.check-page .fields span{font-size:9px!important;color:#50647b!important}
+.check-page .fields input,
+.check-page .notes textarea{border-radius:5px!important;min-height:33px!important;background:#fbfdff!important;border-color:#ccd8e4!important;font-size:11px!important;padding:6px 9px!important}
+
+/* itens como tabela técnica, não como cartões */
+.check-page .inspection{padding:12px 10px 8px!important}
+.check-page .inspection .section-title{padding:0 4px 8px!important;margin:0!important;border-bottom:1px solid #dfe7ef!important}
+.check-page .status-key{gap:12px!important}
+.check-page .inspection-grid{gap:0 12px!important}
+.check-page .inspection-row{min-height:36px!important;grid-template-columns:minmax(150px,1fr) 178px!important;border-top:1px solid #edf1f5!important;padding:3px 4px!important}
+.check-page .inspection-row:nth-child(-n+2){border-top:0!important}
+.check-page .inspection-row>input{display:none!important}
+.check-page .item-name{gap:6px!important}
+.check-page .item-name b{font-size:9px!important;width:18px!important;color:#7d91a8!important}
+.check-page .item-name span{font-size:11px!important;font-weight:700!important}
+.check-page .row-status{gap:4px!important}
+.check-page .row-status button{height:25px!important;border-radius:5px!important;font-size:9px!important;font-weight:800!important;padding:0 5px!important}
+.check-page .row-status button.active.ok{background:#e7f8f0!important;border-color:#54c893!important;color:#087b48!important}
+.check-page .row-status button.active.attention{background:#fff7df!important;border-color:#e9b635!important;color:#996300!important}
+.check-page .row-status button.active.na{background:#edf1f5!important;border-color:#aeb8c5!important;color:#4f6072!important}
+
+/* avarias como prancha de inspeção */
+.check-page .damages{padding:12px 14px 14px!important;overflow:hidden!important}
+.check-page .damage-legend{top:13px!important;right:14px!important;gap:10px!important}
+.check-page .damage-legend button{font-size:10px!important;padding:2px 4px!important;cursor:pointer!important}
+.check-page .damage-legend i{width:11px!important;height:11px!important}
+.check-page .views-grid{gap:2px!important;border-top:1px solid #e2e9f0!important;padding-top:10px!important}
+.check-page .vehicle-view{border:0!important;border-radius:0!important;background:#fff!important;min-height:172px!important;padding:5px 4px 3px!important;box-shadow:none!important}
+.check-page .vehicle-view svg{height:128px!important;filter:drop-shadow(0 7px 8px rgba(15,39,71,.08))!important}
+.check-page .vehicle-view>strong{font-size:9px!important;color:#52647a!important;margin-top:2px!important}
+.check-page .damage-dot{width:21px!important;height:21px!important;border-width:2px!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}
+
+.check-page .notes textarea{min-height:132px!important}
+.check-page .signatures{gap:8px!important}
+.check-page .signature-box{border-radius:7px!important;padding:8px!important;border-color:#d3dee9!important}
+.check-page .signature-head strong{font-size:10px!important}
+.check-page .signature-box canvas{height:96px!important;border-radius:5px!important;background:#fff!important}
+.check-page .signature-box small{font-size:8px!important}
+
+.check-page .check-actions{padding:6px 0 0!important}
+.check-page .check-actions button{background:#1768cc!important;border-radius:7px!important;min-height:42px!important;padding:10px 18px!important;box-shadow:0 4px 12px rgba(23,104,204,.18)!important}
+.check-page .check-error{border-radius:6px!important}
+
+@media(max-width:980px){
+  .check-page .inspection-grid{grid-template-columns:1fr!important}
+  .check-page .inspection-row{grid-template-columns:minmax(150px,1fr) 178px!important}
+  .check-page .inspection-row:nth-child(2){border-top:1px solid #edf1f5!important}
+  .check-page .views-grid,.check-page .seg-moto,.check-page .seg-truck,.check-page .seg-machine{grid-template-columns:repeat(2,1fr)!important}
+}
+
+@media(max-width:720px){
+  .check-page .check-wrap{padding:0 0 84px!important;gap:7px!important}
+  .check-page .check-top{margin:0!important;padding:0 14px!important}
+  .check-page .check-heading,.check-page .hero-data,.check-page .form-card{border-left:0!important;border-right:0!important;border-radius:0!important}
+  .check-page .check-heading{padding:14px!important}
+  .check-page .check-heading h1{font-size:22px!important}
+  .check-page .top-grid,.check-page .bottom-grid{gap:7px!important}
+  .check-page .fields{grid-template-columns:1fr 1fr!important}
+  .check-page .inspection{padding:10px 10px 6px!important}
+  .check-page .inspection-row{grid-template-columns:1fr!important;padding:7px 3px!important;gap:6px!important}
+  .check-page .row-status{grid-template-columns:repeat(3,1fr)!important}
+  .check-page .row-status button{height:31px!important;font-size:10px!important}
+  .check-page .damage-legend{position:static!important;margin:2px 0 8px!important}
+  .check-page .views-grid,.check-page .seg-moto,.check-page .seg-truck,.check-page .seg-machine{grid-template-columns:1fr 1fr!important}
+  .check-page .vehicle-view{min-height:150px!important}
+  .check-page .vehicle-view svg{height:108px!important}
+  .check-page .signatures{grid-template-columns:1fr!important}
+  .check-page .check-actions{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;background:#fff!important;border-top:1px solid #d8e2ec!important;padding:10px 12px!important}
+  .check-page .check-actions button{width:100%!important;justify-content:center!important}
+}
