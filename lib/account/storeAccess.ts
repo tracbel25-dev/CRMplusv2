@@ -5,12 +5,15 @@ import type { User } from '@supabase/supabase-js';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
+export type AppPermissionMap = Record<string, boolean>;
+
 export type StoreMember = {
   userId: string;
   role: 'owner' | 'member';
   status: 'active' | 'suspended';
   displayName: string;
-  apps: { appId: AppId; canConfigure: boolean }[];
+  jobTitle: string;
+  apps: { appId: AppId; canConfigure: boolean; permissions: AppPermissionMap }[];
 };
 
 export type StoreAccount = {
@@ -54,22 +57,11 @@ function useStoreAccessState() {
     try {
       supabase = createStoreClient();
     } catch (reason) {
-      setUser(null);
-      setAccount(null);
-      setMember(null);
-      setError((reason as Error).message);
-      setReady(true);
-      return;
+      setUser(null); setAccount(null); setMember(null); setError((reason as Error).message); setReady(true); return;
     }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) {
-      setUser(null);
-      setAccount(null);
-      setMember(null);
-      setReady(true);
-      return;
-    }
+    if (userError || !userData.user) { setUser(null); setAccount(null); setMember(null); setReady(true); return; }
     const currentUser = userData.user;
     setUser(currentUser);
 
@@ -82,23 +74,13 @@ function useStoreAccessState() {
       .limit(1)
       .maybeSingle();
 
-    if (membershipError) {
-      setError(membershipError.message);
-      setReady(true);
-      return;
-    }
+    if (membershipError) { setError(membershipError.message); setReady(true); return; }
 
     if (!membership) {
-      const business = typeof currentUser.user_metadata?.business === 'string'
-        ? currentUser.user_metadata.business.trim()
-        : '';
+      const business = typeof currentUser.user_metadata?.business === 'string' ? currentUser.user_metadata.business.trim() : '';
       if (business) {
         const { error: bootstrapError } = await supabase.rpc('create_account', { account_name: business });
-        if (bootstrapError) {
-          setError(bootstrapError.message);
-          setReady(true);
-          return;
-        }
+        if (bootstrapError) { setError(bootstrapError.message); setReady(true); return; }
         const membershipResult = await supabase
           .from('account_members')
           .select('account_id, user_id, role, status, created_at')
@@ -113,38 +95,26 @@ function useStoreAccessState() {
     }
 
     if (membershipError || !membership) {
-      setAccount(null);
-      setMember(null);
-      if (membershipError) setError(membershipError.message);
-      setReady(true);
-      return;
+      setAccount(null); setMember(null); if (membershipError) setError(membershipError.message); setReady(true); return;
     }
 
     const accountId = membership.account_id as string;
     const [accountResult, appsResult, membersResult, appAccessResult] = await Promise.all([
       supabase.from('accounts').select('id, name, status').eq('id', accountId).single(),
       supabase.from('account_apps').select('app_id, status, seats, current_period_end').eq('account_id', accountId),
-      supabase.from('account_members').select('account_id, user_id, role, status').eq('account_id', accountId).eq('status', 'active'),
-      supabase.from('member_app_access').select('user_id, app_id, can_configure').eq('account_id', accountId)
+      supabase.from('account_members').select('account_id, user_id, role, status, job_title').eq('account_id', accountId).eq('status', 'active'),
+      supabase.from('member_app_access').select('user_id, app_id, can_configure, permissions').eq('account_id', accountId)
     ]);
 
     const firstError = accountResult.error || appsResult.error || membersResult.error || appAccessResult.error;
-    if (firstError || !accountResult.data) {
-      setError(firstError?.message || 'Não foi possível carregar a conta.');
-      setReady(true);
-      return;
-    }
+    if (firstError || !accountResult.data) { setError(firstError?.message || 'Não foi possível carregar a conta.'); setReady(true); return; }
 
     const membersRaw = membersResult.data || [];
     const userIds = membersRaw.map(item => item.user_id as string);
     const profilesResult = userIds.length
       ? await supabase.from('profiles').select('user_id, display_name').in('user_id', userIds)
       : { data: [], error: null };
-    if (profilesResult.error) {
-      setError(profilesResult.error.message);
-      setReady(true);
-      return;
-    }
+    if (profilesResult.error) { setError(profilesResult.error.message); setReady(true); return; }
 
     const profileNames = new Map((profilesResult.data || []).map(profile => [profile.user_id as string, profile.display_name as string | null]));
     const accessRows = appAccessResult.data || [];
@@ -153,9 +123,14 @@ function useStoreAccessState() {
       role: raw.role as 'owner' | 'member',
       status: raw.status as 'active' | 'suspended',
       displayName: profileNames.get(raw.user_id as string) || (raw.user_id === currentUser.id ? (currentUser.user_metadata?.name || currentUser.email || 'Usuário') : 'Usuário'),
+      jobTitle: String(raw.job_title || ''),
       apps: accessRows
         .filter(row => row.user_id === raw.user_id)
-        .map(row => ({ appId: row.app_id as AppId, canConfigure: !!row.can_configure }))
+        .map(row => ({
+          appId: row.app_id as AppId,
+          canConfigure: !!row.can_configure,
+          permissions: row.permissions && typeof row.permissions === 'object' ? row.permissions as AppPermissionMap : {}
+        }))
     }));
 
     const accountApps = (appsResult.data || []).map(row => ({
@@ -195,8 +170,26 @@ function useStoreAccessState() {
   }, [account, refresh]);
 
   const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status) && ((item.status === 'active' && !item.currentPeriodEnd) || (!!item.currentPeriodEnd && Date.parse(item.currentPeriodEnd) > Date.now()))).map(item => item.appId) || []), [account]);
-  const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app));
-  const canConfigureApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!member?.apps.some(item => item.appId === app && item.canConfigure));
+  const memberApp = (app: AppId) => member?.apps.find(item => item.appId === app);
+  const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!memberApp(app));
+  const hasPermission = (app: AppId, permission: string) => {
+    if (!account) return true;
+    if (isOwner) return true;
+    if (!activeApps.has(app)) return false;
+    const row = memberApp(app);
+    if (!row) return false;
+    const keys = Object.keys(row.permissions || {});
+    if (!keys.length) return true;
+    return row.permissions[permission] === true;
+  };
+  const canConfigureApp = (app: AppId) => {
+    if (!account || account.status !== 'active' || !activeApps.has(app)) return false;
+    if (isOwner) return true;
+    const row = memberApp(app);
+    if (!row) return false;
+    const p = row.permissions || {};
+    return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true || p.customers_manage === true;
+  };
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar acessos.');
@@ -212,12 +205,7 @@ function useStoreAccessState() {
 
   const inviteMember = async (name: string, email: string, permissions: TeamInvitePermission[]) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode adicionar pessoas à equipe.');
-    const result = await teamRequest<{ ok: boolean; mode: 'invited' | 'existing' }>({
-      action: 'invite',
-      name,
-      email,
-      apps: permissions,
-    });
+    const result = await teamRequest<{ ok: boolean; mode: 'invited' | 'existing' }>({ action: 'invite', name, email, apps: permissions });
     await refresh();
     return result;
   };
@@ -234,7 +222,7 @@ function useStoreAccessState() {
     await refresh();
   };
 
-  return { ready, user, account, member, error, isOwner, hasApp, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, inviteMember, removeMember, logout };
+  return { ready, user, account, member, error, isOwner, hasApp, hasPermission, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, inviteMember, removeMember, logout };
 }
 
 type StoreAccessContextValue = ReturnType<typeof useStoreAccessState>;

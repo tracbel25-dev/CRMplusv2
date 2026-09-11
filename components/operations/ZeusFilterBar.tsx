@@ -111,8 +111,9 @@ export function ZeusFilterBar({
     setOpenKey(key ? `filter:${key}` : '');
   };
 
-  return <div className="zeus-filter-bar">
-    <SearchBox value={query} onChange={onQuery} placeholder={placeholder} />
+  return <div className="zeus-filter-bar zeus-filter-bar-clean">
+    <div className="zeus-filter-search-main"><SearchBox value={query} onChange={onQuery} placeholder={placeholder} /></div>
+    <SortMenu sort={sort} options={sortOptions} descending={descending} open={openKey === 'sort'} onOpen={() => setOpenKey('sort')} onClose={closeFilter} onApply={(nextSort, nextDescending) => { onSort(nextSort); onDescending(nextDescending); }} />
 
     <div className="zeus-mobile-filter-picker">
       <Filter size={18} />
@@ -123,26 +124,33 @@ export function ZeusFilterBar({
       <ChevronsUpDown size={16} />
     </div>
 
-    {count > 0 && <div className="zeus-mobile-active-filters">
-      {definitions.filter(definition => active[definition.key]?.length).map(definition => <button type="button" key={definition.key} onClick={() => selectMobileFilter(definition.key)}>{definition.label}: {active[definition.key].length}</button>)}
+    <div className="zeus-filter-set">{definitions.map(definition => <MultiFilter key={definition.key} definition={definition} selected={active[definition.key] || []} open={openKey === `filter:${definition.key}`} onOpen={() => setOpenKey(`filter:${definition.key}`)} onClose={closeFilter} onApply={values => onActive({ ...active, [definition.key]: values })} />)}</div>
+
+    {count > 0 && <div className="zeus-active-filter-row">
+      <div className="zeus-active-filter-chips">{definitions.filter(definition => active[definition.key]?.length).map(definition => <button type="button" key={definition.key} onClick={() => selectMobileFilter(definition.key)}>{definition.label}: {active[definition.key].length}</button>)}</div>
+      <button className="zeus-clear-filters" type="button" onClick={clear}><X size={14} />Limpar filtros ({count})</button>
     </div>}
 
-    <div className="zeus-filter-set">{definitions.map(definition => <MultiFilter key={definition.key} definition={definition} selected={active[definition.key] || []} open={openKey === `filter:${definition.key}`} onOpen={() => setOpenKey(`filter:${definition.key}`)} onClose={closeFilter} onApply={values => onActive({ ...active, [definition.key]: values })} />)}</div>
-    <SortMenu sort={sort} options={sortOptions} descending={descending} open={openKey === 'sort'} onOpen={() => setOpenKey('sort')} onClose={closeFilter} onApply={(nextSort, nextDescending) => { onSort(nextSort); onDescending(nextDescending); }} />
-    {count > 0 && <button className="zeus-clear-filters" type="button" onClick={clear}><X size={14} />Limpar filtros ({count})</button>}
-
     <style jsx global>{`
-      .zeus-mobile-filter-picker,.zeus-mobile-active-filters{display:none}
+      .zeus-filter-bar-clean{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:10px 12px!important;align-items:start!important;margin:16px 0 22px!important}
+      .zeus-filter-search-main{min-width:0}.zeus-filter-search-main>.op-search{width:100%!important;min-width:0!important;max-width:none!important}
+      .zeus-filter-bar-clean>.zeus-sort-menu{grid-column:2;grid-row:1;width:auto!important;min-width:210px}
+      .zeus-filter-bar-clean>.zeus-sort-menu .zeus-sort-trigger{width:100%;justify-content:space-between;min-height:44px}
+      .zeus-filter-bar-clean>.zeus-filter-set{grid-column:1/-1;display:flex!important;gap:8px!important;flex-wrap:wrap!important;width:100%!important;align-items:center}
+      .zeus-filter-bar-clean .zeus-filter-trigger{min-height:40px;padding:8px 11px;white-space:nowrap}
+      .zeus-active-filter-row{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+      .zeus-active-filter-chips{display:flex;gap:7px;flex-wrap:wrap;min-width:0}.zeus-active-filter-chips button{border:1px solid color-mix(in srgb,var(--op-accent) 30%,var(--op-line));background:var(--op-tint);color:var(--op-accent);border-radius:999px;padding:6px 9px;font-size:12px;font-weight:650}.zeus-active-filter-row .zeus-clear-filters{width:auto!important;white-space:nowrap}
+      .zeus-mobile-filter-picker{display:none}
+      @media(max-width:900px){.zeus-filter-bar-clean{grid-template-columns:1fr!important}.zeus-filter-search-main,.zeus-filter-bar-clean>.zeus-sort-menu,.zeus-filter-bar-clean>.zeus-filter-set,.zeus-active-filter-row{grid-column:1!important}.zeus-filter-bar-clean>.zeus-sort-menu{grid-row:auto;width:100%!important}.zeus-active-filter-row{align-items:flex-start;flex-direction:column}}
       @media(max-width:720px){
-        .zeus-mobile-filter-picker{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 13px;border:1px solid var(--op-line);background:var(--op-paper);color:var(--op-ink);border-radius:var(--op-radius)}
-        .zeus-mobile-filter-picker>svg:first-child{flex:0 0 auto;color:var(--op-muted)}
-        .zeus-mobile-filter-picker>svg:last-child{flex:0 0 auto;color:var(--op-muted);pointer-events:none}
+        .zeus-filter-bar-clean{gap:9px!important}
+        .zeus-filter-bar-clean>.zeus-sort-menu{order:3}
+        .zeus-mobile-filter-picker{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 13px;border:1px solid var(--op-line);background:var(--op-paper);color:var(--op-ink);border-radius:var(--op-radius)}
+        .zeus-mobile-filter-picker>svg{flex:0 0 auto;color:var(--op-muted)}
         .zeus-mobile-filter-picker select{appearance:none;-webkit-appearance:none;min-width:0;flex:1;border:0!important;outline:0!important;background:transparent!important;color:var(--op-ink)!important;font:inherit;font-size:16px!important;box-shadow:none!important;padding:0!important}
-        .zeus-mobile-active-filters{display:flex;width:100%;gap:7px;flex-wrap:wrap}
-        .zeus-mobile-active-filters button{border:1px solid color-mix(in srgb,var(--op-accent) 34%,var(--op-line));background:var(--op-tint);color:var(--op-accent);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:650}
-        .zeus-filter-bar .zeus-filter-set{display:block!important;position:absolute;width:0;height:0;overflow:visible;margin:0;padding:0}
-        .zeus-filter-bar .zeus-filter-set .zeus-filter-menu{position:static}
-        .zeus-filter-bar .zeus-filter-set .zeus-filter-trigger{display:none!important}
+        .zeus-filter-bar-clean>.zeus-filter-set{display:block!important;position:absolute!important;width:0!important;height:0!important;overflow:visible!important;margin:0!important;padding:0!important}
+        .zeus-filter-bar-clean>.zeus-filter-set .zeus-filter-menu{position:static}.zeus-filter-bar-clean>.zeus-filter-set .zeus-filter-trigger{display:none!important}
+        .zeus-active-filter-row{display:block}.zeus-active-filter-chips{margin-bottom:6px}.zeus-active-filter-row .zeus-clear-filters{justify-content:flex-start}
       }
     `}</style>
   </div>;

@@ -41,6 +41,23 @@ function sanitizePermissions(value:unknown){
   return Object.fromEntries([...ALLOWED].map(key=>[key,input[key]===true]));
 }
 
+async function saveAppAccess(service:SupabaseClient, accountId:string, targetId:string, appId:string, canConfigure:boolean, permissions:Record<string,boolean>){
+  const payload={can_configure:!!canConfigure,permissions,updated_at:new Date().toISOString()};
+  const {data:updated,error:updateError}=await service
+    .from('member_app_access')
+    .update(payload)
+    .eq('account_id',accountId)
+    .eq('user_id',targetId)
+    .eq('app_id',appId)
+    .select('user_id');
+  if(updateError) throw updateError;
+  if(updated?.length) return;
+  const {error:insertError}=await service.from('member_app_access').insert({
+    account_id:accountId,user_id:targetId,app_id:appId,...payload
+  });
+  if(insertError) throw insertError;
+}
+
 export async function POST(request:NextRequest){
   const userId=await caller(request);
   if(!userId) return fail(401,'Sua sessão expirou. Entre novamente.');
@@ -92,13 +109,12 @@ export async function POST(request:NextRequest){
     const title=(body.jobTitle||'').trim().replace(/\s+/g,' ').slice(0,80);
     const {error:titleError}=await service.from('account_members').update({job_title:title||null}).eq('account_id',accountId).eq('user_id',targetId);
     if(titleError) throw titleError;
-    const {error:accessUpdateError}=await service.from('member_app_access').upsert({
-      account_id:accountId,user_id:targetId,app_id:body.appId,can_configure:!!canConfigure,permissions,updated_at:new Date().toISOString()
-    },{onConflict:'account_id,user_id,app_id'});
-    if(accessUpdateError) throw accessUpdateError;
+    await saveAppAccess(service,accountId,targetId,body.appId,!!canConfigure,permissions);
     return NextResponse.json({ok:true});
   }catch(reason){
     console.error('team-detail-failed',reason);
+    const message=reason instanceof Error?reason.message:'';
+    if(message.includes('ON CONFLICT')) return fail(500,'Não foi possível atualizar o acesso. A estrutura de permissões foi recarregada; tente salvar novamente.');
     return fail(500,'Não foi possível salvar as permissões detalhadas.');
   }
 }

@@ -44,6 +44,16 @@ const icons = {
   inbox: Inbox, target: Target, file: FileText
 };
 
+const zeusPagePermissions: Record<string,string> = {
+  dashboard:'dashboard_view',
+  agendamentos:'appointments_view',
+  atendimentos:'jobs_view',
+  historico:'jobs_view',
+  orcamentos:'quotes_view',
+  faturamento:'billing_view',
+  clientes:'customers_manage'
+};
+
 export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: string; recordId?: string }) {
   const access = useStoreAccess();
   const workspaceScope = access.ready ? (access.account?.id || 'guest') : undefined;
@@ -52,11 +62,14 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const config = navigation[app];
   const [mobile, setMobile] = useState(false);
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
+  const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
+    || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
 
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
     if (section.path === 'historico') return false;
+    if (app === 'zeus' && access.account && zeusPagePermissions[section.path] && !access.hasPermission(app, zeusPagePermissions[section.path])) return false;
     return operation.actionVisible(`module:${section.path}`);
   });
 
@@ -75,8 +88,11 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     ? <ArtemisSettings w={w} />
     : <AppSettings key={app} w={w} app={app} />;
 
+  const restricted = <section className="op-section"><div className="op-section-head"><h2>Acesso não liberado</h2></div><p className="op-muted">Seu perfil não possui permissão para abrir esta área. O titular da conta pode alterar isso em Configurações → Acessos.</p><div className="op-actions"><Link className="op-button secondary" href={`/${app}/inicio`}>Voltar ao início</Link></div></section>;
+
   const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
-    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
+    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : restricted)
+    : !canUsePage ? restricted
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
     : app === 'zeus' && page === 'faturamento' ? <ZeusBilling w={w} />
     : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
@@ -113,7 +129,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           </nav>
 
           <div className="op-sidebar-bottom">
-            <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link>
+            {canConfigure ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
             <button onClick={() => w.mutate(data => { data.settings.collapsed = !data.settings.collapsed; }, '')} aria-label={w.data.settings.collapsed ? 'Expandir menu' : 'Recolher menu'}>{w.data.settings.collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Recolher menu</span></button>
           </div>
           <Link className="op-sidebar-credit" href="/" aria-label="Ir para a home da CRM PLUS">CRM PLUS <span>Store</span></Link>
@@ -132,7 +148,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           </header>
 
           <main id="op-main" className="op-main">
-            {!recordId && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
+            {!recordId && canUsePage && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
             {body}
           </main>
 
@@ -141,6 +157,18 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
         {w.error && <div className="op-alert" role="alert"><span>{w.error}</span><button className="op-icon" onClick={() => w.setError('')} aria-label="Fechar erro"><X size={18} /></button></div>}
         {w.notice && <div className="op-toast" role="status">{w.notice}</div>}
+
+        <style jsx global>{`
+          details.op-config-group{padding:0!important;overflow:hidden;border-radius:12px!important}
+          details.op-config-group>summary{min-height:68px!important;padding:0 18px!important;margin:0!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;cursor:pointer}
+          details.op-config-group>summary strong{font-size:16px!important}
+          details.op-config-group>summary span{margin-left:auto!important;color:var(--op-muted)!important}
+          details.op-config-group[open]>summary{border-bottom:1px solid var(--op-line)}
+          .op-config-groups{gap:10px!important}
+          .zeus-dashboard-grid>div{min-width:0;padding:18px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper)}
+          .zeus-dashboard-grid{align-items:start}
+          @media(max-width:900px){.zeus-dashboard-grid{grid-template-columns:1fr!important}}
+        `}</style>
       </div>
     </ErrorContext.Provider>
   </WorkspaceContext.Provider>;
