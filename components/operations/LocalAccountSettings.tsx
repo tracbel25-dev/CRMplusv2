@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
@@ -41,6 +42,6 @@ export function LocalAccountSettings(){
       </div>
     </div>)}</div>:<p className="op-muted">Você pode configurar este aplicativo porque recebeu essa permissão, mas somente o titular administra os acessos de outras pessoas.</p>}
     {error&&<p className="op-error-text" role="alert">{error}</p>}
-    {access.isOwner&&<div className="op-config-runtime-note"><strong>Convites de novos usuários</strong><small>A estrutura de permissões já está no Supabase central. O envio de convite por e-mail será ligado na etapa de backend administrativo, usando chave secreta somente no servidor; nenhuma chave privilegiada ficará no navegador.</small></div>}
+    {access.isOwner&&<div className="op-config-runtime-note"><strong>Equipe e acessos</strong><small>Adicione pessoas, remova usuários e escolha quais aplicativos cada integrante pode abrir ou configurar.</small><div className="op-actions"><Link className="op-button secondary" href="/equipe-acessos">Gerenciar equipe e acessos</Link></div></div>}
   </Section>;
 }
