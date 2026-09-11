@@ -27,15 +27,21 @@ export async function mercadoPagoChargeRequest<T>(body: Record<string, unknown>)
   const { data, error } = await createStoreClient().auth.getSession();
   if (error || !data.session) throw new Error('Entre na sua conta para continuar.');
 
-  const response = await fetch(`${STORE_SUPABASE.url}/functions/v1/mercadopago-charge`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: STORE_SUPABASE.publishableKey,
-      Authorization: `Bearer ${data.session.access_token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${STORE_SUPABASE.url}/functions/v1/mercadopago-charge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: STORE_SUPABASE.publishableKey,
+        Authorization: `Bearer ${data.session.access_token}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw new Error('A cobrança do Mercado Pago não respondeu a tempo. Tente novamente.');
+  }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || 'Não foi possível criar a cobrança pelo Mercado Pago.');
   return result as T;
