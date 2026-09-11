@@ -39,15 +39,15 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
     setBusy(true);
     try {
       const count = await syncExternalResponses(w, app);
-      if (!count) w.setNotice('Nenhuma resposta externa nova.');
-    } catch (error) { w.setError(error instanceof Error ? error.message : 'Não foi possível receber as respostas externas.'); }
+      if (!count) w.setNotice('Nenhuma atualização nova.');
+    } catch (error) { w.setError(error instanceof Error ? error.message : 'Não foi possível atualizar os dados externos.'); }
     finally { setBusy(false); }
   };
 
   return <div className="op-external-share">
-    {(app === 'zeus' || app === 'artemis') && <OperationalAIAssist w={w} app={app} />}
+    {app === 'artemis' && <OperationalAIAssist w={w} app={app} />}
     {app !== 'zeus' && draft && (!url ? <button data-trial-restricted="Compartilhamento externo ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void create(); }} disabled={busy} title={labels[app]} aria-label={labels[app]}><Link2 size={19} /></button>
       : <button data-trial-restricted="Copiar links ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
-    <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title="Receber respostas externas" aria-label="Receber respostas externas"><RefreshCw size={18} /></button>
+    <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title={app === 'zeus' ? 'Forçar atualização' : 'Receber atualizações externas'} aria-label={app === 'zeus' ? 'Forçar atualização' : 'Receber atualizações externas'}><RefreshCw size={18} /></button>
   </div>;
 }
