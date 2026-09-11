@@ -12,13 +12,17 @@ function allowedResponse(kind:string,input:Record<string,unknown>){
     return {decision,note:String(input.note||'').slice(0,2000),name:String(input.name||'').slice(0,180)};
   }
   if(kind==='zeus-checkin'){
-    const answers=Array.isArray(input.answers)?input.answers.slice(0,80).map((row:any)=>({item:String(row?.item||'').slice(0,240),status:String(row?.status||'').slice(0,40),note:String(row?.note||'').slice(0,800)})):[];
+    const answers=Array.isArray(input.answers)?input.answers.slice(0,100).map((row:any)=>({item:String(row?.item||'').slice(0,240),status:String(row?.status||'').slice(0,40),note:String(row?.note||'').slice(0,800)})):[];
     if(!answers.length)throw new Error('Checklist sem respostas.');
     for(const row of answers)if(!['OK','Atenção','Não se aplica'].includes(row.status))throw new Error('Resposta de checklist inválida.');
     const signature=String(input.signature||'');
     if(signature&&(!signature.startsWith('data:image/png;base64,')||signature.length>350000))throw new Error('Assinatura inválida ou muito grande.');
     const name=String(input.name||'').trim().slice(0,180);if(!name)throw new Error('Informe o responsável pela conferência.');
-    return {answers,name,meter:String(input.meter||'').slice(0,80),notes:String(input.notes||'').slice(0,2000),signature};
+    const damageTypes=['Amassado','Riscado','Quebrado','Faltante'];
+    const damage=Array.isArray(input.damage)?input.damage.slice(0,100).map((row:any)=>({view:String(row?.view||'').slice(0,80),point:String(row?.point||'').slice(0,100),type:String(row?.type||'').slice(0,40)})):[];
+    for(const row of damage)if(!damageTypes.includes(row.type))throw new Error('Tipo de avaria inválido.');
+    const contact=(input.contact&&typeof input.contact==='object'?input.contact:{}) as Record<string,unknown>;
+    return {answers,name,segment:String(input.segment||'auto').slice(0,30),meter:String(input.meter||'').slice(0,80),notes:String(input.notes||'').slice(0,2000),signature,damage,contact:{phone:String(contact.phone||'').slice(0,80),document:String(contact.document||'').slice(0,120),role:String(contact.role||'').slice(0,120)}};
   }
   if(kind==='athena-survey'){
     const answers=Array.isArray(input.answers)?input.answers.slice(0,100):[];
