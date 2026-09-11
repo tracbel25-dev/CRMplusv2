@@ -1,0 +1,72 @@
+/* Zeus modal usability: keep forms fully visible inside the viewport and avoid clipped field help. */
+.app-zeus .op-dialog{
+  max-height:calc(100dvh - 40px);
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+
+.app-zeus .op-dialog.wide{
+  width:min(980px,calc(100vw - 48px));
+  max-width:980px;
+  max-height:calc(100dvh - 40px);
+  margin:auto;
+  padding:24px 26px 22px;
+}
+
+.app-zeus .op-dialog.wide > header{
+  position:sticky;
+  top:-24px;
+  z-index:30;
+  margin:-24px -26px 20px;
+  padding:20px 26px 16px;
+  background:var(--op-paper);
+  border-bottom:1px solid var(--op-line);
+}
+
+.app-zeus .op-dialog .op-form-footer{
+  position:sticky;
+  bottom:-22px;
+  z-index:25;
+  margin:22px -26px -22px;
+  padding:14px 26px 18px;
+  background:var(--op-paper);
+  border-top:1px solid var(--op-line);
+}
+
+.app-zeus .op-dialog .op-field-help-popover{
+  position:fixed;
+  left:auto;
+  right:24px;
+  bottom:auto;
+  transform:none;
+  width:min(300px,calc(100vw - 48px));
+  z-index:1000;
+}
+
+@media (max-width:720px){
+  .app-zeus .op-dialog,
+  .app-zeus .op-dialog.wide{
+    width:calc(100vw - 16px);
+    max-width:none;
+    max-height:calc(100dvh - 16px);
+    margin:8px auto;
+    padding:18px 16px 16px;
+  }
+  .app-zeus .op-dialog.wide > header{
+    top:-18px;
+    margin:-18px -16px 16px;
+    padding:16px;
+  }
+  .app-zeus .op-dialog .op-form-footer{
+    bottom:-16px;
+    margin:18px -16px -16px;
+    padding:12px 16px 16px;
+  }
+  .app-zeus .op-dialog .op-fields{
+    grid-template-columns:1fr;
+  }
+  .app-zeus .op-dialog .op-field-help-popover{
+    right:12px;
+    width:min(290px,calc(100vw - 24px));
+  }
+}
