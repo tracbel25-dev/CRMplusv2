@@ -1,72 +1,86 @@
-/* Checklist técnico do Zeus — direção visual aprovada */
-.check-page{background:#f4f7fb!important;color:#10233f!important;padding:0!important;min-height:100dvh!important}
-.check-page .check-wrap{max-width:1420px!important;margin:0 auto!important;padding:18px 22px 28px!important;gap:10px!important}
-.check-page .check-top{height:58px!important;background:#0f2747!important;border-radius:0!important;margin:0 -22px 4px!important;padding:0 26px!important;box-shadow:none!important;border:0!important}
-.check-page .brand{font-size:22px!important;letter-spacing:-.02em!important}
-.check-page .brand b{color:#55aaff!important;font-size:9px!important}
+/* Zeus checklist — refinamento visual guiado pelo Figma */
+:root{
+  --zc-navy:#0d2b52;
+  --zc-blue:#1769d1;
+  --zc-text:#10233f;
+  --zc-muted:#6e7f94;
+  --zc-line:#dbe4ee;
+  --zc-soft:#f5f8fb;
+  --zc-white:#ffffff;
+}
+
+.check-page{background:#eef3f8!important;color:var(--zc-text)!important;padding:0!important;min-height:100dvh!important}
+.check-page .check-wrap{max-width:1380px!important;margin:0 auto!important;padding:18px 22px 34px!important;gap:10px!important}
+.check-page .check-top{height:58px!important;background:linear-gradient(90deg,#0d2748,#123968)!important;border-radius:0!important;margin:0 -22px 4px!important;padding:0 26px!important;box-shadow:none!important;border:0!important}
+.check-page .brand{font-size:22px!important;letter-spacing:-.025em!important}
+.check-page .brand b{color:#69b3ff!important;font-size:9px!important;letter-spacing:.15em!important}
 .check-page .secure{font-weight:700!important;font-size:12px!important;letter-spacing:.02em!important}
 
-.check-page .check-heading{padding:16px 18px!important;border-radius:9px!important;box-shadow:none!important;border-color:#d7e1ec!important;background:#fff!important}
-.check-page .check-heading h1{font-size:28px!important;letter-spacing:-.02em!important}
-.check-page .check-heading .eyebrow{font-size:10px!important;color:#1768cc!important;margin-bottom:3px!important}
-.check-page .check-heading p{font-size:12px!important;color:#64758b!important}
-.check-page .status-pill{border-radius:7px!important;padding:7px 11px!important;background:#dff7e8!important;color:#0f7a49!important}
+.check-page .check-heading{padding:16px 18px!important;border-radius:10px!important;box-shadow:none!important;border-color:var(--zc-line)!important;background:#fff!important}
+.check-page .check-heading h1{font-size:28px!important;line-height:1.08!important;letter-spacing:-.025em!important}
+.check-page .check-heading .eyebrow{font-size:10px!important;color:var(--zc-blue)!important;margin-bottom:4px!important;font-weight:800!important}
+.check-page .check-heading p{font-size:12px!important;color:var(--zc-muted)!important}
+.check-page .status-pill{border-radius:7px!important;padding:7px 11px!important;background:#e4f7ed!important;color:#0f7a49!important;font-weight:800!important}
 
-.check-page .hero-data{border-radius:9px!important;padding:11px 14px!important;box-shadow:none!important;border-color:#d7e1ec!important}
-.check-page .hero-data>div{padding:3px 14px!important}
-.check-page .hero-data svg{color:#1768cc!important}
+.check-page .hero-data{border-radius:10px!important;padding:10px 14px!important;box-shadow:none!important;border-color:var(--zc-line)!important;background:#fff!important}
+.check-page .hero-data>div{padding:4px 14px!important}
+.check-page .hero-data svg{color:var(--zc-blue)!important}
 .check-page .hero-data span{font-size:10px!important}
 .check-page .hero-data strong{font-size:13px!important}
 
 .check-page .top-grid,.check-page .bottom-grid{gap:10px!important}
-.check-page .form-card{border-radius:9px!important;padding:13px 14px!important;box-shadow:none!important;border-color:#d7e1ec!important;background:#fff!important}
+.check-page .form-card{border-radius:10px!important;padding:13px 14px!important;box-shadow:none!important;border-color:var(--zc-line)!important;background:#fff!important}
 .check-page .section-title{margin-bottom:9px!important;gap:8px!important}
-.check-page .section-title>svg{color:#1768cc!important;margin-top:1px!important}
-.check-page .section-title h2{font-size:14px!important;font-weight:800!important}
-.check-page .section-title p{font-size:10px!important;margin-top:1px!important}
+.check-page .section-title>svg{color:var(--zc-blue)!important;margin-top:1px!important;stroke-width:2!important}
+.check-page .section-title h2{font-size:14px!important;font-weight:800!important;letter-spacing:-.01em!important}
+.check-page .section-title p{font-size:10px!important;margin-top:1px!important;color:var(--zc-muted)!important}
 
 .check-page .fields{gap:7px!important}
 .check-page .fields span{font-size:9px!important;color:#50647b!important}
 .check-page .fields input,
-.check-page .notes textarea{border-radius:5px!important;min-height:33px!important;background:#fbfdff!important;border-color:#ccd8e4!important;font-size:11px!important;padding:6px 9px!important}
+.check-page .notes textarea{border-radius:6px!important;min-height:34px!important;background:#fbfdff!important;border-color:#cfdbe7!important;font-size:11px!important;padding:6px 9px!important;box-shadow:none!important}
 
-/* itens como tabela técnica, não como cartões */
+/* tabela técnica: densa e legível */
 .check-page .inspection{padding:12px 10px 8px!important}
 .check-page .inspection .section-title{padding:0 4px 8px!important;margin:0!important;border-bottom:1px solid #dfe7ef!important}
 .check-page .status-key{gap:12px!important}
 .check-page .inspection-grid{gap:0 12px!important}
-.check-page .inspection-row{min-height:36px!important;grid-template-columns:minmax(150px,1fr) 178px!important;border-top:1px solid #edf1f5!important;padding:3px 4px!important}
-.check-page .inspection-row:nth-child(-n+2){border-top:0!important}
+.check-page .inspection-row{min-height:36px!important;grid-template-columns:minmax(150px,1fr) 178px!important;border-top:1px solid #edf1f5!important;padding:4px!important;background:#fff!important}
 .check-page .inspection-row>input{display:none!important}
-.check-page .item-name{gap:6px!important}
-.check-page .item-name b{font-size:9px!important;width:18px!important;color:#7d91a8!important}
-.check-page .item-name span{font-size:11px!important;font-weight:700!important}
+.check-page .item-name{gap:7px!important}
+.check-page .item-name b{font-size:9px!important;min-width:20px!important;color:#7d91a8!important;font-weight:800!important}
+.check-page .item-name span{font-size:11px!important;font-weight:700!important;line-height:1.25!important}
 .check-page .row-status{gap:4px!important}
-.check-page .row-status button{height:25px!important;border-radius:5px!important;font-size:9px!important;font-weight:800!important;padding:0 5px!important}
-.check-page .row-status button.active.ok{background:#e7f8f0!important;border-color:#54c893!important;color:#087b48!important}
+.check-page .row-status button{height:26px!important;border-radius:5px!important;font-size:9px!important;font-weight:800!important;padding:0 5px!important;background:#fff!important}
+.check-page .row-status button.active.ok{background:#e8f8f1!important;border-color:#54c893!important;color:#087b48!important}
 .check-page .row-status button.active.attention{background:#fff7df!important;border-color:#e9b635!important;color:#996300!important}
-.check-page .row-status button.active.na{background:#edf1f5!important;border-color:#aeb8c5!important;color:#4f6072!important}
+.check-page .row-status button.active.na{background:#eef2f6!important;border-color:#aeb8c5!important;color:#4f6072!important}
 
-/* avarias como prancha de inspeção */
+/* prancha de avarias — sem cara de cards genéricos */
 .check-page .damages{padding:12px 14px 14px!important;overflow:hidden!important}
-.check-page .damage-legend{top:13px!important;right:14px!important;gap:10px!important}
-.check-page .damage-legend button{font-size:10px!important;padding:2px 4px!important;cursor:pointer!important}
+.check-page .damage-legend{top:13px!important;right:14px!important;gap:7px!important}
+.check-page .damage-legend button{font-size:10px!important;padding:5px 8px!important;cursor:pointer!important;border:1px solid transparent!important;border-radius:999px!important;transition:.16s ease!important}
+.check-page .damage-legend button:hover{background:#f3f6fa!important}
+.check-page .damage-legend button.selected{background:#f1f5f9!important;border-color:#d9e3ed!important}
 .check-page .damage-legend i{width:11px!important;height:11px!important}
-.check-page .views-grid{gap:2px!important;border-top:1px solid #e2e9f0!important;padding-top:10px!important}
-.check-page .vehicle-view{border:0!important;border-radius:0!important;background:#fff!important;min-height:172px!important;padding:5px 4px 3px!important;box-shadow:none!important}
-.check-page .vehicle-view svg{height:128px!important;filter:drop-shadow(0 7px 8px rgba(15,39,71,.08))!important}
-.check-page .vehicle-view>strong{font-size:9px!important;color:#52647a!important;margin-top:2px!important}
-.check-page .damage-dot{width:21px!important;height:21px!important;border-width:2px!important;box-shadow:0 2px 7px rgba(0,0,0,.18)!important}
+.check-page .views-grid{gap:0!important;border:1px solid #e1e8ef!important;border-radius:8px!important;overflow:hidden!important;background:#fff!important}
+.check-page .vehicle-view{border:0!important;border-right:1px solid #e7edf3!important;border-radius:0!important;background:#fff!important;min-height:180px!important;padding:12px 8px 8px!important;box-shadow:none!important;transition:background .15s ease!important}
+.check-page .vehicle-view:last-child{border-right:0!important}
+.check-page .vehicle-view:hover{background:#f9fbfd!important}
+.check-page .vehicle-view svg{height:130px!important;filter:none!important;opacity:.92!important}
+.check-page .vehicle-view svg *{vector-effect:non-scaling-stroke}
+.check-page .vehicle-view>strong{font-size:9px!important;color:#5f7084!important;margin-top:2px!important;text-transform:uppercase!important;letter-spacing:.06em!important}
+.check-page .damage-dot{width:22px!important;height:22px!important;border-width:2px!important;box-shadow:0 2px 7px rgba(15,35,61,.22)!important}
 
 .check-page .notes textarea{min-height:132px!important}
 .check-page .signatures{gap:8px!important}
-.check-page .signature-box{border-radius:7px!important;padding:8px!important;border-color:#d3dee9!important}
+.check-page .signature-box{border-radius:7px!important;padding:8px!important;border-color:#d3dee9!important;background:#fff!important}
 .check-page .signature-head strong{font-size:10px!important}
 .check-page .signature-box canvas{height:96px!important;border-radius:5px!important;background:#fff!important}
 .check-page .signature-box small{font-size:8px!important}
 
 .check-page .check-actions{padding:6px 0 0!important}
-.check-page .check-actions button{background:#1768cc!important;border-radius:7px!important;min-height:42px!important;padding:10px 18px!important;box-shadow:0 4px 12px rgba(23,104,204,.18)!important}
+.check-page .check-actions button{background:var(--zc-blue)!important;border-radius:7px!important;min-height:44px!important;padding:10px 20px!important;box-shadow:0 4px 12px rgba(23,104,204,.16)!important}
 .check-page .check-error{border-radius:6px!important}
 
 @media(max-width:980px){
@@ -74,25 +88,43 @@
   .check-page .inspection-row{grid-template-columns:minmax(150px,1fr) 178px!important}
   .check-page .inspection-row:nth-child(2){border-top:1px solid #edf1f5!important}
   .check-page .views-grid,.check-page .seg-moto,.check-page .seg-truck,.check-page .seg-machine{grid-template-columns:repeat(2,1fr)!important}
+  .check-page .vehicle-view:nth-child(2n){border-right:0!important}
+  .check-page .vehicle-view:nth-child(n+3){border-top:1px solid #e7edf3!important}
 }
 
 @media(max-width:720px){
-  .check-page .check-wrap{padding:0 0 84px!important;gap:7px!important}
-  .check-page .check-top{margin:0!important;padding:0 14px!important}
+  body{background:#eef3f8!important}
+  .check-page .check-wrap{padding:0 0 86px!important;gap:7px!important}
+  .check-page .check-top{margin:0!important;padding:0 14px!important;height:54px!important}
+  .check-page .check-top .brand{font-size:19px!important}
   .check-page .check-heading,.check-page .hero-data,.check-page .form-card{border-left:0!important;border-right:0!important;border-radius:0!important}
-  .check-page .check-heading{padding:14px!important}
-  .check-page .check-heading h1{font-size:22px!important}
+  .check-page .check-heading{padding:14px!important;gap:10px!important}
+  .check-page .check-heading h1{font-size:21px!important}
+  .check-page .check-heading p{font-size:11px!important}
+  .check-page .status-pill{font-size:9px!important;padding:6px 8px!important;white-space:nowrap!important}
   .check-page .top-grid,.check-page .bottom-grid{gap:7px!important}
   .check-page .fields{grid-template-columns:1fr 1fr!important}
-  .check-page .inspection{padding:10px 10px 6px!important}
-  .check-page .inspection-row{grid-template-columns:1fr!important;padding:7px 3px!important;gap:6px!important}
+  .check-page .inspection{padding:10px 12px 6px!important}
+  .check-page .inspection-row{grid-template-columns:1fr!important;padding:8px 2px!important;gap:7px!important}
   .check-page .row-status{grid-template-columns:repeat(3,1fr)!important}
-  .check-page .row-status button{height:31px!important;font-size:10px!important}
-  .check-page .damage-legend{position:static!important;margin:2px 0 8px!important}
-  .check-page .views-grid,.check-page .seg-moto,.check-page .seg-truck,.check-page .seg-machine{grid-template-columns:1fr 1fr!important}
-  .check-page .vehicle-view{min-height:150px!important}
-  .check-page .vehicle-view svg{height:108px!important}
+  .check-page .row-status button{height:34px!important;font-size:10px!important}
+
+  /* no celular: uma prancha horizontal, não quatro cartões espremidos */
+  .check-page .damages{padding:14px 0 16px!important}
+  .check-page .damages>.section-title{padding:0 16px!important;margin-bottom:10px!important}
+  .check-page .damage-legend{position:static!important;margin:0 12px 10px!important;padding:8px!important;background:#f7f9fc!important;border:1px solid #e3eaf1!important;border-radius:9px!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important}
+  .check-page .damage-legend button{justify-content:flex-start!important;font-size:10px!important;padding:7px 8px!important;background:#fff!important;border-color:#e3eaf1!important}
+  .check-page .damage-legend button.selected{border-color:#9fb9d7!important;box-shadow:0 0 0 2px rgba(23,105,209,.08)!important}
+  .check-page .views-grid,.check-page .seg-moto,.check-page .seg-truck,.check-page .seg-machine{display:flex!important;grid-template-columns:none!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x mandatory!important;gap:0!important;border-left:0!important;border-right:0!important;border-radius:0!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
+  .check-page .views-grid::-webkit-scrollbar{display:none!important}
+  .check-page .vehicle-view{flex:0 0 82vw!important;min-height:250px!important;padding:18px 16px 12px!important;border-right:1px solid #e1e8ef!important;border-top:0!important;scroll-snap-align:center!important;background:#fff!important}
+  .check-page .vehicle-view:first-child{margin-left:9vw!important;border-left:1px solid #e1e8ef!important}
+  .check-page .vehicle-view:last-child{margin-right:9vw!important}
+  .check-page .vehicle-view svg{height:190px!important;max-width:100%!important;margin:auto!important}
+  .check-page .vehicle-view>strong{font-size:10px!important;margin-top:4px!important}
+  .check-page .damage-dot{width:24px!important;height:24px!important;font-size:9px!important}
+
   .check-page .signatures{grid-template-columns:1fr!important}
-  .check-page .check-actions{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;background:#fff!important;border-top:1px solid #d8e2ec!important;padding:10px 12px!important}
-  .check-page .check-actions button{width:100%!important;justify-content:center!important}
+  .check-page .check-actions{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;background:rgba(255,255,255,.96)!important;backdrop-filter:blur(10px)!important;border-top:1px solid #d8e2ec!important;padding:10px 12px!important;box-shadow:0 -8px 24px rgba(15,35,61,.08)!important}
+  .check-page .check-actions button{width:100%!important;justify-content:center!important;min-height:48px!important;font-size:14px!important}
 }
