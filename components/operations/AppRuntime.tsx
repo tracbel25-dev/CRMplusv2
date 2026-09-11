@@ -18,6 +18,7 @@ import { useStoreAccess } from '@/lib/account/storeAccess';
 import { AppAsset } from '@/components/AppAsset';
 import './lean-operations.css';
 import './zeus-enhancements.css';
+import './zeus-modal-layout.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
