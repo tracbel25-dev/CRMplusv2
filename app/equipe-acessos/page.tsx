@@ -4,6 +4,7 @@ import { AccountNav } from '@/components/AccountNav';
 import { TeamAccess } from '@/components/TeamAccess';
 import '../account-area.css';
 import '../account-details.css';
+import '../team-access.css';
 
 export const metadata={title:'Equipe e acessos | CRM PLUS Store',robots:{index:false,follow:false}};
 
