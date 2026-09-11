@@ -11,7 +11,7 @@ export type ZeusPreferences = {
 
 export const ZEUS_JOB_FILTERS = ['Status', 'Etapa', 'Tipo', 'Responsável', 'Cliente'];
 export const ZEUS_QUOTE_FILTERS = ['Origem', 'Status', 'Cliente', 'Validade'];
-export const ZEUS_DASHBOARD_FILTERS = ['Status', 'Etapa', 'Tipo', 'Responsável'];
+export const ZEUS_DASHBOARD_FILTERS = ['Status', 'Etapa', 'Tipo', 'Responsável', 'Cliente', 'Veículo', 'Prazo', 'Cobrança'];
 
 export function readZeusPreferences(data: Data): ZeusPreferences {
   const raw = data.customFieldValues?.[ZEUS_PREFS_ID] || {};
