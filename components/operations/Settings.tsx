@@ -14,7 +14,7 @@ import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { CompactTabs, CompactPanel } from './CompactTabs';
 import { LocalAccountSettings } from './LocalAccountSettings';
 
-type PreferencesWithHelp = OperationPreferences & { fieldHelp?: Record<string, string> };
+type PreferencesWithHelp = OperationPreferences & { fieldHelp: Record<string, string> };
 
 function withDefaultHelp(app: AppId, value: OperationPreferences): PreferencesWithHelp {
   const defaults = Object.fromEntries(segmentDefinitions[app].fields.map(field => [field.key, field.description]));
