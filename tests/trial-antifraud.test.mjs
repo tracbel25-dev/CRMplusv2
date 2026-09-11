@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const migration = readFileSync(new URL('../supabase/store/migrations/20260911173000_harden_trial_cnpj_identity.sql', import.meta.url), 'utf8');
 const privileges = readFileSync(new URL('../supabase/store/migrations/20260911174500_fix_trial_rpc_privileges.sql', import.meta.url), 'utf8');
+const singleIp = readFileSync(new URL('../supabase/store/migrations/20260911203000_single_trial_per_ip.sql', import.meta.url), 'utf8');
 const activation = readFileSync(new URL('../components/TrialActivation.tsx', import.meta.url), 'utf8');
 
 test('CNPJ is unique and consumed as a durable company trial identity', () => {
@@ -38,4 +39,20 @@ test('direct activation persists CNPJ, validates it and reserves network before 
   assert.match(activation, /validCnpj\(cleanCnpj\)/);
   assert.match(activation, /companyUpdate\.error\.code === '23505'/);
   assert.doesNotMatch(activation, /CPF do responsável ou CNPJ da empresa/);
+});
+
+test('one IP can only be bound to one free trial globally', () => {
+  assert.match(singleIp, /where l\.ip_hash = ih/i);
+  assert.match(singleIp, /existing\.account_id = target_account\s+and existing\.user_id = target_user\s+and existing\.first_app_id = target_app/i);
+  assert.doesNotMatch(singleIp, /l\.account_id\s*<>\s*target_account/i);
+  assert.match(singleIp, /primary|ip_hash/i);
+});
+
+test('direct RPC and Mercado Pago inserts require the app bound to the IP reservation', () => {
+  assert.match(singleIp, /create or replace function private\.enforce_trial_ip_binding\(\)/i);
+  assert.match(singleIp, /l\.account_id = new\.account_id/i);
+  assert.match(singleIp, /l\.user_id = new\.user_id/i);
+  assert.match(singleIp, /l\.first_app_id = new\.app_id/i);
+  assert.match(singleIp, /before insert on private\.app_trials/i);
+  assert.match(singleIp, /before insert on private\.mp_checkout_trials/i);
 });
