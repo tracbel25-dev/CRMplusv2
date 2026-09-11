@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  ArrowUpRight, BarChart3, BookOpen, Box, CalendarDays, ChefHat,
-  CircleHelp, FileText, History, Home, Inbox, Menu, MessageSquareText, Moon,
+  BarChart3, BookOpen, Box, CalendarDays, ChefHat,
+  FileText, History, Home, Inbox, Menu, MessageSquareText, Moon,
   PanelLeftClose, PanelLeftOpen, Settings2, ShoppingBag, Sun, Target, Users,
   UtensilsCrossed, Wallet, Wrench, X
 } from 'lucide-react';
@@ -23,6 +23,7 @@ const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
 const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.ZeusBudgets));
 const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
+const ZeusBilling = dynamic(() => import('./ZeusBilling').then(module => module.ZeusBilling));
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
@@ -34,7 +35,6 @@ import { AppSettings } from './Settings';
 import { ArtemisSettings } from './ArtemisSettings';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
-import { PostCompletionPayments } from './PostCompletionPayments';
 
 const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
@@ -50,11 +50,11 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const operation = useOperationPreferences(app);
   const config = navigation[app];
   const [mobile, setMobile] = useState(false);
-  const [help, setHelp] = useState(false);
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
 
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
+    if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
     if (section.path === 'historico') return false;
     return operation.actionVisible(`module:${section.path}`);
   });
@@ -74,6 +74,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
     : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : <section className="op-section"><div className="op-section-head"><h2>Configurações restritas</h2></div><p className="op-muted">Esta área é exclusiva do titular de uma conta com este aplicativo ativo ou de um usuário que recebeu permissão de configuração para ele.</p><div className="op-actions"><Link className="op-button secondary" href="/login">Entrar na Store</Link><Link className="op-button secondary" href={`/${app}`}>Voltar ao aplicativo</Link></div></section>)
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
+    : app === 'zeus' && page === 'faturamento' ? <ZeusBilling w={w} />
     : app === 'zeus' && page === 'orcamentos' ? <ZeusBudgets key={recordId || 'list'} w={w} recordId={recordId} />
     : app === 'zeus' && recordId ? <LeanZeusJobDetail key={recordId} w={w} recordId={recordId} />
     : app === 'athena-orcamentos' && recordId ? <LeanBudgetDetail key={recordId} w={w} recordId={recordId} />
@@ -121,22 +122,17 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             <div className="op-header-tools">
               <span className="op-business-name">{w.data.settings.business}</span>
               <ExternalShare w={w} app={app} page={page} recordId={recordId} />
-              <Link className="op-icon" href={`/${app}/configuracoes`} aria-label={corporateUi.settingsLabel}><Settings2 size={19} /></Link>
-              <button className="op-icon" onClick={() => setHelp(!help)} aria-label="Sobre os dados deste aplicativo" aria-expanded={help}><CircleHelp size={19} /></button>
               <button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>
               {canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}
             </div>
           </header>
 
-          {help && <div className="op-help"><strong>Configuração por aplicativo.</strong><span>O Artemis mostra somente os canais e áreas que o restaurante decidiu usar. Pedidos de loja física, delivery e retirada convergem para a mesma operação.</span><button className="op-icon" aria-label="Fechar informação" onClick={() => setHelp(false)}><X size={18} /></button></div>}
-
           <main id="op-main" className="op-main">
             {!recordId && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
             {body}
-            {w.ready && <PostCompletionPayments w={w} app={app} page={page} recordId={recordId} />}
           </main>
 
-          <footer className="op-local-status"><span>{corporateDeveloperLine()}</span><Link href={`/${app}/configuracoes`}>{corporateUi.settingsLabel} <ArrowUpRight size={13} /></Link></footer>
+          <footer className="op-local-status"><span>{corporateDeveloperLine()}</span></footer>
         </div>
 
         {w.error && <div className="op-alert" role="alert"><span>{w.error}</span><button className="op-icon" onClick={() => w.setError('')} aria-label="Fechar erro"><X size={18} /></button></div>}
