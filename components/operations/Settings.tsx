@@ -216,7 +216,12 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row op-custom-field-edit" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><label className="op-field op-grow"><span>Nome no aplicativo</span><input value={custom.label} onChange={event => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, label: event.target.value } : item) })); }} /></label><small>{custom.group}</small><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
       </Section></CompactPanel>
 
-      <CompactPanel value="operacao"><Section title="Ações e módulos disponíveis">
+      <CompactPanel value="operacao">
+      {app === 'zeus' && <Section title="Linguagem da oficina">
+        <p className="op-muted">Defina como sua equipe chama o item atendido. Esse nome também é usado na área de clientes e no menu do Zeus.</p>
+        <div className="op-fields"><label className="op-field"><span>Como você chama o item atendido?</span><input value={preferences.fieldLabels.asset || 'Veículo'} onChange={event => setFieldLabel('asset', event.target.value)} placeholder="Ex.: Veículo, Equipamento, Máquina, Moto" /></label></div>
+      </Section>}
+      <Section title="Ações e módulos disponíveis">
         <p className="op-muted">Desative o que a equipe não usa. Quando uma função depende de outra, o Zeus ou Artemis ajusta as opções relacionadas automaticamente.</p>
         <div className="op-config-groups">{actionGroups.map(group => <div className="op-config-group" key={group}><div className="op-config-group-title"><strong>{group}</strong></div>{definition.actions.filter(action => action.group === group).map(action => {
           const visible = action.required || preferences.actionVisibility[action.key] !== false;
