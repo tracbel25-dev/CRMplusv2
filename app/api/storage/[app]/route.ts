@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authorizeR2Request, presignR2, readR2Config, safeObjectName, type R2App } from '@/lib/r2/server';
+import { authorizeR2Request, describeR2Failure, presignR2, readR2Config, safeObjectName, type R2App } from '@/lib/r2/server';
 
 export const runtime = 'nodejs';
 
@@ -46,14 +46,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const objectName = safeObjectName(file.name, file.type);
   const key = `accounts/${access.accountId}/${objectName}`;
-  const putUrl = presignR2(app, 'PUT', key, 300);
   const payload = Buffer.from(await file.arrayBuffer());
-  const upload = await fetch(putUrl, {
+  const upload = await fetch(presignR2(app, 'PUT', key, 300), {
     method: 'PUT',
     headers: { 'content-type': file.type },
     body: payload,
+    cache: 'no-store',
   });
-  if (!upload.ok) return NextResponse.json({ error: `O R2 recusou o envio (${upload.status}). Confira bucket e credenciais deste aplicativo.` }, { status: 502 });
+  if (!upload.ok) {
+    const detail = await describeR2Failure(upload, 'gravação');
+    return NextResponse.json({ error: detail }, { status: 502 });
+  }
 
   return NextResponse.json({
     key,
@@ -74,10 +77,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   catch (reason) { return NextResponse.json({ error: reason instanceof Error ? reason.message : 'R2 não configurado.' }, { status: 503 }); }
 
   if (request.nextUrl.searchParams.get('health') === '1') {
-    const probeKey = `accounts/${access.accountId}/.crmplus-r2-health`;
-    const probe = await fetch(presignR2(app, 'HEAD', probeKey, 60), { method: 'HEAD', cache: 'no-store' });
-    if (probe.status === 200 || probe.status === 404) return NextResponse.json({ ok: true, app });
-    return NextResponse.json({ error: `A conexão R2 respondeu ${probe.status}. Confira Account ID, Access Key, Secret e bucket do ${app}.` }, { status: 502 });
+    const probeKey = `accounts/${access.accountId}/.crmplus-r2-health-${Date.now()}.txt`;
+    const probe = await fetch(presignR2(app, 'PUT', probeKey, 60), {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'crmplus-r2-health',
+      cache: 'no-store',
+    });
+    if (!probe.ok) {
+      const detail = await describeR2Failure(probe, 'validação de escrita');
+      return NextResponse.json({ error: detail }, { status: 502 });
+    }
+    const remove = await fetch(presignR2(app, 'DELETE', probeKey, 60), { method: 'DELETE', cache: 'no-store' });
+    if (!remove.ok && remove.status !== 404) {
+      const detail = await describeR2Failure(remove, 'limpeza do teste');
+      return NextResponse.json({ error: detail }, { status: 502 });
+    }
+    return NextResponse.json({ ok: true, app, write: true });
   }
 
   const key = request.nextUrl.searchParams.get('key') || '';
@@ -98,7 +114,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const key = typeof body?.key === 'string' ? body.key : '';
   if (!validOwnedKey(key, access.accountId)) return NextResponse.json({ error: 'Arquivo fora do escopo desta conta.' }, { status: 403 });
 
-  const remove = await fetch(presignR2(app, 'DELETE', key, 300), { method: 'DELETE' });
-  if (!remove.ok && remove.status !== 404) return NextResponse.json({ error: `O R2 recusou a remoção (${remove.status}).` }, { status: 502 });
+  const remove = await fetch(presignR2(app, 'DELETE', key, 300), { method: 'DELETE', cache: 'no-store' });
+  if (!remove.ok && remove.status !== 404) {
+    const detail = await describeR2Failure(remove, 'remoção');
+    return NextResponse.json({ error: detail }, { status: 502 });
+  }
   return NextResponse.json({ ok: true });
 }
