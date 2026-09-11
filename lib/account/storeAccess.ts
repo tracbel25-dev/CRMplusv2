@@ -21,6 +21,26 @@ export type StoreAccount = {
   members: StoreMember[];
 };
 
+export type TeamInvitePermission = { appId: AppId; canConfigure: boolean };
+
+async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>): Promise<T> {
+  const supabase = createStoreClient();
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+
+  const response = await fetch('/api/team', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${data.session.access_token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) throw new Error(result.error || 'Não foi possível concluir a alteração.');
+  return result;
+}
+
 function useStoreAccessState() {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -180,36 +200,31 @@ function useStoreAccessState() {
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar acessos.');
-    const supabase = createStoreClient();
-    if (enabled) {
-      const { error: writeError } = await supabase.from('member_app_access').upsert({
-        account_id: account.id,
-        user_id: userId,
-        app_id: app,
-        can_configure: canConfigure,
-        updated_at: new Date().toISOString()
-      });
-      if (writeError) throw writeError;
-    } else {
-      const { error: writeError } = await supabase.from('member_app_access')
-        .delete()
-        .eq('account_id', account.id)
-        .eq('user_id', userId)
-        .eq('app_id', app);
-      if (writeError) throw writeError;
-    }
+    await teamRequest({ action: 'access', userId, appId: app, enabled, canConfigure });
     await refresh();
   };
 
   const setMemberCanConfigure = async (userId: string, app: AppId, canConfigure: boolean) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar permissões.');
-    const supabase = createStoreClient();
-    const { error: writeError } = await supabase.from('member_app_access')
-      .update({ can_configure: canConfigure, updated_at: new Date().toISOString() })
-      .eq('account_id', account.id)
-      .eq('user_id', userId)
-      .eq('app_id', app);
-    if (writeError) throw writeError;
+    await teamRequest({ action: 'configure', userId, appId: app, enabled: canConfigure });
+    await refresh();
+  };
+
+  const inviteMember = async (name: string, email: string, permissions: TeamInvitePermission[]) => {
+    if (!account || !isOwner) throw new Error('Somente o titular pode adicionar pessoas à equipe.');
+    const result = await teamRequest<{ ok: boolean; mode: 'invited' | 'existing' }>({
+      action: 'invite',
+      name,
+      email,
+      apps: permissions,
+    });
+    await refresh();
+    return result;
+  };
+
+  const removeMember = async (userId: string) => {
+    if (!account || !isOwner) throw new Error('Somente o titular pode remover pessoas da equipe.');
+    await teamRequest({ action: 'remove', userId });
     await refresh();
   };
 
@@ -219,7 +234,7 @@ function useStoreAccessState() {
     await refresh();
   };
 
-  return { ready, user, account, member, error, isOwner, hasApp, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, logout };
+  return { ready, user, account, member, error, isOwner, hasApp, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, inviteMember, removeMember, logout };
 }
 
 type StoreAccessContextValue = ReturnType<typeof useStoreAccessState>;
