@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { apps } from '@/lib/catalog';
 import { precheckSignupIdentity } from '@/lib/antifraud';
 import type { AppId } from '@/lib/operations/model';
@@ -19,6 +20,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
   const [birthDate,setBirthDate]=useState('');
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
+  const [showPassword,setShowPassword]=useState(false);
   const [loading,setLoading]=useState(false);
   const [checkingSession,setCheckingSession]=useState(true);
   const [error,setError]=useState('');
@@ -151,7 +153,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
         </>}
         {signup&&<label>Aplicativo de interesse<select value={selectedApp} onChange={event=>setSelectedApp(event.target.value as AppId)}>{apps.map(item=><option key={item.slug} value={item.slug}>{item.name} — {item.category}</option>)}</select><small>Isso não libera o aplicativo. A liberação acontece pela contratação da Store.</small></label>}
         <label>E-mail<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="voce@empresa.com.br" autoComplete="email" required/></label>
-        <label>Senha<input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" autoComplete={signup?'new-password':'current-password'} minLength={8} required/></label>
+        <label>Senha<div className="auth-password-field"><input type={showPassword?'text':'password'} value={password} onChange={event=>setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" autoComplete={signup?'new-password':'current-password'} minLength={8} required/><button type="button" className="auth-password-toggle" onClick={()=>setShowPassword(value=>!value)} aria-label={showPassword?'Ocultar senha':'Visualizar senha'} title={showPassword?'Ocultar senha':'Visualizar senha'}>{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>
         {error&&<p className="auth-error" role="alert">{error}</p>}
         {message&&<p className="auth-success" role="status">{message}</p>}
         <button type="submit" className="primary" disabled={loading}>{loading?'Aguarde…':signup?'Criar conta':'Entrar'}</button>
