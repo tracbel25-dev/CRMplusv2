@@ -49,7 +49,7 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
 
   return <>
     <div className="op-external-share">
-      {app === 'artemis' && <OperationalAIAssist w={w} app={app} />}
+      {app === 'artemis' && page !== 'cardapio' && <OperationalAIAssist w={w} app={app} />}
       {app === 'artemis' && page === 'cardapio' && <button className="op-icon" type="button" onClick={() => setMenuReview(true)} title="Revisar cardápio com IA" aria-label="Revisar cardápio com IA"><Sparkles size={19} /></button>}
       {app !== 'zeus' && draft && (!url ? <button data-trial-restricted="Compartilhamento externo ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void create(); }} disabled={busy} title={labels[app]} aria-label={labels[app]}><Link2 size={19} /></button>
         : <button data-trial-restricted="Copiar links ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
