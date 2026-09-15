@@ -10,8 +10,8 @@ function query(params: Record<string, string>) {
 }
 
 export async function GET(request: NextRequest) {
-  const access = await authorizeAppRequest(request, 'zeus');
-  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem acesso ao Zeus.' }, { status: 401 });
+  const access = await authorizeAppRequest(request, 'zeus', 'billing_view');
+  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para consultar o faturamento.' }, { status: 403 });
   const jobId = request.nextUrl.searchParams.get('jobId') || '';
   const status = request.nextUrl.searchParams.get('status') || '';
   try {
@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const access = await authorizeAppRequest(request, 'zeus');
-  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem acesso ao Zeus.' }, { status: 401 });
+  const access = await authorizeAppRequest(request, 'zeus', 'billing_manage');
+  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para alterar o faturamento.' }, { status: 403 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const jobId = typeof body?.jobId === 'string' ? body.jobId : '';
   const status = typeof body?.status === 'string' ? body.status : '';
