@@ -1,46 +1,42 @@
 /* Prancha de avarias do Zeus usando os PNGs reais armazenados no R2. */
-.check-page .r2-damages{padding:18px 20px!important}
-.check-page .damage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.check-page .r2-damages{padding:18px!important;overflow:hidden!important}
+.check-page .damage-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important;margin-bottom:14px!important}
 .check-page .damage-head .section-title{margin:0!important;padding:0!important;border:0!important}
-.check-page .r2-damages .damage-legend{position:static!important;display:flex;align-items:center;justify-content:flex-end;gap:8px!important;flex-wrap:wrap;margin:0!important}
-.check-page .r2-damages .damage-legend button{display:flex!important;align-items:center!important;gap:7px!important;border:1px solid #dce5ef!important;border-radius:999px!important;padding:7px 10px!important;background:#fff!important;color:#273a52!important;font-size:10px!important;font-weight:600!important;transition:.15s ease}
-.check-page .r2-damages .damage-legend button:hover{background:#f8fafc!important}
-.check-page .r2-damages .damage-legend button.selected{border-color:#bdcde0!important;background:#f3f7fb!important;box-shadow:0 0 0 2px rgba(23,105,209,.06)!important}
-.check-page .r2-damages .damage-legend i{width:10px!important;height:10px!important;flex:0 0 10px!important;border-radius:999px!important}
+.check-page .r2-damages .damage-legend{position:static!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;flex-wrap:wrap!important;margin:0!important}
+.check-page .r2-damages .damage-legend button{display:flex!important;align-items:center!important;gap:7px!important;min-height:34px!important;padding:7px 10px!important;border:1px solid #dce5ef!important;border-radius:999px!important;background:#fff!important;color:#2e435b!important;font-size:9px!important;font-weight:750!important;cursor:pointer!important;transition:.15s ease!important}
+.check-page .r2-damages .damage-legend button:hover{background:#f8fafc!important;border-color:#cad7e4!important}
+.check-page .r2-damages .damage-legend button.selected{border-color:#afc5dd!important;background:#f2f7fc!important;box-shadow:0 0 0 2px rgba(23,105,209,.06)!important}
+.check-page .r2-damages .damage-legend i{width:9px!important;height:9px!important;flex:0 0 9px!important;border-radius:999px!important}
 
-/* Uma única prancha, cinco vistas alinhadas. */
-.check-page .r2-views-grid{display:grid;grid-template-columns:minmax(150px,.82fr) minmax(170px,1fr) minmax(170px,1fr) minmax(225px,1.36fr) minmax(225px,1.36fr);grid-template-rows:1fr;border:1px solid #dce5ef;border-radius:10px;overflow:hidden;background:#fff}
-.check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{grid-column:auto!important;grid-row:auto!important;min-width:0;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:12px 11px 10px;background:#fff;border-right:1px solid #e6ecf2!important;border-bottom:0!important}
-.check-page .r2-view:last-child{border-right:0!important}
-.check-page .r2-image-stage{position:relative;width:100%;height:178px;display:grid;place-items:center;line-height:0;cursor:crosshair;touch-action:manipulation;user-select:none;background:#f7fafd;border:1px solid #e8eef4;border-radius:8px;overflow:hidden}
-.check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{display:block;width:100%;height:100%;max-height:none!important;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none;padding:6px}
-.check-page .r2-view>strong{display:block;text-align:left;margin-top:9px;padding-left:1px;font-size:9px;line-height:1.2;text-transform:uppercase;letter-spacing:.055em;color:#60758d;font-weight:800}
-.check-page .r2-damages .damage-dot{position:absolute;width:23px!important;height:23px!important;border:3px solid #fff!important;border-radius:999px!important;transform:translate(-50%,-50%);color:#fff;font-size:9px;font-weight:900;line-height:17px;padding:0;box-shadow:0 2px 7px rgba(0,0,0,.22)!important;z-index:3;cursor:pointer}
-.check-page .damage-hint{margin:10px 2px 0;color:#718096;font-size:9px;line-height:1.4}
+/* Cinco vistas em uma prancha única, visual mais limpo e consistente. */
+.check-page .r2-views-grid{display:grid!important;grid-template-columns:.82fr 1fr 1fr 1.35fr 1.35fr!important;gap:8px!important;padding:8px!important;border:1px solid #dce5ef!important;border-radius:12px!important;background:#f7fafd!important;overflow:hidden!important}
+.check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{grid-column:auto!important;grid-row:auto!important;min-width:0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;padding:0!important;border:0!important;background:transparent!important}
+.check-page .r2-image-stage{position:relative!important;width:100%!important;height:170px!important;display:grid!important;place-items:center!important;border:1px solid #e3eaf1!important;border-radius:10px!important;background:#fff!important;overflow:hidden!important;line-height:0!important;cursor:crosshair!important;touch-action:manipulation!important;user-select:none!important}
+.check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{display:block!important;width:100%!important;height:100%!important;max-height:none!important;padding:8px!important;object-fit:contain!important;pointer-events:none!important;user-select:none!important;-webkit-user-drag:none!important}
+.check-page .r2-view>strong{display:block!important;margin-top:7px!important;padding:0 2px!important;text-align:left!important;font-size:8px!important;line-height:1.2!important;font-weight:850!important;letter-spacing:.055em!important;text-transform:uppercase!important;color:#61768e!important}
+.check-page .r2-damages .damage-dot{position:absolute!important;z-index:3!important;width:24px!important;height:24px!important;padding:0!important;border:3px solid #fff!important;border-radius:999px!important;transform:translate(-50%,-50%)!important;box-shadow:0 2px 7px rgba(0,0,0,.22)!important;color:#fff!important;font-size:8px!important;font-weight:900!important;line-height:18px!important;cursor:pointer!important}
+.check-page .damage-hint{margin:9px 2px 0!important;color:#71849a!important;font-size:8px!important;line-height:1.4!important}
 
-@media(max-width:1120px){
-  .check-page .damage-head{flex-direction:column;gap:8px}
-  .check-page .r2-damages .damage-legend{justify-content:flex-start}
-  .check-page .r2-views-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto}
-  .check-page .r2-view{border-bottom:1px solid #e6ecf2!important}
-  .check-page .r2-view:nth-child(3){border-right:0!important}
-  .check-page .r2-view:nth-child(n+4){border-bottom:0!important}
-  .check-page .r2-image-stage{height:190px}
+@media(max-width:980px){
+  .check-page .damage-head{flex-direction:column!important;gap:9px!important}
+  .check-page .r2-damages .damage-legend{justify-content:flex-start!important}
+  .check-page .r2-views-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .check-page .r2-image-stage{height:185px!important}
 }
 
 @media(max-width:760px){
   .check-page .r2-damages{padding:14px 0 16px!important}
-  .check-page .damage-head{padding:0 14px;margin-bottom:12px}
-  .check-page .r2-damages .damage-legend{display:grid!important;grid-template-columns:1fr 1fr;width:100%;gap:6px!important}
+  .check-page .damage-head{padding:0 14px!important;margin-bottom:12px!important}
+  .check-page .r2-damages .damage-legend{display:grid!important;grid-template-columns:1fr 1fr!important;width:100%!important;gap:6px!important}
   .check-page .r2-damages .damage-legend button{justify-content:flex-start!important;min-height:38px!important;padding:8px 10px!important;background:#fff!important}
-  .check-page .r2-views-grid{display:flex!important;grid-template-columns:none!important;grid-template-rows:none!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x mandatory!important;gap:0!important;border-left:0!important;border-right:0!important;border-radius:0!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
+  .check-page .r2-views-grid{display:flex!important;grid-template-columns:none!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x mandatory!important;gap:8px!important;padding:8px 0!important;border-left:0!important;border-right:0!important;border-radius:0!important;background:#f7fafd!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
   .check-page .r2-views-grid::-webkit-scrollbar{display:none!important}
-  .check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{flex:0 0 84vw!important;min-width:84vw!important;padding:12px!important;border-right:1px solid #e1e8ef!important;border-bottom:0!important;scroll-snap-align:center!important;background:#fff!important}
-  .check-page .r2-view:first-child{margin-left:8vw!important;border-left:1px solid #e1e8ef!important}
-  .check-page .r2-view:last-child{margin-right:8vw!important;border-right:1px solid #e1e8ef!important}
-  .check-page .r2-image-stage{height:270px!important;border-radius:9px}
-  .check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{padding:8px}
-  .check-page .r2-view>strong{font-size:10px;margin-top:8px;padding-left:2px}
-  .check-page .r2-damages .damage-dot{width:26px!important;height:26px!important;line-height:20px}
-  .check-page .damage-hint{padding:0 14px;margin-top:10px}
+  .check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{flex:0 0 82vw!important;min-width:82vw!important;padding:0!important;scroll-snap-align:center!important;background:transparent!important}
+  .check-page .r2-view:first-child{margin-left:8vw!important}
+  .check-page .r2-view:last-child{margin-right:8vw!important}
+  .check-page .r2-image-stage{height:260px!important;border-radius:11px!important}
+  .check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{padding:10px!important}
+  .check-page .r2-view>strong{font-size:9px!important;margin-top:7px!important;padding-left:2px!important}
+  .check-page .r2-damages .damage-dot{width:26px!important;height:26px!important;line-height:20px!important}
+  .check-page .damage-hint{padding:0 14px!important;margin-top:9px!important}
 }
