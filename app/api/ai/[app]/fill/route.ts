@@ -12,13 +12,15 @@ export const runtime = 'nodejs';
 
 const targets: Record<ServerApp, string[]> = {
   zeus: ['complaint', 'notes', 'task', 'update', 'reason'],
-  artemis: ['category', 'description', 'allergens', 'note', 'notes'],
+  artemis: ['category', 'description', 'allergens', 'preparation', 'note', 'notes'],
 };
 
 const contextFields: Record<ServerApp, string[]> = {
   zeus: ['type', 'model', 'year', 'meter', 'complaint', 'notes', 'task', 'update'],
   artemis: ['name', 'category', 'description', 'allergens', 'preparation', 'note', 'notes'],
 };
+
+const forbiddenCommercialKey = /(price|pre[cç]o|valor|cost|custo|margin|margem|discount|desconto|amount|total)/i;
 
 function isSupportedApp(value: string): value is ServerApp {
   return value === 'zeus' || value === 'artemis';
@@ -50,9 +52,16 @@ function parseSuggestions(raw: string, allowed: string[]) {
   const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { suggestions?: Record<string, unknown> };
   const result: Record<string, string> = {};
   for (const [name, value] of Object.entries(parsed.suggestions || {})) {
-    if (!allowed.includes(name)) continue;
+    if (forbiddenCommercialKey.test(name) || !allowed.includes(name)) continue;
     const next = sanitize(value, 1800);
-    if (next) result[name] = next;
+    if (!next) continue;
+    if (name === 'preparation') {
+      const minutes = Math.max(0, Math.min(1440, Math.round(Number(next.replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0)));
+      if (minutes > 0) result[name] = String(minutes);
+      continue;
+    }
+    if (/\b(R\$|pre[cç]o|valor|custo|margem|desconto)\b/i.test(next)) continue;
+    result[name] = next;
   }
   return result;
 }
@@ -87,9 +96,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const appInstruction = app === 'zeus'
     ? `Você auxilia o preenchimento operacional de uma oficina. Melhore relatos, observações, tarefas e atualizações sem inventar diagnóstico, teste, peça, medição, causa ou resultado. O relato do cliente deve preservar apenas o que foi informado e separar sintoma de hipótese.`
-    : `Você auxilia o preenchimento operacional de um restaurante. Sugira categoria, descrição de cardápio, ingredientes/alergênicos e observações sem inventar ingrediente, alergênico, preparo, característica do produto ou informação que não esteja sustentada pelo formulário ou pelos padrões fornecidos.`;
+    : `Você auxilia o cadastro de cardápio de um restaurante. Pode sugerir categoria, descrição, ingredientes/alergênicos para confirmação e uma estimativa conservadora de minutos de preparo. Quando a categoria indicar um grupo amplo, como bebidas, use exemplos como ideias e nunca afirme que o restaurante vende uma marca específica. Tudo é sugestão editável e deve seguir o padrão privado deste restaurante.`;
 
-  const prompt = `${appInstruction}\n\nREGRAS OBRIGATÓRIAS:\n- Use somente os campos atuais, padrões históricos sanitizados da própria conta e aprendizados privados relevantes.\n- Não use nem produza preço, margem, proposta, desconto ou dado comercial de concorrente.\n- Não inclua nome de cliente, telefone, e-mail, CPF/CNPJ ou identificador único.\n- Não transforme frequência histórica em fato sobre o caso atual.\n- Se não houver informação suficiente para um campo, omita esse campo da resposta.\n- Se um campo já estiver claro e completo, não o reescreva sem necessidade.\n- Seja curto, operacional e em português do Brasil.\n\nCAMPOS QUE PODE SUGERIR NESTE FORMULÁRIO:\n${allowedTargets.join(', ')}\n\nVALORES ATUAIS SEGUROS:\n${JSON.stringify(values)}\n\nPADRÕES OPERACIONAIS SANITIZADOS DA PRÓPRIA CONTA:\n${mass.length ? mass.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n') : 'Nenhum histórico suficiente ainda.'}\n\nAPRENDIZADOS PRIVADOS RELEVANTES:\n${memory}\n\nResponda SOMENTE JSON válido no formato:\n{"suggestions":{"nome_do_campo":"texto sugerido"}}`;
+  const prompt = `${appInstruction}\n\nREGRAS OBRIGATÓRIAS:\n- Use somente os campos atuais, padrões históricos sanitizados da própria conta e aprendizados privados relevantes.\n- PREÇO É PROIBIDO: não use nem produza preço, valor, custo, margem, desconto, proposta ou dado comercial.\n- Não inclua nome de cliente, telefone, e-mail, CPF/CNPJ ou identificador único.\n- Não transforme frequência histórica em fato sobre o caso atual.\n- Ingredientes e alergênicos são sugestões para confirmação humana; não declare composição desconhecida como fato.\n- Para preparation, responda somente com número inteiro de minutos, sem unidade.\n- Se não houver informação suficiente para um campo, omita esse campo da resposta.\n- Se um campo já estiver claro e completo, não o reescreva sem necessidade.\n- Seja curto, operacional e em português do Brasil.\n\nCAMPOS QUE PODE SUGERIR NESTE FORMULÁRIO:\n${allowedTargets.join(', ')}\n\nVALORES ATUAIS SEGUROS:\n${JSON.stringify(values)}\n\nPADRÕES OPERACIONAIS SANITIZADOS DA PRÓPRIA CONTA:\n${mass.length ? mass.map((item: string, index: number) => `${index + 1}. ${item}`).join('\n') : 'Nenhum histórico suficiente ainda.'}\n\nAPRENDIZADOS PRIVADOS RELEVANTES:\n${memory}\n\nResponda SOMENTE JSON válido no formato:\n{"suggestions":{"nome_do_campo":"texto sugerido"}}`;
 
   try {
     const raw = await groqResponse(app, prompt, { maxOutputTokens: 650 });
@@ -109,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         model: DEFAULT_GROQ_MODEL,
         contextSummary: Object.entries(values).map(([name, value]) => `${name}: ${value}`).join(' | ').slice(0, 4000),
         suggestion: suggestionSummary,
-        metadata: { fields: Object.keys(suggestions), lessonsUsed: lessons.map(item => item.id), massUsed: mass.length },
+        metadata: { fields: Object.keys(suggestions), lessonsUsed: lessons.map(item => item.id), massUsed: mass.length, commercialValuesBlocked: true },
       });
     } catch {
       interactionId = '';
