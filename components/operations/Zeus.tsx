@@ -10,8 +10,12 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
 import { Workspace, csv } from '@/lib/operations/storage';
 import { defaultQuoteValidity, initialJobStatus, readZeusPreferences } from '@/lib/operations/zeus';
+import { readZeusChecklistConfig, setZeusChecklistChoice } from '@/lib/operations/zeusChecklist';
+import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
+import { ZEUS_RELATED_JOB_KEY, ZEUS_WARRANTY_REASON_KEY } from '@/lib/operations/zeusChecklistKeys';
 import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
+import { ZeusChecklistChoicePicker } from './ZeusChecklistChoicePicker';
 import { useRecordRoute } from './useRecordRoute';
 
 const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
@@ -22,6 +26,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const s = d.settings;
   const operation = useOperationPreferences('zeus');
   const prefs = readZeusPreferences(d);
+  const checklistConfig = readZeusChecklistConfig(d);
   const [query, setQuery] = useState('');
   const [create, setCreate] = useState(false);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
@@ -72,11 +77,11 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const jobList = (list: Job[]) => list.length ? <div className="op-job-list">{list.map(job => {
     const asset = findAsset(job.assetId);
     const flow = stages(s);
-    const waiting = job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(approvalSince(job))}` : job.status === 'Aguardando diagnóstico' ? 'Identificação finalizada · diagnóstico ainda não iniciado' : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
+    const waiting = job.status === 'Aguardando checklist' ? 'Checklist de entrada ainda não concluído' : job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(approvalSince(job))}` : job.status === 'Aguardando diagnóstico' ? 'Identificação finalizada · diagnóstico ainda não iniciado' : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
     return <button key={job.id} className="op-job" onClick={() => setSelected(job.id)}>
       <div className="op-job-identity"><small>OS {String(job.number).padStart(4, '0')} · {job.type}</small><strong>{asset?.identifier}</strong><span>{findCustomer(job.customerId)}</span><small>{asset?.model}</small></div>
       <div className="op-job-work"><strong>{job.stage}</strong><span>{job.technician || `Sem ${operation.label('technician', 'responsável').toLowerCase()}`}</span>{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter">{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
-      <div className="op-job-state"><Badge tone={['Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status) ? 'warning' : ''}>{job.status}</Badge>{job.due && <small>{date(job.due, true)}</small>}<ArrowRight size={18} /></div>
+      <div className="op-job-state"><Badge tone={['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status) ? 'warning' : ''}>{job.status}</Badge>{job.due && <small>{date(job.due, true)}</small>}<ArrowRight size={18} /></div>
     </button>;
   })}</div> : <Empty icon={<Wrench size={28} />}>{query ? 'Nenhum atendimento encontrado.' : 'As ordens de serviço aparecerão aqui.'}</Empty>;
 
@@ -85,10 +90,11 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />Agendar</Link>}<Button onClick={() => setCreate(true)}><Plus size={18} />Novo atendimento</Button></>} />
       <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente ou OS`} /></div>
       {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
+      {d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
       {s.budgetEnabled && d.jobs.some(job => job.status === 'Aguardando aprovação') && <Section title="Aguardando aprovação">{jobList(searchedJobs.filter(job => job.status === 'Aguardando aprovação'))}</Section>}
       {d.jobs.some(job => job.status === 'Aguardando diagnóstico') && <Section title="Aguardando diagnóstico">{jobList(searchedJobs.filter(job => job.status === 'Aguardando diagnóstico'))}</Section>}
       {d.jobs.some(job => ['Aguardando peça', 'Pausado'].includes(job.status)) && <Section title="Parados / dependências">{jobList(searchedJobs.filter(job => ['Aguardando peça', 'Pausado'].includes(job.status)))}</Section>}
-      <Section title="Em trabalho" action={<span className="op-muted">{d.jobs.filter(job => activeJob(job) && !['Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)).length} atendimentos</span>}>{jobList(searchedJobs.filter(job => activeJob(job) && !['Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)))}</Section>
+      <Section title="Em trabalho" action={<span className="op-muted">{d.jobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)).length} atendimentos</span>}>{jobList(searchedJobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)))}</Section>
       {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Section title="Próximos atendimentos">{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) > localDay() && appointment.status === 'Agendado').slice(0, 5))}</Section>}
     </>}
 
@@ -108,9 +114,18 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
     {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(false)}><JobForm w={w} onClose={() => setCreate(false)} onCreated={id => { setCreate(false); setCreatedJobId(id); }} /></Modal>}
     {schedule && <Modal title={schedule === 'new' ? 'Novo agendamento' : 'Reagendar atendimento'} wide onClose={() => setSchedule(null)}><AppointmentForm w={w} appointment={schedule === 'new' ? undefined : schedule} onClose={() => setSchedule(null)} /></Modal>}
-    {confirm && <Confirm title="Iniciar atendimento?" label="Abrir ordem de serviço" onClose={() => setConfirm(null)} onConfirm={() => w.mutate(next => { const id = newJob(next, { customerId: confirm.customerId, assetId: confirm.assetId, type: confirm.type, technician: confirm.technician, due: '', complaint: confirm.notes, diagnosis: '', notes: '' }, confirm.id); const job = next.jobs.find(item => item.id === id)!; job.status = initialJobStatus(next.settings); job.quote.validUntil = defaultQuoteValidity(next); job.events.push(event(`Situação: ${job.status}`)); setCreatedJobId(id); }, 'Ordem de serviço aberta.')}>Os dados deste agendamento serão aproveitados na ordem de serviço.</Confirm>}
+    {confirm && <Confirm title="Iniciar atendimento?" label="Abrir ordem de serviço" onClose={() => setConfirm(null)} onConfirm={() => w.mutate(next => {
+      const id = newJob(next, { customerId: confirm.customerId, assetId: confirm.assetId, type: confirm.type, technician: confirm.technician, due: '', complaint: confirm.notes, diagnosis: '', notes: '' }, confirm.id);
+      const job = next.jobs.find(item => item.id === id)!;
+      const folder = checklistConfig.enabled ? checklistConfig.defaultAssetFolder : '';
+      setZeusChecklistChoice(next, id, folder);
+      job.status = folder ? 'Aguardando checklist' : initialJobStatus(next.settings);
+      job.quote.validUntil = defaultQuoteValidity(next);
+      job.events.push(event(`Situação: ${job.status}`));
+      setCreatedJobId(id);
+    }, 'Ordem de serviço aberta.')}>Os dados deste agendamento serão aproveitados na ordem de serviço. O checklist padrão da oficina será aplicado automaticamente.</Confirm>}
     {assetCustomer && <Modal title={`Cadastrar ${s.assetLabel.toLowerCase()}`} onClose={() => setAssetCustomer('')}><AssetForm w={w} customerId={assetCustomer} onClose={() => setAssetCustomer('')} /></Modal>}
-    {createdJobId && <Modal title="Identificação concluída" onClose={() => setCreatedJobId('')}><div className="zeus-created-choice"><p>A ficha foi salva e a OS está em <strong>{d.jobs.find(item => item.id === createdJobId)?.status || 'aguardando próxima etapa'}</strong>. O que você quer fazer agora?</p><div className="op-actions"><Button variant="secondary" onClick={() => { setCreatedJobId(''); router.push('/zeus'); }}>Voltar para tela inicial</Button><Button onClick={() => { const id = createdJobId; setCreatedJobId(''); setSelected(id); }}>Ver ordem de serviço <ArrowRight size={16} /></Button></div></div></Modal>}
+    {createdJobId && <Modal title="OS aberta" onClose={() => setCreatedJobId('')}><div className="zeus-created-choice"><p>A OS foi aberta na etapa <strong>Identificação</strong> e está em <strong>{d.jobs.find(item => item.id === createdJobId)?.status || 'andamento'}</strong>.</p><div className="op-actions"><Button variant="secondary" onClick={() => { setCreatedJobId(''); router.push('/zeus'); }}>Voltar para tela inicial</Button><Button onClick={() => { const id = createdJobId; setCreatedJobId(''); setSelected(id); }}>Ver ordem de serviço <ArrowRight size={16} /></Button></div></div></Modal>}
   </>;
 }
 
@@ -125,19 +140,29 @@ function customFromForm(operation: ReturnType<typeof useOperationPreferences>, g
 function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void; onCreated: (id: string) => void }) {
   const operation = useOperationPreferences('zeus');
   const serviceTypes = useZeusServiceTypes();
+  const checklistConfig = readZeusChecklistConfig(w.data);
   const [search, setSearch] = useState('');
   const [assetId, setAssetId] = useState('');
+  const [checklistFolder, setChecklistFolder] = useState<ZeusChecklistAssetFolder | ''>(checklistConfig.enabled ? checklistConfig.defaultAssetFolder : '');
+  const [relatedJobId, setRelatedJobId] = useState('');
+  const [warrantyReason, setWarrantyReason] = useState('');
   const s = w.data.settings;
   const asset = w.data.assets.find(item => item.id === assetId);
   const currentCustomer = asset ? w.data.customers.find(item => item.id === asset.customerId) : undefined;
   const suggestions = customerSuggestions(w.data);
   const customGroups = ['Cliente', 'Veículo / equipamento', 'Atendimento'];
   const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(customer => customer.id === item.customerId)?.name)).slice(0, 8) : [];
+  const previousJobs = asset ? w.data.jobs.filter(item => item.assetId === asset.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20) : [];
 
   return <>
-    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) setAssetId(''); }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />
-    {results.length > 0 && !asset && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => setAssetId(item.id)}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(customer => customer.id === item.customerId)?.name}</span><ArrowRight size={16} /></button>)}</div>}
-    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button></div>}
+    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) { setAssetId(''); setRelatedJobId(''); setWarrantyReason(''); } }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />
+    {results.length > 0 && !asset && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => { setAssetId(item.id); setRelatedJobId(''); setWarrantyReason(''); }}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(customer => customer.id === item.customerId)?.name}</span><ArrowRight size={16} /></button>)}</div>}
+    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); setRelatedJobId(''); setWarrantyReason(''); }}>Trocar</button></div>}
+
+    <ZeusChecklistChoicePicker value={checklistFolder} onChange={setChecklistFolder} defaultFolder={checklistConfig.defaultAssetFolder} />
+
+    {asset && previousJobs.length > 0 && <div className="op-fields" style={{ marginBottom: 14 }}><label className="op-field"><span>OS relacionada — retorno / garantia (opcional)</span><select value={relatedJobId} onChange={event => setRelatedJobId(event.target.value)}><option value="">Nenhuma</option>{previousJobs.map(previous => <option value={previous.id} key={previous.id}>OS {String(previous.number).padStart(4, '0')} · {previous.type} · {date(previous.createdAt)}</option>)}</select><small>Use quando este atendimento for continuação, retorno ou garantia de uma OS anterior do mesmo veículo/equipamento.</small></label>{relatedJobId && <label className="op-field"><span>Motivo do retorno / garantia</span><textarea value={warrantyReason} onChange={event => setWarrantyReason(event.target.value)} placeholder="Ex.: retorno do serviço executado na OS anterior" /></label>}</div>}
+
     <RecordForm draftKey="zeus-job:new" fields={[
       ...(!asset ? [
         { name: 'customer', label: operation.label('customer', 'Cliente'), required: true, suggestions, hint: 'Digite o nome. Se existir, o Zeus reaproveita; se não existir, cria automaticamente.', configKey: 'customer' },
@@ -152,7 +177,7 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
       { name: 'due', label: operation.label('due', 'Prazo previsto'), type: 'datetime-local', configKey: 'due' },
       { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), type: 'textarea', wide: true, required: true, configKey: 'complaint' },
       ...customFieldDefs(operation, customGroups)
-    ]} submit="Finalizar identificação" onClose={onClose} onSave={form => w.mutate(data => {
+    ]} submit="Abrir ordem de serviço" onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
       let cid = selectedAsset?.customerId || '';
       let aid = selectedAsset?.id || '';
@@ -168,15 +193,24 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
       }
       const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' });
       const job = data.jobs.find(item => item.id === id)!;
-      job.status = initialJobStatus(data.settings);
+      setZeusChecklistChoice(data, id, checklistFolder);
+      job.status = checklistFolder ? 'Aguardando checklist' : initialJobStatus(data.settings);
       job.quote.validUntil = defaultQuoteValidity(data);
       job.events.push(event(`Situação: ${job.status}`));
       const values = customFromForm(operation, customGroups, form);
       if (cid) setCustomValues(data, cid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Cliente').map(field => [field.id, values[field.id] || ''])));
       if (aid) setCustomValues(data, aid, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Veículo / equipamento').map(field => [field.id, values[field.id] || ''])));
-      setCustomValues(data, id, Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Atendimento').map(field => [field.id, values[field.id] || ''])));
+      setCustomValues(data, id, {
+        ...Object.fromEntries(operation.preferences.customFields.filter(field => field.group === 'Atendimento').map(field => [field.id, values[field.id] || ''])),
+        [ZEUS_RELATED_JOB_KEY]: relatedJobId,
+        [ZEUS_WARRANTY_REASON_KEY]: warrantyReason.trim(),
+      });
+      if (relatedJobId) {
+        const origin = data.jobs.find(item => item.id === relatedJobId);
+        job.events.push(event(`Retorno/garantia vinculado à OS ${origin ? String(origin.number).padStart(4, '0') : relatedJobId}`));
+      }
       onCreated(id);
-    }, 'Identificação salva.')} />
+    }, 'Ordem de serviço aberta.')} />
   </>;
 }
 
