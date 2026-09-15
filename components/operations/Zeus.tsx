@@ -13,7 +13,7 @@ import { defaultQuoteValidity, initialJobStatus, readZeusPreferences } from '@/l
 import { readZeusChecklistConfig, setZeusChecklistChoice } from '@/lib/operations/zeusChecklist';
 import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_RELATED_JOB_KEY, ZEUS_WARRANTY_REASON_KEY } from '@/lib/operations/zeusChecklistKeys';
-import { Badge, Button, Confirm, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title } from './ui';
+import { Badge, Button, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 import { ZeusChecklistChoicePicker } from './ZeusChecklistChoicePicker';
 import { useRecordRoute } from './useRecordRoute';
@@ -26,15 +26,13 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const s = d.settings;
   const operation = useOperationPreferences('zeus');
   const prefs = readZeusPreferences(d);
-  const checklistConfig = readZeusChecklistConfig(d);
   const [query, setQuery] = useState('');
-  const [create, setCreate] = useState(false);
+  const [create, setCreate] = useState<Appointment | 'new' | null>(null);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
   const [, setSelected] = useRecordRoute(recordId, '/zeus/atendimentos');
   const [assetCustomer, setAssetCustomer] = useState('');
   const [day, setDay] = useState(localDay());
   const [week, setWeek] = useState(false);
-  const [confirm, setConfirm] = useState<Appointment | null>(null);
   const [createdJobId, setCreatedJobId] = useState('');
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState('createdAt');
@@ -71,7 +69,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const appointmentList = (list: Appointment[]) => list.length ? <div className="op-agenda">{[...list].sort((a, b) => a.at.localeCompare(b.at)).map(appointment => <div className="op-agenda-row" key={appointment.id}>
     <time>{new Date(appointment.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}<small>{date(appointment.at)}</small></time>
     <div className="op-grow"><strong className="op-identifier">{findAsset(appointment.assetId)?.identifier}</strong><span>{findCustomer(appointment.customerId)} · {findAsset(appointment.assetId)?.model}</span><small>{appointment.type}{appointment.technician && ` · ${appointment.technician}`} · {appointment.status}</small></div>
-    <div className="op-actions">{appointment.status === 'Agendado' ? <><Button variant="secondary" onClick={() => setSchedule(appointment)}>Reagendar</Button><Button onClick={() => setConfirm(appointment)}>Abrir OS <ArrowRight size={16} /></Button></> : appointment.jobId && <Button variant="secondary" onClick={() => setSelected(appointment.jobId!)}>Ver OS</Button>}</div>
+    <div className="op-actions">{appointment.status === 'Agendado' ? <><Button variant="secondary" onClick={() => setSchedule(appointment)}>Reagendar</Button><Button onClick={() => setCreate(appointment)}>Abrir OS <ArrowRight size={16} /></Button></> : appointment.jobId && <Button variant="secondary" onClick={() => setSelected(appointment.jobId!)}>Ver OS</Button>}</div>
   </div>)}</div> : <Empty icon={<CalendarDays size={28} />}>Nenhum atendimento agendado neste período.</Empty>;
 
   const jobList = (list: Job[]) => list.length ? <div className="op-job-list">{list.map(job => {
@@ -87,7 +85,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
   return <>
     {page === 'inicio' && <>
-      <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />Agendar</Link>}<Button onClick={() => setCreate(true)}><Plus size={18} />Novo atendimento</Button></>} />
+      <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />Agendar</Link>}<Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button></>} />
       <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente ou OS`} /></div>
       {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
       {d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
@@ -99,7 +97,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     </>}
 
     {(page === 'atendimentos' || page === 'historico') && <>
-      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<><Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>{page !== 'historico' && <Button onClick={() => setCreate(true)}><Plus size={18} />Novo atendimento</Button>}</>} />
+      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<><Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>{page !== 'historico' && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
       <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de abertura' }, { value: 'number', label: 'Número da OS' }, { value: 'due', label: operation.label('due', 'Prazo previsto') }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
       {jobList(filteredJobs(searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job))))}
     </>}
@@ -112,18 +110,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
     {page === 'clientes' && <CustomerManager w={w} title={`Clientes e ${s.assetLabel.toLowerCase()}s`} onOpen={customer => <><Section title={`${s.assetLabel}s`} action={<Button variant="secondary" onClick={() => setAssetCustomer(customer.id)}><Plus size={16} />Adicionar</Button>}>{d.assets.filter(asset => asset.customerId === customer.id).map(asset => <div className="op-row" key={asset.id}><div className="op-grow"><strong className="op-identifier">{asset.identifier}</strong><span>{asset.model} · {asset.year || 'Ano não informado'}</span></div><Badge>{d.jobs.filter(job => job.assetId === asset.id).length} OS</Badge></div>)}{!d.assets.some(asset => asset.customerId === customer.id) && <Empty>Nenhum cadastro associado.</Empty>}</Section><Section title="Histórico do cliente">{d.jobs.filter(job => job.customerId === customer.id).map(job => <div className="op-row" key={job.id}><strong>OS {job.number}</strong><span>{job.type} · {date(job.createdAt)}</span><Badge>{job.status}</Badge></div>)}</Section></>} />}
 
-    {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(false)}><JobForm w={w} onClose={() => setCreate(false)} onCreated={id => { setCreate(false); setCreatedJobId(id); }} /></Modal>}
+    {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(null)}><JobForm w={w} appointment={create === 'new' ? undefined : create} onClose={() => setCreate(null)} onCreated={id => { setCreate(null); setCreatedJobId(id); }} /></Modal>}
     {schedule && <Modal title={schedule === 'new' ? 'Novo agendamento' : 'Reagendar atendimento'} wide onClose={() => setSchedule(null)}><AppointmentForm w={w} appointment={schedule === 'new' ? undefined : schedule} onClose={() => setSchedule(null)} /></Modal>}
-    {confirm && <Confirm title="Iniciar atendimento?" label="Abrir ordem de serviço" onClose={() => setConfirm(null)} onConfirm={() => w.mutate(next => {
-      const id = newJob(next, { customerId: confirm.customerId, assetId: confirm.assetId, type: confirm.type, technician: confirm.technician, due: '', complaint: confirm.notes, diagnosis: '', notes: '' }, confirm.id);
-      const job = next.jobs.find(item => item.id === id)!;
-      const folder = checklistConfig.enabled ? checklistConfig.defaultAssetFolder : '';
-      setZeusChecklistChoice(next, id, folder);
-      job.status = folder ? 'Aguardando checklist' : initialJobStatus(next.settings);
-      job.quote.validUntil = defaultQuoteValidity(next);
-      job.events.push(event(`Situação: ${job.status}`));
-      setCreatedJobId(id);
-    }, 'Ordem de serviço aberta.')}>Os dados deste agendamento serão aproveitados na ordem de serviço. O checklist padrão da oficina será aplicado automaticamente.</Confirm>}
     {assetCustomer && <Modal title={`Cadastrar ${s.assetLabel.toLowerCase()}`} onClose={() => setAssetCustomer('')}><AssetForm w={w} customerId={assetCustomer} onClose={() => setAssetCustomer('')} /></Modal>}
     {createdJobId && <Modal title="OS aberta" onClose={() => setCreatedJobId('')}><div className="zeus-created-choice"><p>A OS foi aberta na etapa <strong>Identificação</strong> e está em <strong>{d.jobs.find(item => item.id === createdJobId)?.status || 'andamento'}</strong>.</p><div className="op-actions"><Button variant="secondary" onClick={() => { setCreatedJobId(''); router.push('/zeus'); }}>Voltar para tela inicial</Button><Button onClick={() => { const id = createdJobId; setCreatedJobId(''); setSelected(id); }}>Ver ordem de serviço <ArrowRight size={16} /></Button></div></div></Modal>}
   </>;
@@ -137,12 +125,12 @@ function customFromForm(operation: ReturnType<typeof useOperationPreferences>, g
   return Object.fromEntries(operation.preferences.customFields.filter(field => field.visible && groups.includes(field.group)).map(field => [field.id, form[`custom__${field.id}`] || '']));
 }
 
-function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void; onCreated: (id: string) => void }) {
+function JobForm({ w, appointment, onClose, onCreated }: { w: Workspace; appointment?: Appointment; onClose: () => void; onCreated: (id: string) => void }) {
   const operation = useOperationPreferences('zeus');
   const serviceTypes = useZeusServiceTypes();
   const checklistConfig = readZeusChecklistConfig(w.data);
   const [search, setSearch] = useState('');
-  const [assetId, setAssetId] = useState('');
+  const [assetId, setAssetId] = useState(appointment?.assetId || '');
   const [checklistFolder, setChecklistFolder] = useState<ZeusChecklistAssetFolder | ''>(checklistConfig.enabled ? checklistConfig.defaultAssetFolder : '');
   const [relatedJobId, setRelatedJobId] = useState('');
   const [warrantyReason, setWarrantyReason] = useState('');
@@ -151,19 +139,19 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
   const currentCustomer = asset ? w.data.customers.find(item => item.id === asset.customerId) : undefined;
   const suggestions = customerSuggestions(w.data);
   const customGroups = ['Cliente', 'Veículo / equipamento', 'Atendimento'];
-  const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(customer => customer.id === item.customerId)?.name)).slice(0, 8) : [];
+  const results = !appointment && search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(customer => customer.id === item.customerId)?.name)).slice(0, 8) : [];
   const previousJobs = asset ? w.data.jobs.filter(item => item.assetId === asset.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20) : [];
 
   return <>
-    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) { setAssetId(''); setRelatedJobId(''); setWarrantyReason(''); } }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />
+    {!appointment && <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) { setAssetId(''); setRelatedJobId(''); setWarrantyReason(''); } }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />}
     {results.length > 0 && !asset && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => { setAssetId(item.id); setRelatedJobId(''); setWarrantyReason(''); }}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(customer => customer.id === item.customerId)?.name}</span><ArrowRight size={16} /></button>)}</div>}
-    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span><button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); setRelatedJobId(''); setWarrantyReason(''); }}>Trocar</button></div>}
+    {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{currentCustomer?.name}</span>{!appointment && <button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); setRelatedJobId(''); setWarrantyReason(''); }}>Trocar</button>}</div>}
 
     <ZeusChecklistChoicePicker value={checklistFolder} onChange={setChecklistFolder} defaultFolder={checklistConfig.defaultAssetFolder} />
 
     {asset && previousJobs.length > 0 && <div className="op-fields" style={{ marginBottom: 14 }}><label className="op-field"><span>OS relacionada — retorno / garantia (opcional)</span><select value={relatedJobId} onChange={event => setRelatedJobId(event.target.value)}><option value="">Nenhuma</option>{previousJobs.map(previous => <option value={previous.id} key={previous.id}>OS {String(previous.number).padStart(4, '0')} · {previous.type} · {date(previous.createdAt)}</option>)}</select><small>Use quando este atendimento for continuação, retorno ou garantia de uma OS anterior do mesmo veículo/equipamento.</small></label>{relatedJobId && <label className="op-field"><span>Motivo do retorno / garantia</span><textarea value={warrantyReason} onChange={event => setWarrantyReason(event.target.value)} placeholder="Ex.: retorno do serviço executado na OS anterior" /></label>}</div>}
 
-    <RecordForm draftKey="zeus-job:new" fields={[
+    <RecordForm draftKey={`zeus-job:${appointment?.id || 'new'}`} fields={[
       ...(!asset ? [
         { name: 'customer', label: operation.label('customer', 'Cliente'), required: true, suggestions, hint: 'Digite o nome. Se existir, o Zeus reaproveita; se não existir, cria automaticamente.', configKey: 'customer' },
         { name: 'phone', label: operation.label('phone', 'Telefone'), type: 'tel', configKey: 'phone' },
@@ -172,10 +160,10 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
         { name: 'year', label: operation.label('year', 'Ano'), configKey: 'year' },
         { name: 'meter', label: s.meterLabel, configKey: 'meter' }
       ] : []),
-      { name: 'type', label: operation.label('type', 'Tipo de atendimento'), required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
-      { name: 'technician', label: operation.label('technician', 'Responsável'), configKey: 'technician' },
+      { name: 'type', label: operation.label('type', 'Tipo de atendimento'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
+      { name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' },
       { name: 'due', label: operation.label('due', 'Prazo previsto'), type: 'datetime-local', configKey: 'due' },
-      { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), type: 'textarea', wide: true, required: true, configKey: 'complaint' },
+      { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), value: appointment?.notes, type: 'textarea', wide: true, required: true, configKey: 'complaint' },
       ...customFieldDefs(operation, customGroups)
     ]} submit="Abrir ordem de serviço" onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
@@ -191,7 +179,7 @@ function JobForm({ w, onClose, onCreated }: { w: Workspace; onClose: () => void;
           data.assets.push({ id: aid, customerId: cid, identifier: identifier.toUpperCase(), model: form.model.trim(), year: form.year || '', meter: form.meter || '' });
         }
       }
-      const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' });
+      const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' }, appointment?.id);
       const job = data.jobs.find(item => item.id === id)!;
       setZeusChecklistChoice(data, id, checklistFolder);
       job.status = checklistFolder ? 'Aguardando checklist' : initialJobStatus(data.settings);
