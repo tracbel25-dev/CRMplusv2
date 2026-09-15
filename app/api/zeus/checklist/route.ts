@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import type { Data } from '@/lib/operations/model';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest } from '@/lib/server/operationalWorkspace';
-import { ZEUS_CHECKLIST_SEGMENT_BY_FOLDER, ZEUS_CHECKLIST_FOLDER_LABELS } from '@/lib/operations/zeusChecklist';
+import { ZEUS_CHECKLIST_SEGMENT_BY_FOLDER, ZEUS_CHECKLIST_FOLDER_LABELS, zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { isZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_CHECKLIST_TEMPLATES } from '@/lib/operations/checklistTemplates';
 
@@ -57,16 +58,40 @@ export async function POST(request: NextRequest) {
   const requireSignature = body?.requireSignature !== false;
 
   try {
-    const jobs = await operationalRest('zeus', `jobs?${query({ select: 'id,number,customer_id,asset_id,status', tenant_key: `eq.${access.accountId}`, id: `eq.${jobId}`, limit: '1' })}`) as Array<{ id: string; number: number; customer_id: string; asset_id: string; status: string }>;
+    const [jobs, workspaces] = await Promise.all([
+      operationalRest('zeus', `jobs?${query({
+        select: 'id,number,customer_id,asset_id,stage,status',
+        tenant_key: `eq.${access.accountId}`,
+        id: `eq.${jobId}`,
+        limit: '1',
+      })}`) as Promise<Array<{ id: string; number: number; customer_id: string; asset_id: string; stage: string; status: string }>>,
+      operationalRest('zeus', `workspace_state?${query({
+        select: 'data',
+        tenant_key: `eq.${access.accountId}`,
+        limit: '1',
+      })}`) as Promise<Array<{ data: Data }>>,
+    ]);
     const job = jobs?.[0];
+    const workspace = workspaces?.[0]?.data;
     if (!job) return NextResponse.json({ error: 'OS não encontrada no Zeus.' }, { status: 404 });
+    if (!workspace) return NextResponse.json({ error: 'Os dados desta oficina ainda não estão disponíveis.' }, { status: 409 });
+    if (job.stage !== 'Identificação') return NextResponse.json({ error: 'O checklist de entrada só pode ser executado durante a Identificação.' }, { status: 409 });
     if (['Encerrado','Cancelado','Reprovado'].includes(job.status)) return NextResponse.json({ error: 'Esta OS já está encerrada.' }, { status: 409 });
+
+    const state = zeusChecklistState(workspace, jobId);
+    if (!state.enabled) return NextResponse.json({ error: 'O checklist está desabilitado nesta OS.' }, { status: 409 });
+    if (state.folder !== folder) return NextResponse.json({ error: 'O modelo escolhido mudou. Atualize a OS antes de abrir o checklist.' }, { status: 409 });
 
     const completed = await operationalRest('zeus', `checklist_responses?${query({ select: 'id', tenant_key: `eq.${access.accountId}`, job_id: `eq.${jobId}`, limit: '1' })}`) as Array<{ id: string }>;
     if (completed?.length) return NextResponse.json({ error: 'Este checklist já foi concluído e não pode ser realizado novamente.', completed: true }, { status: 409 });
 
-    const existing = await operationalRest('zeus', `checklist_links?${query({ select: 'id,token,status', tenant_key: `eq.${access.accountId}`, job_id: `eq.${jobId}`, limit: '1' })}`) as Array<{ id: string; token: string; status: string }>;
-    if (existing?.[0]?.status === 'open') return NextResponse.json({ token: existing[0].token, reused: true });
+    const existing = await operationalRest('zeus', `checklist_links?${query({
+      select: 'id,token,status',
+      tenant_key: `eq.${access.accountId}`,
+      job_id: `eq.${jobId}`,
+      limit: '1',
+    })}`) as Array<{ id: string; token: string; status: string }>;
+    if (existing?.[0]?.status === 'completed') return NextResponse.json({ error: 'Este checklist já foi concluído e não pode ser realizado novamente.', completed: true }, { status: 409 });
 
     const [customers, assets, settings] = await Promise.all([
       operationalRest('zeus', `customers?${query({ select: 'name,phone', tenant_key: `eq.${access.accountId}`, id: `eq.${job.customer_id}`, limit: '1' })}`) as Promise<Array<{ name: string; phone: string }>>,
@@ -78,7 +103,6 @@ export async function POST(request: NextRequest) {
     const setting = settings?.[0];
     if (!customer || !asset) return NextResponse.json({ error: 'Os dados vinculados à OS estão incompletos.' }, { status: 409 });
 
-    const token = randomBytes(32).toString('hex');
     const payload = {
       business: setting?.business || '',
       customer: customer.name || '',
@@ -96,12 +120,24 @@ export async function POST(request: NextRequest) {
       identifierLabel: setting?.identifier_label || 'Placa',
     };
     const title = `Checklist de entrada · ${ZEUS_CHECKLIST_FOLDER_LABELS[folder]} · OS ${String(job.number).padStart(4, '0')}`;
+
+    if (existing?.[0]) {
+      const updatedAt = new Date().toISOString();
+      await operationalRest('zeus', `checklist_links?${query({ tenant_key: `eq.${access.accountId}`, id: `eq.${existing[0].id}` })}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ title, asset_folder: folder, segment, payload, status: 'open', completed_at: null, updated_at: updatedAt }),
+      });
+      return NextResponse.json({ token: existing[0].token, reused: true, refreshed: true });
+    }
+
+    const token = randomBytes(32).toString('hex');
     const rows = await operationalRest('zeus', 'checklist_links', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({ tenant_key: access.accountId, job_id: jobId, token, title, asset_folder: folder, segment, payload, status: 'open', created_by: access.userId }),
     }) as Array<{ token: string }>;
-    return NextResponse.json({ token: rows?.[0]?.token || token, reused: false });
+    return NextResponse.json({ token: rows?.[0]?.token || token, reused: false, refreshed: false });
   } catch (reason) {
     return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível preparar o checklist.' }, { status: 503 });
   }
