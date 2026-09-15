@@ -7,6 +7,8 @@ import { ExternalPublic } from './ExternalPublic';
 import './artemis-external-menu.css';
 
 type LinkData = { appId: string; kind: string; recordId?: string; title: string; payload: Record<string, any>; status: string };
+type ProductVariant = { id: string; name: string; price: number; available?: boolean };
+type CartItem = { quantity: number; variantId: string };
 
 async function invoke(token: string, action: 'read' | 'respond', response?: Record<string, unknown>) {
   const { data, error } = await createStoreClient().functions.invoke('external-link', { body: { token, action, response } });
@@ -16,6 +18,9 @@ async function invoke(token: string, action: 'read' | 'respond', response?: Reco
 }
 
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((value || 0) / 100);
+const variantsOf = (product: any): ProductVariant[] => (Array.isArray(product?.variants) ? product.variants : []).filter((item: ProductVariant) => item && item.id && item.name && item.available !== false && Number.isFinite(Number(item.price)));
+const variantFor = (product: any, item?: CartItem) => variantsOf(product).find(variant => variant.id === item?.variantId) || variantsOf(product)[0];
+const unitPrice = (product: any, item?: CartItem) => variantFor(product, item)?.price ?? Number(product.price || 0);
 
 export function ExternalRouter({ token }: { token: string }) {
   const [link, setLink] = useState<LinkData | null>(null);
@@ -44,7 +49,7 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
   const products = Array.isArray(link.payload.products) ? link.payload.products : [];
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [channel, setChannel] = useState<'Delivery' | 'Retirada'>('Delivery');
   const [checkout, setCheckout] = useState(false);
@@ -62,13 +67,18 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
     const haystack = `${product.name || ''} ${product.description || ''} ${product.category || ''} ${product.allergens || ''}`.toLocaleLowerCase('pt-BR');
     return categoryOk && haystack.includes(query.toLocaleLowerCase('pt-BR'));
   }), [products, category, query]);
-  const items = products.filter((product: any) => (cart[product.id] || 0) > 0);
-  const subtotal = items.reduce((sum: number, product: any) => sum + Number(product.price || 0) * (cart[product.id] || 0), 0);
+  const items = products.filter((product: any) => (cart[product.id]?.quantity || 0) > 0);
+  const subtotal = items.reduce((sum: number, product: any) => sum + unitPrice(product, cart[product.id]) * (cart[product.id]?.quantity || 0), 0);
   const deliveryFee = channel === 'Delivery' ? Number(link.payload.deliveryFee || 0) : 0;
   const total = subtotal + deliveryFee;
-  const itemCount = items.reduce((sum: number, product: any) => sum + (cart[product.id] || 0), 0);
+  const itemCount = items.reduce((sum: number, product: any) => sum + (cart[product.id]?.quantity || 0), 0);
 
-  const change = (id: string, delta: number) => setCart(current => ({ ...current, [id]: Math.max(0, Math.min(99, (current[id] || 0) + delta)) }));
+  const ensureItem = (product: any, current?: CartItem): CartItem => ({ quantity: current?.quantity || 0, variantId: current?.variantId || variantsOf(product)[0]?.id || '' });
+  const change = (product: any, delta: number) => setCart(current => {
+    const previous = ensureItem(product, current[product.id]);
+    return { ...current, [product.id]: { ...previous, quantity: Math.max(0, Math.min(99, previous.quantity + delta)) } };
+  });
+  const setVariant = (product: any, variantId: string) => setCart(current => ({ ...current, [product.id]: { ...ensureItem(product, current[product.id]), variantId } }));
 
   const submit = async () => {
     if (!items.length) { setError('Adicione ao menos um item.'); return; }
@@ -79,7 +89,7 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
     try {
       await invoke(token, 'respond', {
         customer, phone, address, notes: general, channel,
-        items: items.map((product: any) => ({ productId: product.id, quantity: cart[product.id], note: notes[product.id] || '' })),
+        items: items.map((product: any) => ({ productId: product.id, variantId: cart[product.id]?.variantId || '', quantity: cart[product.id]?.quantity || 0, note: notes[product.id] || '' })),
       });
       setSent(true);
       setCheckout(false);
@@ -104,10 +114,16 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
         <div className="aet-mobile-categories">{categories.map(item => <button key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
         <div className="aet-heading"><div><span>{category === 'Todos' ? 'Cardápio' : category}</span><h1>{link.payload.business || link.title || 'Escolha seu pedido'}</h1></div><small>{visible.length} item(ns)</small></div>
         <div className="aet-products">{visible.map((product: any) => {
-          const quantity = cart[product.id] || 0;
+          const line = ensureItem(product, cart[product.id]);
+          const variants = variantsOf(product);
+          const variant = variantFor(product, line);
           return <article key={product.id}>
             <ProductPhoto token={token} product={product} />
-            <div className="aet-product-copy"><span>{product.category}</span><h2>{product.name}</h2><p>{product.description || 'Produto disponível no cardápio.'}</p>{product.allergens && <small>{product.allergens}</small>}<div className="aet-product-bottom"><strong>{money(Number(product.price || 0))}</strong>{quantity === 0 ? <button className="aet-add" onClick={() => change(product.id, 1)}>Adicionar ao pedido</button> : <div className="aet-qty"><button onClick={() => change(product.id, -1)} aria-label={`Remover ${product.name}`}><Minus size={15} /></button><b>{quantity}</b><button onClick={() => change(product.id, 1)} aria-label={`Adicionar ${product.name}`}><Plus size={15} /></button></div>}</div>{quantity > 0 && <input className="aet-note" value={notes[product.id] || ''} onChange={event => setNotes(current => ({ ...current, [product.id]: event.target.value }))} placeholder="Observação deste item" />}</div>
+            <div className="aet-product-copy"><span>{product.category}</span><h2>{product.name}</h2><p>{product.description || 'Produto disponível no cardápio.'}</p>{product.allergens && <small>{product.allergens}</small>}
+              {variants.length > 0 && <label className="aet-variant"><span>Escolha uma opção</span><select value={variant?.id || ''} onChange={event => setVariant(product, event.target.value)}>{variants.map(item => <option key={item.id} value={item.id}>{item.name} · {money(item.price)}</option>)}</select></label>}
+              <div className="aet-product-bottom"><strong>{money(unitPrice(product, line))}</strong>{line.quantity === 0 ? <button className="aet-add" onClick={() => change(product, 1)}>Adicionar ao pedido</button> : <div className="aet-qty"><button onClick={() => change(product, -1)} aria-label={`Remover ${product.name}`}><Minus size={15} /></button><b>{line.quantity}</b><button onClick={() => change(product, 1)} aria-label={`Adicionar ${product.name}`}><Plus size={15} /></button></div>}</div>
+              {line.quantity > 0 && <input className="aet-note" value={notes[product.id] || ''} onChange={event => setNotes(current => ({ ...current, [product.id]: event.target.value }))} placeholder="Observação deste item" />}
+            </div>
           </article>;
         })}</div>
         {!visible.length && <div className="aet-state">Nenhum item encontrado.</div>}
@@ -118,7 +134,11 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
 
     {checkout && <div className="aet-checkout-backdrop" onClick={event => { if (event.target === event.currentTarget) setCheckout(false); }}><section className="aet-checkout">
       <header><div><span>Seu pedido</span><h2>{channel}</h2></div><button onClick={() => setCheckout(false)}>Fechar</button></header>
-      <div className="aet-checkout-lines">{items.map((product: any) => <div key={product.id}><span>{cart[product.id]}× {product.name}</span><strong>{money(cart[product.id] * Number(product.price || 0))}</strong></div>)}</div>
+      <div className="aet-checkout-lines">{items.map((product: any) => {
+        const line = cart[product.id];
+        const variant = variantFor(product, line);
+        return <div key={product.id}><span>{line.quantity}× {product.name}{variant ? ` · ${variant.name}` : ''}</span><strong>{money(line.quantity * unitPrice(product, line))}</strong></div>;
+      })}</div>
       {deliveryFee > 0 && <div className="aet-total-row"><span>Entrega</span><strong>{money(deliveryFee)}</strong></div>}
       <div className="aet-total-row total"><span>Total</span><strong>{money(total)}</strong></div>
       {error && <p className="aet-error">{error}</p>}
@@ -128,6 +148,6 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
       <label><span>Observações gerais</span><textarea rows={2} value={general} onChange={event => setGeneral(event.target.value)} /></label>
       <button className="aet-submit" disabled={busy} onClick={() => void submit()}>{busy ? 'Enviando…' : 'Enviar pedido'}</button>
     </section></div>}
-    <style jsx global>{`.aet-photo img{width:100%;height:100%;object-fit:cover;display:block}.aet-photo>span{display:grid;place-items:center;width:100%;height:100%;font-size:42px;font-weight:800}`}</style>
+    <style jsx global>{`.aet-photo img{width:100%;height:100%;object-fit:cover;display:block}.aet-photo>span{display:grid;place-items:center;width:100%;height:100%;font-size:42px;font-weight:800}.aet-variant{display:grid;gap:6px;margin-top:10px}.aet-variant>span{font-size:12px;color:#94a3b8}.aet-variant select{width:100%;padding:9px 10px;border:1px solid rgba(148,163,184,.25);border-radius:9px;background:#111827;color:#fff}`}</style>
   </main>;
 }

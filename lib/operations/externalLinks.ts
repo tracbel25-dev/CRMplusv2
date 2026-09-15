@@ -6,6 +6,12 @@ import type { Workspace } from './storage';
 
 export type ExternalKind = 'artemis-menu' | 'zeus-quote' | 'athena-budget' | 'athena-survey' | 'kronos-response';
 export type ExternalDraft = { kind: ExternalKind; recordId?: string; title: string; payload: Record<string, unknown> };
+type ProductVariant = { id: string; name: string; price: number; available: boolean };
+type ArtemisProduct = Data['products'][number] & { variants?: ProductVariant[] };
+
+function artemisVariants(product: Data['products'][number]) {
+  return ((product as ArtemisProduct).variants || []).filter(item => item && item.id && item.name && item.available !== false && Number.isFinite(item.price) && item.price >= 0);
+}
 
 export function externalDraft(app: AppId, page: string, recordId: string, data: Data): ExternalDraft | null {
   if (app === 'artemis' && ['cardapio', 'cardapio-digital', 'inicio'].includes(page) && !recordId) {
@@ -19,7 +25,15 @@ export function externalDraft(app: AppId, page: string, recordId: string, data: 
         deliveryFee: data.settings.deliveryFee,
         minimumOrder: data.settings.minimumOrder,
         deliveryAreas: data.settings.deliveryAreas,
-        products: data.products.filter(item => item.available).map(item => ({ id: item.id, name: item.name, description: item.description, category: item.category, price: item.price, allergens: item.allergens }))
+        products: data.products.filter(item => item.available).map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          category: item.category,
+          price: item.price,
+          allergens: item.allergens,
+          variants: artemisVariants(item).map(variant => ({ id: variant.id, name: variant.name, price: variant.price, available: true })),
+        }))
       }
     };
   }
@@ -118,11 +132,15 @@ export async function syncExternalResponses(w: Workspace, app: AppId) {
         const surveyResponse: SurveyResponse = { id: uid(), surveyId: row.record_id, at: row.created_at, answers, contact: String(response.respondent || '') };
         data.responses.push(surveyResponse);
       } else if (row.kind === 'artemis-menu') {
-        const requested = Array.isArray(response.items) ? response.items as { productId?: string; quantity?: number; note?: string }[] : [];
+        const requested = Array.isArray(response.items) ? response.items as { productId?: string; variantId?: string; quantity?: number; note?: string }[] : [];
         const lines = requested.map(item => {
           const product = data.products.find(p => p.id === item.productId && p.available);
           if (!product) return null;
-          return { id: uid(), kind: 'Produto' as const, description: product.name, brand: '', quantity: Math.max(1, Number(item.quantity || 1)), price: product.price, productId: product.id, done: false, note: String(item.note || ''), prepMinutes: product.preparation || 0 };
+          const variants = artemisVariants(product);
+          const variant = item.variantId ? variants.find(current => current.id === item.variantId) : undefined;
+          const description = variant ? `${product.name} · ${variant.name}` : product.name;
+          const price = variant?.price ?? product.price;
+          return { id: uid(), kind: 'Produto' as const, description, brand: '', quantity: Math.max(1, Number(item.quantity || 1)), price, productId: product.id, done: false, note: String(item.note || ''), prepMinutes: product.preparation || 0 };
         }).filter(Boolean) as Order['lines'];
         if (lines.length) data.orders.push({ id: uid(), number: nextNumber(data.orders), customerId: '', customerName: String(response.customer || ''), phone: String(response.phone || ''), address: String(response.address || ''), channel: String(response.channel || 'Delivery') === 'Retirada' ? 'Retirada' : 'Delivery', tableId: '', lines, notes: String(response.notes || ''), status: 'Novo', delivery: 'Aguardando saída', fee: String(response.channel || 'Delivery') === 'Delivery' ? data.settings.deliveryFee : 0, discount: 0, createdAt: row.created_at, events: [event('Pedido recebido pelo cardápio externo')], stockConsumed: false, reserved: false });
       } else if (row.kind === 'kronos-response' && row.record_id) {

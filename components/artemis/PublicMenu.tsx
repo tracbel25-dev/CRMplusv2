@@ -5,6 +5,7 @@ import { Bike, CheckCircle2, Minus, Plus, Search, ShoppingBag, Store, UtensilsCr
 import { useSearchParams } from 'next/navigation';
 import './public-menu.css';
 
+type ProductVariant = { id: string; name: string; price: number; available: boolean };
 type Product = {
   id: string;
   name: string;
@@ -14,6 +15,7 @@ type Product = {
   allergens: string;
   preparation_minutes: number;
   image_url?: string;
+  variants?: ProductVariant[];
 };
 
 type MenuPayload = {
@@ -34,10 +36,13 @@ type MenuPayload = {
   products: Product[];
 };
 
-type CartLine = { quantity: number; note: string };
+type CartLine = { quantity: number; note: string; variantId: string };
 type Props = { slug: string; mode: 'menu' | 'delivery' };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+const variantsOf = (product: Product) => (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && item.id && item.name && Number.isFinite(Number(item.price)));
+const variantFor = (product: Product, line?: CartLine) => variantsOf(product).find(item => item.id === line?.variantId) || variantsOf(product)[0];
+const priceFor = (product: Product, line?: CartLine) => variantFor(product, line)?.price ?? product.price_cents;
 
 function ProductMedia({ product }: { product: Product }) {
   if (product.image_url) return <div className="public-product-media"><img src={product.image_url} alt={product.name} /></div>;
@@ -89,18 +94,29 @@ export function PublicMenu({ slug, mode }: Props) {
   }), [payload, category, query]);
   const selected = useMemo(() => (payload?.products || []).filter(product => (cart[product.id]?.quantity || 0) > 0), [payload, cart]);
   const itemCount = selected.reduce((sum, product) => sum + cart[product.id].quantity, 0);
-  const subtotal = selected.reduce((sum, product) => sum + product.price_cents * cart[product.id].quantity, 0);
+  const subtotal = selected.reduce((sum, product) => sum + priceFor(product, cart[product.id]) * cart[product.id].quantity, 0);
   const fee = channel === 'Delivery' ? payload?.restaurant.deliveryFee || 0 : 0;
   const total = subtotal + fee;
   const canOrderAtTable = mode === 'menu' && !!payload?.table;
   const canOrderOnline = mode === 'delivery' && !!payload && !payload.restaurant.onlinePaused && (payload.restaurant.deliveryEnabled || payload.restaurant.pickupEnabled);
   const canOrder = canOrderAtTable || canOrderOnline;
 
-  const changeQuantity = (id: string, delta: number) => setCart(current => {
-    const previous = current[id] || { quantity: 0, note: '' };
-    const quantity = Math.max(0, Math.min(99, previous.quantity + delta));
-    return { ...current, [id]: { ...previous, quantity } };
+  const ensureLine = (product: Product, previous?: CartLine): CartLine => ({
+    quantity: previous?.quantity || 0,
+    note: previous?.note || '',
+    variantId: previous?.variantId || variantsOf(product)[0]?.id || '',
   });
+
+  const changeQuantity = (product: Product, delta: number) => setCart(current => {
+    const previous = ensureLine(product, current[product.id]);
+    const quantity = Math.max(0, Math.min(99, previous.quantity + delta));
+    return { ...current, [product.id]: { ...previous, quantity } };
+  });
+
+  const setVariant = (product: Product, variantId: string) => setCart(current => ({
+    ...current,
+    [product.id]: { ...ensureLine(product, current[product.id]), variantId },
+  }));
 
   const submit = async (form: FormData) => {
     if (!selected.length) { setError('Adicione pelo menos um item.'); return; }
@@ -118,7 +134,12 @@ export function PublicMenu({ slug, mode }: Props) {
           address: String(form.get('address') || ''),
           paymentMethod: String(form.get('payment') || ''),
           notes: String(form.get('notes') || ''),
-          items: selected.map(product => ({ productId: product.id, quantity: cart[product.id].quantity, note: cart[product.id].note })),
+          items: selected.map(product => ({
+            productId: product.id,
+            variantId: cart[product.id].variantId || '',
+            quantity: cart[product.id].quantity,
+            note: cart[product.id].note,
+          })),
         }),
       });
       const body = await response.json();
@@ -164,14 +185,22 @@ export function PublicMenu({ slug, mode }: Props) {
         <div className="public-mobile-categories">{categories.map(value => <button key={value} className={category === value ? 'active' : ''} onClick={() => setCategory(value)}>{value}</button>)}</div>
         <div className="public-catalog-title"><div><span>{category === 'Todos' ? 'Cardápio' : category}</span><h2>{category === 'Todos' ? 'Escolha o que deseja pedir' : `Opções de ${category}`}</h2></div><small>{visible.length} item(ns)</small></div>
         <div className="public-menu-grid">
-          {visible.map(product => <article className="public-product" key={product.id}>
-            <ProductMedia product={product} />
-            <div className="public-product-copy"><span>{product.category}</span><h3>{product.name}</h3>{product.description && <p>{product.description}</p>}{product.allergens && <small>{product.allergens}</small>}<div className="public-product-bottom"><strong>{money(product.price_cents)}</strong>{product.preparation_minutes > 0 && <small>{product.preparation_minutes} min</small>}</div></div>
-            {canOrder && <div className="public-product-actions">
-              {(cart[product.id]?.quantity || 0) === 0 ? <button className="public-add" onClick={() => changeQuantity(product.id, 1)}>Adicionar ao pedido</button> : <div className="public-quantity"><button aria-label={`Remover ${product.name}`} onClick={() => changeQuantity(product.id, -1)}><Minus size={16} /></button><span>{cart[product.id]?.quantity || 0}</span><button aria-label={`Adicionar ${product.name}`} onClick={() => changeQuantity(product.id, 1)}><Plus size={16} /></button></div>}
-            </div>}
-            {(cart[product.id]?.quantity || 0) > 0 && <label className="public-note"><span>Observação</span><input value={cart[product.id]?.note || ''} onChange={event => setCart(current => ({ ...current, [product.id]: { ...(current[product.id] || { quantity: 1 }), note: event.target.value } }))} placeholder="Ex.: sem cebola" /></label>}
-          </article>)}
+          {visible.map(product => {
+            const line = ensureLine(product, cart[product.id]);
+            const variants = variantsOf(product);
+            const selectedVariant = variantFor(product, line);
+            return <article className="public-product" key={product.id}>
+              <ProductMedia product={product} />
+              <div className="public-product-copy"><span>{product.category}</span><h3>{product.name}</h3>{product.description && <p>{product.description}</p>}{product.allergens && <small>{product.allergens}</small>}
+                {variants.length > 0 && <label className="public-variant"><span>Escolha uma opção</span><select value={selectedVariant?.id || ''} onChange={event => setVariant(product, event.target.value)}>{variants.map(variant => <option key={variant.id} value={variant.id}>{variant.name} · {money(variant.price)}</option>)}</select></label>}
+                <div className="public-product-bottom"><strong>{money(priceFor(product, line))}</strong>{product.preparation_minutes > 0 && <small>{product.preparation_minutes} min</small>}</div>
+              </div>
+              {canOrder && <div className="public-product-actions">
+                {(line.quantity || 0) === 0 ? <button className="public-add" onClick={() => changeQuantity(product, 1)}>Adicionar ao pedido</button> : <div className="public-quantity"><button aria-label={`Remover ${product.name}`} onClick={() => changeQuantity(product, -1)}><Minus size={16} /></button><span>{line.quantity}</span><button aria-label={`Adicionar ${product.name}`} onClick={() => changeQuantity(product, 1)}><Plus size={16} /></button></div>}
+              </div>}
+              {line.quantity > 0 && <label className="public-note"><span>Observação</span><input value={line.note || ''} onChange={event => setCart(current => ({ ...current, [product.id]: { ...ensureLine(product, current[product.id]), note: event.target.value } }))} placeholder="Ex.: sem cebola" /></label>}
+            </article>;
+          })}
           {!visible.length && <div className="public-state">Nenhum item encontrado.</div>}
         </div>
       </section>
@@ -187,7 +216,11 @@ export function PublicMenu({ slug, mode }: Props) {
         {payload.restaurant.deliveryEnabled && <button className={channel === 'Delivery' ? 'active' : ''} onClick={() => setChannel('Delivery')}>Delivery</button>}
         {payload.restaurant.pickupEnabled && <button className={channel === 'Retirada' ? 'active' : ''} onClick={() => setChannel('Retirada')}>Retirada</button>}
       </div>}
-      <div className="public-order-lines">{selected.map(product => <div key={product.id}><span>{cart[product.id].quantity}× {product.name}</span><strong>{money(product.price_cents * cart[product.id].quantity)}</strong></div>)}</div>
+      <div className="public-order-lines">{selected.map(product => {
+        const line = cart[product.id];
+        const variant = variantFor(product, line);
+        return <div key={product.id}><span>{line.quantity}× {product.name}{variant ? ` · ${variant.name}` : ''}</span><strong>{money(priceFor(product, line) * line.quantity)}</strong></div>;
+      })}</div>
       {fee > 0 && <div className="public-total-row"><span>Taxa de entrega</span><strong>{money(fee)}</strong></div>}
       <div className="public-total-row total"><span>Total</span><strong>{money(total)}</strong></div>
       <form action={submit}>
@@ -196,10 +229,12 @@ export function PublicMenu({ slug, mode }: Props) {
         {channel !== 'Mesa' && <label><span>Como pretende pagar? *</span><select name="payment" required defaultValue=""><option value="" disabled>Selecionar</option><option>Pix</option><option>Dinheiro</option><option>Cartão na entrega/retirada</option></select><small>A escolha não confirma pagamento. O restaurante registra o recebimento separadamente.</small></label>}
         <label><span>Observação geral</span><textarea name="notes" rows={2} /></label>
         {channel === 'Delivery' && payload.restaurant.minimumOrder > 0 && <p className="public-minimum">Pedido mínimo: {money(payload.restaurant.minimumOrder)}</p>}
+        {error && <p className="public-state error">{error}</p>}
         <button className="public-submit" disabled={sending}>{sending ? 'Enviando…' : 'Enviar pedido'}</button>
       </form>
     </section></div>}
 
     <footer className="public-footer">Cardápio por <strong>CRM PLUS · Artemis</strong></footer>
+    <style jsx global>{`.public-variant{display:grid;gap:6px;margin-top:12px}.public-variant>span{font-size:12px;color:var(--public-muted,#94a3b8)}.public-variant select{width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,.25);border-radius:10px;background:#111827;color:inherit}`}</style>
   </main>;
 }
