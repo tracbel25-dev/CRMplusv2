@@ -7,25 +7,63 @@ import type { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Empty, Modal, Section, Title } from './ui';
 import { date, normalize, uid } from '@/lib/operations/model';
 import { ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
+import { ZEUS_CHECKLIST_ASSET_FOLDERS, isZeusChecklistAssetFolder, type ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 
 const CONFIG_KEY='__zeus_checkin_config__';
-type CheckConfig={enabled:boolean;requireSignature:boolean;defaultSegment:ZeusChecklistSegment;itemsBySegment:Record<ZeusChecklistSegment,string[]>};
+const ASSET_FOLDER_LABELS:Record<ZeusChecklistAssetFolder,string>={
+  caminhao_cavalo_mecanico:'Caminhão cavalo mecânico',
+  caminhao_medio:'Caminhão médio',
+  caminhao_pequeno:'Caminhão pequeno',
+  carro:'Carro',
+  empilhadeira:'Empilhadeira',
+  maquina_carregadeira:'Carregadeira',
+  maquina_escavadeira:'Escavadeira',
+  maquina_motoniveladora:'Motoniveladora',
+  maquina_retroescavadeira:'Retroescavadeira',
+  maquina_rolo_compactador:'Rolo compactador',
+  micro_onibus:'Micro-ônibus',
+  moto:'Moto',
+  onibus:'Ônibus',
+  trator_agricola:'Trator agrícola',
+  van:'Van',
+};
+const SEGMENT_BY_ASSET_FOLDER:Record<ZeusChecklistAssetFolder,ZeusChecklistSegment>={
+  caminhao_cavalo_mecanico:'truck',
+  caminhao_medio:'truck',
+  caminhao_pequeno:'truck',
+  carro:'auto',
+  empilhadeira:'machine',
+  maquina_carregadeira:'machine',
+  maquina_escavadeira:'machine',
+  maquina_motoniveladora:'machine',
+  maquina_retroescavadeira:'machine',
+  maquina_rolo_compactador:'machine',
+  micro_onibus:'truck',
+  moto:'moto',
+  onibus:'truck',
+  trator_agricola:'machine',
+  van:'truck',
+};
+const LEGACY_FOLDER_BY_SEGMENT:Record<ZeusChecklistSegment,ZeusChecklistAssetFolder>={auto:'carro',moto:'moto',truck:'caminhao_medio',machine:'maquina_escavadeira'};
+
+type CheckConfig={enabled:boolean;requireSignature:boolean;defaultAssetFolder:ZeusChecklistAssetFolder;itemsBySegment:Record<ZeusChecklistSegment,string[]>};
 type ResponseRow={id:string;record_id:string;created_at:string;response:Record<string,unknown>};
 type ShareState={jobId:string;url:string}|null;
 
 function defaults():CheckConfig{
-  return {enabled:true,requireSignature:true,defaultSegment:'auto',itemsBySegment:Object.fromEntries(ZEUS_CHECKLIST_SEGMENTS.map(segment=>[segment.id,[...segment.items]])) as Record<ZeusChecklistSegment,string[]>};
+  return {enabled:true,requireSignature:true,defaultAssetFolder:'carro',itemsBySegment:Object.fromEntries(ZEUS_CHECKLIST_SEGMENTS.map(segment=>[segment.id,[...segment.items]])) as Record<ZeusChecklistSegment,string[]>};
 }
 function readConfig(w:Workspace):CheckConfig{
   const fallback=defaults();
   try{
     const raw=w.data.customFieldValues?.[CONFIG_KEY]?.value;if(!raw)return fallback;
     const parsed=JSON.parse(raw) as Partial<CheckConfig>&{items?:string[];defaultSegment?:ZeusChecklistSegment};
-    const defaultSegment=ZEUS_CHECKLIST_TEMPLATES[parsed.defaultSegment as ZeusChecklistSegment]?parsed.defaultSegment as ZeusChecklistSegment:fallback.defaultSegment;
+    const legacySegment=ZEUS_CHECKLIST_TEMPLATES[parsed.defaultSegment as ZeusChecklistSegment]?parsed.defaultSegment as ZeusChecklistSegment:'auto';
+    const defaultAssetFolder=isZeusChecklistAssetFolder(String(parsed.defaultAssetFolder||''))?parsed.defaultAssetFolder as ZeusChecklistAssetFolder:LEGACY_FOLDER_BY_SEGMENT[legacySegment];
     const itemsBySegment={...fallback.itemsBySegment};
     for(const segment of ZEUS_CHECKLIST_SEGMENTS){const list=parsed.itemsBySegment?.[segment.id];if(Array.isArray(list)&&list.length)itemsBySegment[segment.id]=list;}
-    if(Array.isArray(parsed.items)&&parsed.items.length&&!parsed.itemsBySegment)itemsBySegment[defaultSegment]=parsed.items;
-    return {enabled:parsed.enabled!==false,requireSignature:parsed.requireSignature!==false,defaultSegment,itemsBySegment};
+    if(Array.isArray(parsed.items)&&parsed.items.length&&!parsed.itemsBySegment)itemsBySegment[legacySegment]=parsed.items;
+    return {enabled:parsed.enabled!==false,requireSignature:parsed.requireSignature!==false,defaultAssetFolder,itemsBySegment};
   }catch{return fallback;}
 }
 function writeConfig(data:Workspace['data'],config:CheckConfig){data.customFieldValues??={};data.customFieldValues[CONFIG_KEY]={value:JSON.stringify(config)};}
@@ -54,14 +92,14 @@ export function ZeusCheckIn({w}:{w:Workspace}){
     if(!w.accountId||w.accountId==='guest'){w.setError('Entre com a conta da oficina para gerar o link.');return;}
     const job=w.data.jobs.find(item=>item.id===jobId);if(!job)return;
     const customer=w.data.customers.find(item=>item.id===job.customerId);const asset=w.data.assets.find(item=>item.id===job.assetId);
-    const segment=config.defaultSegment;const template=ZEUS_CHECKLIST_TEMPLATES[segment];
+    const assetFolder=config.defaultAssetFolder;const segment=SEGMENT_BY_ASSET_FOLDER[assetFolder];const template=ZEUS_CHECKLIST_TEMPLATES[segment];
     const supabase=createStoreClient();const {data:auth}=await supabase.auth.getUser();if(!auth.user){w.setError('Sua sessão expirou.');return;}
     setBusy(jobId);const token=`${crypto.randomUUID().replaceAll('-','')}${crypto.randomUUID().replaceAll('-','')}`;
-    const payload={business:w.data.settings.business,customer:customer?.name||'',customerPhone:customer?.phone||'',asset:asset?`${asset.identifier} · ${asset.model}`:'',assetInfo:{identifier:asset?.identifier||'',model:asset?.model||'',year:asset?.year||'',meter:asset?.meter||''},jobNumber:job.number,segment,segmentLabel:template.label,items:config.itemsBySegment[segment],requireSignature:config.requireSignature,assetLabel:w.data.settings.assetLabel,meterLabel:w.data.settings.meterLabel,identifierLabel:w.data.settings.identifierLabel};
-    const {error}=await supabase.from('external_links').insert({account_id:w.accountId,app_id:'zeus',kind:'zeus-checkin',record_id:job.id,token,title:`Checklist de entrada · ${template.shortLabel} · OS ${String(job.number).padStart(4,'0')}`,payload,created_by:auth.user.id});
+    const payload={business:w.data.settings.business,customer:customer?.name||'',customerPhone:customer?.phone||'',asset:asset?`${asset.identifier} · ${asset.model}`:'',assetInfo:{identifier:asset?.identifier||'',model:asset?.model||'',year:asset?.year||'',meter:asset?.meter||'',checklistAssetFolder:assetFolder},checklistAssetFolder:assetFolder,jobNumber:job.number,segment,segmentLabel:template.label,items:config.itemsBySegment[segment],requireSignature:config.requireSignature,assetLabel:w.data.settings.assetLabel,meterLabel:w.data.settings.meterLabel,identifierLabel:w.data.settings.identifierLabel};
+    const {error}=await supabase.from('external_links').insert({account_id:w.accountId,app_id:'zeus',kind:'zeus-checkin',record_id:job.id,token,title:`Checklist de entrada · ${ASSET_FOLDER_LABELS[assetFolder]} · OS ${String(job.number).padStart(4,'0')}`,payload,created_by:auth.user.id});
     if(error){w.setError(error.message);setBusy('');return;}
     const url=`${window.location.origin}/checklist/${token}`;setShare({jobId,url});
-    await w.mutate(data=>{const current=data.jobs.find(item=>item.id===jobId);if(current)current.events.push({id:uid(),at:new Date().toISOString(),text:`Checklist de entrada (${template.label}) enviado por ${data.settings.operator||'usuário'}`});},'Link do checklist criado.');
+    await w.mutate(data=>{const current=data.jobs.find(item=>item.id===jobId);if(current)current.events.push({id:uid(),at:new Date().toISOString(),text:`Checklist de entrada (${ASSET_FOLDER_LABELS[assetFolder]}) enviado por ${data.settings.operator||'usuário'}`});},'Link do checklist criado.');
     setBusy('');
   };
   const saveConfig=async(next:CheckConfig,message='Configuração do checklist salva.')=>{await w.mutate(data=>writeConfig(data,next),message);};
@@ -85,8 +123,8 @@ export function ZeusCheckIn({w}:{w:Workspace}){
 
     {tab==='config'&&<>
       <Section title="Comportamento do checklist">
-        <p className="zeus-config-note">Defina aqui o único modelo padrão/ativo. Todas as OS usarão automaticamente esse modelo ao gerar link ou QR Code.</p>
-        <label className="op-field zeus-default-segment"><span>Modelo padrão/ativo</span><select value={config.defaultSegment} disabled={!config.enabled} onChange={e=>void saveConfig({...config,defaultSegment:e.target.value as ZeusChecklistSegment},'Modelo padrão do checklist atualizado.')}>{ZEUS_CHECKLIST_SEGMENTS.map(item=><option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+        <p className="zeus-config-note">Defina aqui o único modelo padrão/ativo. Todas as OS usarão automaticamente esse modelo e as imagens correspondentes do R2 ao gerar link ou QR Code.</p>
+        <label className="op-field zeus-default-segment"><span>Modelo padrão/ativo</span><select value={config.defaultAssetFolder} disabled={!config.enabled} onChange={e=>void saveConfig({...config,defaultAssetFolder:e.target.value as ZeusChecklistAssetFolder},'Modelo padrão do checklist atualizado.')}>{ZEUS_CHECKLIST_ASSET_FOLDERS.map(folder=><option value={folder} key={folder}>{ASSET_FOLDER_LABELS[folder]}</option>)}</select></label>
         <div className="op-module-choice"><input type="checkbox" checked={config.enabled} onChange={e=>void saveConfig({...config,enabled:e.target.checked})}/><span><strong>Usar checklist de entrada</strong><small>Quando desligado, o Zeus continua funcionando normalmente.</small></span><Badge>{config.enabled?'Ativo':'Desativado'}</Badge></div>
         <div className="op-module-choice"><input type="checkbox" checked={config.requireSignature} disabled={!config.enabled} onChange={e=>void saveConfig({...config,requireSignature:e.target.checked})}/><span><strong>Exigir assinatura</strong><small>O preenchimento só é concluído depois da assinatura na tela.</small></span><Badge>{config.requireSignature?'Obrigatória':'Opcional'}</Badge></div>
       </Section>
