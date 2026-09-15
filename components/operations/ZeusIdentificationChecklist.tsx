@@ -5,11 +5,11 @@ import { Camera, CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { uploadOperationalFile, R2AuthRequiredError } from '@/lib/r2/client';
-import { activeJob, customValues, event, setCustomValues, uid, type Job } from '@/lib/operations/model';
+import { activeJob, customValues, event, setCustomValues, uid } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
-import { ZEUS_CHECKLIST_ASSET_FOLDERS, isZeusChecklistAssetFolder, type ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
-import { Badge, Button, Empty, Section } from './ui';
+import { isZeusChecklistAssetFolder, type ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
+import { Badge, Button, Section } from './ui';
 
 const CONFIG_KEY='__zeus_checkin_config__';
 const JOB_FOLDER_KEY='__zeus_checklist_asset_folder__';
@@ -37,6 +37,19 @@ const SEGMENT_BY_FOLDER:Record<ZeusChecklistAssetFolder,ZeusChecklistSegment>={
   maquina_carregadeira:'machine',maquina_escavadeira:'machine',maquina_motoniveladora:'machine',maquina_retroescavadeira:'machine',
   maquina_rolo_compactador:'machine',micro_onibus:'truck',moto:'moto',onibus:'truck',trator_agricola:'machine',van:'truck',
 };
+
+type ChecklistCategoryId='light'|'heavy'|'yellow'|'industrial'|'agricultural';
+type ChecklistCategory={id:ChecklistCategoryId;label:string;description:string;folders:ZeusChecklistAssetFolder[]};
+const CHECKLIST_CATEGORIES:ChecklistCategory[]=[
+  {id:'light',label:'Veículos leves',description:'Uso urbano e utilitário',folders:['carro','van','micro_onibus','moto']},
+  {id:'heavy',label:'Caminhões / ônibus',description:'Transporte rodoviário e coletivo',folders:['caminhao_pequeno','caminhao_medio','caminhao_cavalo_mecanico','onibus']},
+  {id:'yellow',label:'Máquinas linha amarela',description:'Construção e terraplenagem',folders:['maquina_escavadeira','maquina_retroescavadeira','maquina_carregadeira','maquina_motoniveladora','maquina_rolo_compactador']},
+  {id:'industrial',label:'Equipamentos industriais',description:'Movimentação e operação interna',folders:['empilhadeira']},
+  {id:'agricultural',label:'Agrícola',description:'Máquinas para operação no campo',folders:['trator_agricola']},
+];
+function categoryForFolder(folder:ZeusChecklistAssetFolder):ChecklistCategoryId{
+  return CHECKLIST_CATEGORIES.find(category=>category.folders.includes(folder))?.id||'light';
+}
 
 type CheckConfig={enabled:boolean;requireSignature:boolean;defaultAssetFolder:ZeusChecklistAssetFolder;itemsBySegment:Record<ZeusChecklistSegment,string[]>};
 
@@ -76,12 +89,15 @@ export function ZeusIdentificationChecklist({w,jobId}:{w:Workspace;jobId:string}
   const [done,setDone]=useState(false);
   const [busy,setBusy]=useState('');
   const [shareUrl,setShareUrl]=useState('');
+  const [pickerCategory,setPickerCategory]=useState<ChecklistCategoryId|''>('');
   const job=w.data.jobs.find(item=>item.id===jobId);
   const config=readConfig(w);
   const saved=job?customValues(w.data,job.id):{};
   const savedFolder=isZeusChecklistAssetFolder(String(saved[JOB_FOLDER_KEY]||''))?saved[JOB_FOLDER_KEY] as ZeusChecklistAssetFolder:'';
   const inheritedFolder=config.enabled?config.defaultAssetFolder:'';
   const selectedFolder=(saved[JOB_ENABLED_KEY]==='false'?'':savedFolder||inheritedFolder) as ZeusChecklistAssetFolder|'';
+  const selectedCategory=(pickerCategory||(selectedFolder?categoryForFolder(selectedFolder):'')) as ChecklistCategoryId|'';
+  const visibleCategory=CHECKLIST_CATEGORIES.find(category=>category.id===selectedCategory);
   const asset=job?w.data.assets.find(item=>item.id===job.assetId):undefined;
   const customer=job?w.data.customers.find(item=>item.id===job.customerId):undefined;
   const active=!!job&&activeJob(job);
@@ -116,6 +132,7 @@ export function ZeusIdentificationChecklist({w,jobId}:{w:Workspace;jobId:string}
   const choose=async(value:string)=>{
     if(!job||done)return;
     const folder=isZeusChecklistAssetFolder(value)?value:'';
+    setPickerCategory(folder?categoryForFolder(folder):'');
     await w.mutate(data=>setCustomValues(data,job.id,{[JOB_ENABLED_KEY]:folder?'true':'false',[JOB_FOLDER_KEY]:folder}),folder?'Checklist habilitado para esta OS.':'Checklist desabilitado para esta OS.');
   };
 
@@ -171,16 +188,65 @@ export function ZeusIdentificationChecklist({w,jobId}:{w:Workspace;jobId:string}
 
   const content=useMemo(()=>{
     if(!job||job.stage!=='Identificação')return null;
+    const locked=!active||done;
     return <Section title="Checklist e fotos da identificação" action={done?<Badge><CheckCircle2 size={13}/>Checklist concluído</Badge>:undefined}>
       <div className="zeus-identification-checklist-grid">
-        <label className="op-field"><span>Checklist desta OS</span><select value={selectedFolder} disabled={!active||done} onChange={e=>void choose(e.target.value)}><option value="">Não usar checklist nesta OS</option>{ZEUS_CHECKLIST_ASSET_FOLDERS.map(folder=><option key={folder} value={folder}>{FOLDER_LABELS[folder]}</option>)}</select><small>{done?'Checklist bloqueado após a conclusão.':'O padrão vem da Configuração, mas pode ser trocado nesta OS antes de executar.'}</small></label>
-        <div className="zeus-identification-actions"><div><strong>{selectedFolder?FOLDER_LABELS[selectedFolder]:'Checklist desabilitado'}</strong><small>{done?'Já executado. Não é possível preencher novamente.':selectedFolder?'Preencha antes de avançar para a próxima etapa.':'A OS pode seguir sem checklist.'}</small></div>{selectedFolder&&!done&&<Button disabled={busy==='checklist'} onClick={()=>void openChecklist()}><ExternalLink size={16}/>{busy==='checklist'?'Abrindo…':'Preencher checklist'}</Button>}</div>
+        <div className="zeus-checklist-picker span-full">
+          <div className="zeus-checklist-picker-head">
+            <div><span>Checklist desta OS</span><strong>Escolha a categoria</strong><small>{done?'Checklist bloqueado após a conclusão.':'Selecione primeiro o segmento e depois o modelo específico.'}</small></div>
+            <button type="button" disabled={locked} className={`zeus-checklist-off ${!selectedFolder?'active':''}`} onClick={()=>void choose('')}>Não usar checklist</button>
+          </div>
+          <div className="zeus-checklist-categories">
+            {CHECKLIST_CATEGORIES.map(category=><button type="button" key={category.id} disabled={locked} className={selectedCategory===category.id?'active':''} onClick={()=>setPickerCategory(category.id)}><strong>{category.label}</strong><small>{category.description}</small></button>)}
+          </div>
+          {visibleCategory&&<div className="zeus-checklist-models">
+            <div className="zeus-checklist-models-head"><div><span>Modelo específico</span><strong>{visibleCategory.label}</strong></div><small>{selectedFolder&&visibleCategory.folders.includes(selectedFolder)?`Selecionado: ${FOLDER_LABELS[selectedFolder]}`:'Escolha o equipamento correspondente à OS.'}</small></div>
+            <div className="zeus-checklist-model-grid">{visibleCategory.folders.map(folder=><button type="button" disabled={locked} key={folder} className={selectedFolder===folder?'active':''} onClick={()=>void choose(folder)}><strong>{FOLDER_LABELS[folder]}</strong>{config.defaultAssetFolder===folder&&<em>Padrão</em>}</button>)}</div>
+          </div>}
+          {!done&&<small className="zeus-checklist-picker-hint">O padrão da Configuração continua pré-selecionado, mas pode ser trocado nesta OS antes da execução.</small>}
+        </div>
+        <div className="zeus-identification-actions span-full"><div><span>Checklist selecionado</span><strong>{selectedFolder?FOLDER_LABELS[selectedFolder]:'Checklist desabilitado'}</strong><small>{done?'Já executado. Não é possível preencher novamente.':selectedFolder?'Preencha antes de avançar para a próxima etapa.':'A OS pode seguir sem checklist.'}</small></div>{selectedFolder&&!done&&<Button disabled={busy==='checklist'} onClick={()=>void openChecklist()}><ExternalLink size={16}/>{busy==='checklist'?'Abrindo…':'Preencher checklist'}</Button>}</div>
         <label className="op-field span-full"><span>Fotos da identificação</span><div className="op-actions"><label className="op-button secondary"><Camera size={16}/>{busy==='photo'?'Enviando…':'Tirar / anexar fotos'}<input hidden multiple disabled={busy==='photo'||!active} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>{const files=e.currentTarget.files;void addPhotos(files).finally(()=>{e.currentTarget.value='';});}}/></label><Badge>{job.attachments.length} foto(s)</Badge></div><small>Este campo é da identificação. O campo geral de Fotos e evidências continua disponível na ficha da OS.</small></label>
         {shareUrl&&<div className="op-callout span-full"><strong>Checklist aberto</strong><span> Ao concluir na outra aba, volte para a OS. O status será atualizado automaticamente.</span><Button variant="secondary" onClick={()=>void checkStatus()}><RefreshCw size={15}/>Atualizar status</Button></div>}
       </div>
-      <style jsx global>{`.zeus-identification-checklist-grid{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(300px,1.1fr);gap:16px;align-items:end}.zeus-identification-actions{min-height:74px;padding:12px 14px;border:1px solid var(--op-line);border-radius:10px;background:var(--op-soft);display:flex;align-items:center;justify-content:space-between;gap:14px}.zeus-identification-actions>div{display:grid;gap:4px}.zeus-identification-actions small{color:var(--op-muted)}@media(max-width:760px){.zeus-identification-checklist-grid{grid-template-columns:1fr}.zeus-identification-actions{align-items:flex-start;flex-direction:column}.zeus-identification-actions .op-button{width:100%}}`}</style>
+      <style jsx global>{`
+        .zeus-identification-checklist-grid{display:grid;grid-template-columns:1fr;gap:16px}
+        .zeus-checklist-picker{border:1px solid var(--op-line);border-radius:14px;background:var(--op-paper);padding:16px;display:grid;gap:14px}
+        .zeus-checklist-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+        .zeus-checklist-picker-head>div{display:grid;gap:3px}
+        .zeus-checklist-picker-head span,.zeus-checklist-models-head span,.zeus-identification-actions span{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--op-muted)}
+        .zeus-checklist-picker-head strong{font-size:17px;color:var(--op-text)}
+        .zeus-checklist-picker-head small,.zeus-checklist-models-head small,.zeus-checklist-picker-hint{color:var(--op-muted);font-size:11px;line-height:1.45}
+        .zeus-checklist-off{border:1px solid var(--op-line);background:var(--op-paper);color:var(--op-muted);padding:9px 12px;border-radius:9px;font-weight:700;cursor:pointer;white-space:nowrap}
+        .zeus-checklist-off:hover:not(:disabled){border-color:#9fb7d2;color:var(--op-text)}
+        .zeus-checklist-off.active{border-color:#9aa8b7;background:#f2f5f8;color:#34485d}
+        .zeus-checklist-categories{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+        .zeus-checklist-categories button{min-height:76px;border:1px solid #dce4ed;border-radius:11px;background:#fff;padding:11px 12px;text-align:left;display:grid;align-content:center;gap:4px;cursor:pointer;color:var(--op-text);transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+        .zeus-checklist-categories button strong{font-size:12px;line-height:1.2}
+        .zeus-checklist-categories button small{font-size:10px;line-height:1.3;color:var(--op-muted)}
+        .zeus-checklist-categories button:hover:not(:disabled){border-color:#9ab8db;background:#f8fbff}
+        .zeus-checklist-categories button.active{border-color:#2d6fca;background:#f2f7ff;box-shadow:inset 0 0 0 1px #2d6fca}
+        .zeus-checklist-models{border-top:1px solid #e6edf4;padding-top:14px;display:grid;gap:10px}
+        .zeus-checklist-models-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+        .zeus-checklist-models-head>div{display:grid;gap:2px}
+        .zeus-checklist-models-head strong{font-size:14px}
+        .zeus-checklist-model-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .zeus-checklist-model-grid button{position:relative;min-height:48px;border:1px solid #dce4ed;border-radius:9px;background:#fff;padding:10px 12px;text-align:left;cursor:pointer;color:var(--op-text);display:flex;align-items:center;justify-content:space-between;gap:8px}
+        .zeus-checklist-model-grid button strong{font-size:12px;line-height:1.25}
+        .zeus-checklist-model-grid button em{font-size:9px;font-style:normal;font-weight:800;color:#2d6fca;background:#edf4ff;border-radius:999px;padding:3px 6px}
+        .zeus-checklist-model-grid button:hover:not(:disabled){border-color:#9ab8db;background:#f8fbff}
+        .zeus-checklist-model-grid button.active{border-color:#2d6fca;background:#eaf3ff;box-shadow:inset 0 0 0 1px #2d6fca}
+        .zeus-checklist-categories button:disabled,.zeus-checklist-model-grid button:disabled,.zeus-checklist-off:disabled{cursor:not-allowed;opacity:.62}
+        .zeus-identification-actions{min-height:76px;padding:13px 15px;border:1px solid var(--op-line);border-radius:11px;background:var(--op-soft);display:flex;align-items:center;justify-content:space-between;gap:14px}
+        .zeus-identification-actions>div{display:grid;gap:3px}
+        .zeus-identification-actions strong{font-size:14px}
+        .zeus-identification-actions small{color:var(--op-muted);font-size:11px}
+        @media(max-width:1050px){.zeus-checklist-categories{grid-template-columns:repeat(3,minmax(0,1fr))}.zeus-checklist-model-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media(max-width:760px){.zeus-checklist-picker-head,.zeus-checklist-models-head,.zeus-identification-actions{align-items:flex-start;flex-direction:column}.zeus-checklist-off{width:100%}.zeus-checklist-categories{grid-template-columns:1fr 1fr}.zeus-checklist-model-grid{grid-template-columns:1fr 1fr}.zeus-identification-actions .op-button{width:100%}}
+        @media(max-width:480px){.zeus-checklist-categories,.zeus-checklist-model-grid{grid-template-columns:1fr}}
+      `}</style>
     </Section>;
-  },[job?.id,job?.stage,job?.attachments.length,selectedFolder,done,busy,shareUrl,active]);
+  },[job?.id,job?.stage,job?.attachments.length,selectedFolder,selectedCategory,done,busy,shareUrl,active,config.defaultAssetFolder]);
 
   return target&&content?createPortal(content,target):null;
 }
