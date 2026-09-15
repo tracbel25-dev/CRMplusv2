@@ -17,8 +17,8 @@ function parse(raw: string): Suggestion[] {
 }
 
 export async function POST(request: NextRequest) {
-  const access = await authorizeAppRequest(request, 'zeus');
-  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem acesso ao Zeus.' }, { status: 401 });
+  const access = await authorizeAppRequest(request, 'zeus', 'ai_use');
+  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para usar a IA do Zeus.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const stage = clean(body.stage, 80);
   const context = clean(body.context, 4500);

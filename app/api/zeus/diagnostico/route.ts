@@ -50,8 +50,8 @@ function parseSuggestions(raw: string): Suggestion[] {
 }
 
 export async function POST(request: NextRequest) {
-  const access = await authorizeAppRequest(request, 'zeus');
-  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem acesso ao Zeus.' }, { status: 401 });
+  const access = await authorizeAppRequest(request, 'zeus', 'ai_use');
+  if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para usar a IA do Zeus.' }, { status: 403 });
   if (!rateLimit(access.userId)) return NextResponse.json({ error: 'Limite temporário de assistência atingido. Tente novamente em um minuto.' }, { status: 429 });
 
   const body = await request.json().catch(() => ({}));

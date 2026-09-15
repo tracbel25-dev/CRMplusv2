@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest, operationalRpc, type CloudOperationalApp } from '@/lib/server/operationalWorkspace';
+import type { Data } from '@/lib/operations/model';
+import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
+import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +49,31 @@ async function hydrateArtemisProductImages(data: Record<string, unknown>, accoun
   return hydrated;
 }
 
+function validateZeusTransition(current: Data | null, next: Data) {
+  const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
+  for (const job of next.jobs) {
+    const previous = currentJobs.get(job.id);
+    if (previous?.stage === 'Identificação' && job.stage !== 'Identificação') {
+      const nextChecklist = zeusChecklistState(next, job.id);
+      const currentChecklist = current ? zeusChecklistState(current, job.id) : null;
+      if ((nextChecklist.enabled || currentChecklist?.enabled) && !nextChecklist.completed && !currentChecklist?.completed) {
+        throw new Error('CHECKLIST_REQUIRED: conclua o checklist de entrada antes de avançar a OS.');
+      }
+    }
+
+    const values = next.customFieldValues?.[job.id] || {};
+    const relatedId = String(values[ZEUS_RELATED_JOB_KEY] || '').trim();
+    if (relatedId) {
+      if (relatedId === job.id) throw new Error('RELATED_JOB_INVALID: uma OS não pode ser relacionada a ela mesma.');
+      const related = next.jobs.find(item => item.id === relatedId);
+      if (!related) throw new Error('RELATED_JOB_INVALID: a OS de origem não foi encontrada.');
+      if (related.customerId !== job.customerId || related.assetId !== job.assetId) {
+        throw new Error('RELATED_JOB_INVALID: retorno/garantia deve apontar para uma OS do mesmo cliente e veículo/equipamento.');
+      }
+    }
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ app: string }> }) {
   const { app: raw } = await params;
   const app = cloudApp(raw);
@@ -59,10 +87,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!row) return NextResponse.json({ data: null, revision: 0 });
 
     let data = row.data;
-    if (app === 'artemis' && validWorkspace(data)) {
-      data = await hydrateArtemisProductImages(data, access.accountId);
-    }
-
+    if (app === 'artemis' && validWorkspace(data)) data = await hydrateArtemisProductImages(data, access.accountId);
     return NextResponse.json({ data, revision: Number(row.revision || 0), updatedAt: row.updated_at });
   } catch (reason) {
     return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível carregar os dados.' }, { status: 503 });
@@ -85,6 +110,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const expectedRevision = Math.max(0, Math.trunc(Number(body.expectedRevision) || 0));
 
   try {
+    if (app === 'zeus') {
+      const rows = await operationalRest('zeus', `workspace_state?${query({ select: 'data', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ data: unknown }>;
+      const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
+      validateZeusTransition(current, body.data as unknown as Data);
+    }
+
     const result = await operationalRpc(app, 'save_workspace_state', {
       p_tenant_key: access.accountId,
       p_expected_revision: expectedRevision,
@@ -102,6 +133,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!result?.ok || !validWorkspace(result.data)) throw new Error('O banco não confirmou a gravação dos dados.');
     return NextResponse.json({ ok: true, revision: Number(result.revision || 0), data: result.data });
   } catch (reason) {
-    return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.' }, { status: 503 });
+    const message = reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.';
+    if (message.startsWith('CHECKLIST_REQUIRED:')) return NextResponse.json({ error: message.replace('CHECKLIST_REQUIRED: ', '') }, { status: 409 });
+    if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

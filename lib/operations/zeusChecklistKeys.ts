@@ -1,0 +1,11 @@
+export const ZEUS_CHECKLIST_CONFIG_KEY = '__zeus_checkin_config__';
+export const ZEUS_CHECKLIST_FOLDER_KEY = '__zeus_checklist_asset_folder__';
+export const ZEUS_CHECKLIST_ENABLED_KEY = '__zeus_checklist_enabled__';
+export const ZEUS_CHECKLIST_COMPLETED_KEY = '__zeus_checklist_completed__';
+export const ZEUS_CHECKLIST_COMPLETED_AT_KEY = '__zeus_checklist_completed_at__';
+export const ZEUS_CHECKLIST_RESPONSE_KEY = '__zeus_checklist_response__';
+export const ZEUS_CHECKLIST_METER_KEY = '__zeus_checklist_meter__';
+export const ZEUS_ATTACHMENT_META_KEY = '__zeus_attachment_meta__';
+export const ZEUS_RELATED_JOB_KEY = '__zeus_related_job_id__';
+export const ZEUS_WARRANTY_REASON_KEY = '__zeus_warranty_reason__';
+export const ZEUS_SERVICE_TYPES_KEY = '__zeus_service_types__';

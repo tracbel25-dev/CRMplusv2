@@ -7,6 +7,7 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import { ZEUS_DASHBOARD_FILTERS, ZEUS_JOB_FILTERS, ZEUS_QUOTE_FILTERS, readZeusPreferences, writeZeusPreferences, type ZeusPreferences } from '@/lib/operations/zeus';
 import { Badge, Button, CustomerManager, Empty, Modal, RecordForm, Section } from './ui';
 import { PaymentIntegrationSetting } from './PaymentIntegrationSetting';
+import { ZeusServiceTypeSettings } from './ZeusServiceTypesCloud';
 
 const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
 
@@ -50,6 +51,8 @@ export function ZeusSettingsExtras({ w, budgetEnabled = true }: { w: Workspace; 
       </div>
       <div className="op-form-footer">{saved && <Badge>Salvo</Badge>}<Button onClick={() => { void save(); }}>Salvar preferências</Button></div>
     </Section>
+
+    <ZeusServiceTypeSettings w={w} />
 
     <CustomerManager w={w} title={`Clientes e ${s.assetLabel.toLowerCase()}s`} onOpen={customer => <>
       <Section title={`${s.assetLabel}s`} action={<Button variant="secondary" onClick={() => setAssetCustomer(customer.id)}>Adicionar</Button>}>
