@@ -1,25 +1,29 @@
-/* Prancha de avarias do Zeus — layout V3 sem recorte, com 3 vistas superiores + 2 laterais grandes. */
-.check-page .r2-damages{padding:20px!important;overflow:hidden!important}
-.check-page .damage-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important;margin-bottom:16px!important}
+/* Prancha de avarias Zeus — visual técnico limpo, sem template genérico. */
+.check-page .r2-damages{padding:18px!important;overflow:hidden!important}
+.check-page .r2-damages::before{height:42px!important;background:#b8d5f3!important}
+.check-page .damage-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:16px!important;margin-bottom:14px!important}
 .check-page .damage-head .section-title{margin:0!important;padding:0!important;border:0!important}
-.check-page .r2-damages .damage-legend{position:static!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;flex-wrap:wrap!important;margin:0!important}
-.check-page .r2-damages .damage-legend button{display:flex!important;align-items:center!important;gap:7px!important;min-height:36px!important;padding:8px 11px!important;border:1px solid #dce5ef!important;border-radius:999px!important;background:#fff!important;color:#2e435b!important;font-size:9px!important;font-weight:760!important;cursor:pointer!important;transition:.15s ease!important}
-.check-page .r2-damages .damage-legend button:hover{background:#f8fafc!important;border-color:#cad7e4!important}
-.check-page .r2-damages .damage-legend button.selected{border-color:#a9c2dd!important;background:#eef5fd!important;box-shadow:0 0 0 3px rgba(23,105,209,.06)!important}
-.check-page .r2-damages .damage-legend i{width:9px!important;height:9px!important;flex:0 0 9px!important;border-radius:999px!important}
+.check-page .r2-damages .damage-legend{position:static!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:6px!important;flex-wrap:wrap!important;margin:0!important}
+.check-page .r2-damages .damage-legend button{display:flex!important;align-items:center!important;gap:7px!important;min-height:32px!important;padding:6px 9px!important;border:1px solid #d9e2eb!important;border-radius:7px!important;background:#fff!important;color:#33475e!important;font-size:9px!important;font-weight:760!important;cursor:pointer!important;transition:.15s ease!important}
+.check-page .r2-damages .damage-legend button:hover{background:#f8fafc!important;border-color:#c7d4e1!important}
+.check-page .r2-damages .damage-legend button.selected{border-color:#8fb3dc!important;background:#f2f7fd!important;box-shadow:inset 0 0 0 1px #c7dcf3!important}
+.check-page .r2-damages .damage-legend i{width:8px!important;height:8px!important;flex:0 0 8px!important;border-radius:999px!important}
 
-.check-page .r2-views-grid{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:12px!important;padding:12px!important;border:1px solid #dce5ef!important;border-radius:14px!important;background:#f7fafd!important;overflow:hidden!important}
+/* 3 vistas de referência + 2 vistas laterais de trabalho. */
+.check-page .r2-views-grid{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;padding:10px!important;border:1px solid #dce5ef!important;border-radius:9px!important;background:#f5f8fb!important;overflow:hidden!important}
 .check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{min-width:0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;padding:0!important;border:0!important;background:transparent!important}
 .check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira{grid-column:span 2!important}
 .check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{grid-column:span 3!important}
 
-.check-page .r2-image-stage{position:relative!important;width:100%!important;height:225px!important;display:grid!important;place-items:center!important;border:1px solid #e1e9f1!important;border-radius:12px!important;background:#fff!important;overflow:hidden!important;line-height:0!important;cursor:crosshair!important;touch-action:manipulation!important;user-select:none!important;box-shadow:0 2px 8px rgba(15,35,61,.035)!important}
-.check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:330px!important}
-.check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{display:block!important;box-sizing:border-box!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;padding:18px!important;object-fit:contain!important;object-position:center center!important;pointer-events:none!important;user-select:none!important;-webkit-user-drag:none!important}
-.check-page .r2-view-lateral_esquerda .r2-image-stage img,.check-page .r2-view-lateral_direita .r2-image-stage img{padding:22px!important}
-.check-page .r2-view>strong{display:block!important;margin-top:8px!important;padding:0 2px!important;text-align:left!important;font-size:8px!important;line-height:1.2!important;font-weight:850!important;letter-spacing:.065em!important;text-transform:uppercase!important;color:#61768e!important}
-.check-page .r2-damages .damage-dot{position:absolute!important;z-index:3!important;width:25px!important;height:25px!important;padding:0!important;border:3px solid #fff!important;border-radius:999px!important;transform:translate(-50%,-50%)!important;box-shadow:0 3px 9px rgba(0,0,0,.22)!important;color:#fff!important;font-size:8px!important;font-weight:900!important;line-height:19px!important;cursor:pointer!important}
-.check-page .damage-hint{margin:10px 2px 0!important;color:#71849a!important;font-size:8px!important;line-height:1.45!important}
+.check-page .r2-image-stage{position:relative!important;width:100%!important;height:220px!important;display:grid!important;place-items:center!important;border:1px solid #dfe7ef!important;border-radius:8px!important;background:#fff!important;overflow:hidden!important;line-height:0!important;cursor:crosshair!important;touch-action:manipulation!important;user-select:none!important;box-shadow:none!important}
+.check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:315px!important}
+.check-page .r2-image-stage::after{content:"";position:absolute;inset:8px;border:1px solid rgba(23,105,209,.05);pointer-events:none}
+.check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{display:block!important;box-sizing:border-box!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;padding:16px!important;object-fit:contain!important;object-position:center center!important;pointer-events:none!important;user-select:none!important;-webkit-user-drag:none!important}
+.check-page .r2-view-lateral_esquerda .r2-image-stage img,.check-page .r2-view-lateral_direita .r2-image-stage img{padding:18px!important}
+.check-page .r2-view>strong{display:block!important;margin-top:7px!important;padding:0 1px!important;text-align:left!important;font-size:8px!important;line-height:1.2!important;font-weight:850!important;letter-spacing:.075em!important;text-transform:uppercase!important;color:#61758b!important}
+
+.check-page .r2-damages .damage-dot{position:absolute!important;z-index:3!important;width:24px!important;height:24px!important;padding:0!important;border:3px solid #fff!important;border-radius:999px!important;transform:translate(-50%,-50%)!important;box-shadow:0 2px 6px rgba(0,0,0,.2)!important;color:#fff!important;font-size:8px!important;font-weight:900!important;line-height:18px!important;cursor:pointer!important}
+.check-page .damage-hint{margin:9px 2px 0!important;color:#71849a!important;font-size:8px!important;line-height:1.45!important}
 
 @media(max-width:980px){
   .check-page .damage-head{flex-direction:column!important;gap:9px!important}
@@ -27,25 +31,25 @@
   .check-page .r2-views-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{grid-column:span 1!important}
   .check-page .r2-view-lateral_direita{grid-column:1/-1!important}
-  .check-page .r2-image-stage{height:240px!important}
-  .check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:280px!important}
+  .check-page .r2-image-stage{height:235px!important}
+  .check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:275px!important}
 }
 
 @media(max-width:760px){
-  .check-page .r2-damages{padding:15px 0 16px!important}
-  .check-page .damage-head{padding:0 15px!important;margin-bottom:12px!important}
+  .check-page .r2-damages{padding:14px 0 16px!important}
+  .check-page .damage-head{padding:0 14px!important;margin-bottom:11px!important}
   .check-page .r2-damages .damage-legend{display:grid!important;grid-template-columns:1fr 1fr!important;width:100%!important;gap:6px!important}
-  .check-page .r2-damages .damage-legend button{justify-content:flex-start!important;min-height:40px!important;padding:8px 10px!important;background:#fff!important}
-  .check-page .r2-views-grid{display:flex!important;grid-template-columns:none!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x mandatory!important;gap:8px!important;padding:8px 0!important;border-left:0!important;border-right:0!important;border-radius:0!important;background:#f7fafd!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
+  .check-page .r2-damages .damage-legend button{justify-content:flex-start!important;min-height:38px!important;padding:8px 9px!important;background:#fff!important}
+  .check-page .r2-views-grid{display:flex!important;grid-template-columns:none!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x mandatory!important;gap:8px!important;padding:8px 0!important;border-left:0!important;border-right:0!important;border-radius:0!important;background:#f5f8fb!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important}
   .check-page .r2-views-grid::-webkit-scrollbar{display:none!important}
   .check-page .r2-view,.check-page .r2-view-teto,.check-page .r2-view-frente,.check-page .r2-view-traseira,.check-page .r2-view-lateral_esquerda,.check-page .r2-view-lateral_direita{flex:0 0 88vw!important;min-width:88vw!important;padding:0!important;scroll-snap-align:center!important;background:transparent!important}
   .check-page .r2-view:first-child{margin-left:6vw!important}
   .check-page .r2-view:last-child{margin-right:6vw!important}
-  .check-page .r2-image-stage{height:300px!important;border-radius:12px!important}
-  .check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:340px!important}
-  .check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{box-sizing:border-box!important;padding:16px!important}
-  .check-page .r2-view-lateral_esquerda .r2-image-stage img,.check-page .r2-view-lateral_direita .r2-image-stage img{padding:18px!important}
-  .check-page .r2-view>strong{font-size:9px!important;margin-top:8px!important;padding-left:2px!important}
-  .check-page .r2-damages .damage-dot{width:27px!important;height:27px!important;line-height:21px!important}
-  .check-page .damage-hint{padding:0 15px!important;margin-top:9px!important}
+  .check-page .r2-image-stage{height:295px!important;border-radius:8px!important}
+  .check-page .r2-view-lateral_esquerda .r2-image-stage,.check-page .r2-view-lateral_direita .r2-image-stage{height:330px!important}
+  .check-page .r2-image-stage img,.check-page .r2-view-teto .r2-image-stage img{box-sizing:border-box!important;padding:15px!important}
+  .check-page .r2-view-lateral_esquerda .r2-image-stage img,.check-page .r2-view-lateral_direita .r2-image-stage img{padding:17px!important}
+  .check-page .r2-view>strong{font-size:9px!important;margin-top:7px!important;padding-left:1px!important}
+  .check-page .r2-damages .damage-dot{width:26px!important;height:26px!important;line-height:20px!important}
+  .check-page .damage-hint{padding:0 14px!important;margin-top:9px!important}
 }
