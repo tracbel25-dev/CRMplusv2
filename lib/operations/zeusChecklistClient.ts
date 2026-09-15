@@ -60,6 +60,10 @@ async function request<T>(path: string, init: RequestInit = {}) {
   return payload as T;
 }
 
+export async function migrateLegacyZeusChecklists() {
+  return request<{ ok: boolean; imported: number }>('/api/zeus/checklist/migrate', { method: 'POST' });
+}
+
 export async function listZeusChecklists(jobId = '') {
   const params = new URLSearchParams();
   if (jobId) params.set('jobId', jobId);
