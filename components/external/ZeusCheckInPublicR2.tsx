@@ -8,6 +8,7 @@ import {
   ZEUS_CHECKLIST_VIEWS,
   ZEUS_CHECKLIST_VIEW_LABELS,
   inferZeusChecklistAssetFolder,
+  isZeusChecklistAssetFolder,
   normalizeZeusChecklistView,
   type ZeusChecklistAssetFolder,
   type ZeusChecklistView,
@@ -23,6 +24,24 @@ const damageColors: Record<DamageType, string> = {
   Riscado: '#2563eb',
   Quebrado: '#f97316',
   Faltante: '#7c3aed',
+};
+
+const assetFolderLabels: Record<ZeusChecklistAssetFolder, string> = {
+  caminhao_cavalo_mecanico: 'Caminhão cavalo mecânico',
+  caminhao_medio: 'Caminhão médio',
+  caminhao_pequeno: 'Caminhão pequeno',
+  carro: 'Automóvel',
+  empilhadeira: 'Empilhadeira',
+  maquina_carregadeira: 'Carregadeira',
+  maquina_escavadeira: 'Escavadeira',
+  maquina_motoniveladora: 'Motoniveladora',
+  maquina_retroescavadeira: 'Retroescavadeira',
+  maquina_rolo_compactador: 'Rolo compactador',
+  micro_onibus: 'Micro-ônibus',
+  moto: 'Moto',
+  onibus: 'Ônibus',
+  trator_agricola: 'Trator agrícola',
+  van: 'Van',
 };
 
 async function invoke(token: string, action: 'read' | 'respond', response?: Record<string, unknown>) {
@@ -129,7 +148,7 @@ function R2DamageBoard({ folder, value, onChange }: { folder: ZeusChecklistAsset
               <div className="r2-image-stage" onPointerDown={event => add(view, event)}>
                 <img
                   src={`/api/checklist-asset?folder=${encodeURIComponent(folder)}&view=${encodeURIComponent(view)}`}
-                  alt={`${ZEUS_CHECKLIST_VIEW_LABELS[view]} do equipamento`}
+                  alt={`${ZEUS_CHECKLIST_VIEW_LABELS[view]} de ${assetFolderLabels[folder].toLowerCase()}`}
                   draggable={false}
                 />
                 {points.map((item, index) => {
@@ -192,9 +211,13 @@ export function ZeusCheckInPublicR2({ token }: { token: string }) {
   const template = ZEUS_CHECKLIST_TEMPLATES[segment];
   const items = useMemo(() => ((link?.payload?.items || template.items) as string[]), [link, template.items]);
   const assetInfo = (link?.payload?.assetInfo || {}) as Record<string, unknown>;
-  const assetLabel = String(link?.payload?.assetLabel || template.shortLabel);
-  const assetFolder = inferZeusChecklistAssetFolder(assetLabel, assetInfo);
-  const meterLabel = String(link?.payload?.meterLabel || (/máquina|equipamento|trator|empilhadeira/i.test(assetLabel) ? 'Horímetro' : 'Quilometragem'));
+  const requestedFolder = String(link?.payload?.checklistAssetFolder || assetInfo.checklistAssetFolder || assetInfo.checklist_asset_folder || '');
+  const assetFolder = isZeusChecklistAssetFolder(requestedFolder)
+    ? requestedFolder
+    : inferZeusChecklistAssetFolder(String(link?.payload?.assetLabel || ''), assetInfo);
+  const assetTypeLabel = assetFolderLabels[assetFolder];
+  const assetModel = String(assetInfo.model || link?.payload?.asset || template.label || '').trim();
+  const meterLabel = String(link?.payload?.meterLabel || (/maquina_|trator_agricola|empilhadeira/.test(assetFolder) ? 'Horímetro' : 'Quilometragem'));
 
   if (error && !link) return <main className="check-page"><section className="check-state"><h1>Este checklist não está disponível</h1><p>{error}</p></section></main>;
   if (!link) return <main className="check-page"><section className="check-state"><p>Abrindo checklist…</p></section></main>;
@@ -239,19 +262,19 @@ export function ZeusCheckInPublicR2({ token }: { token: string }) {
         </header>
 
         <section className="check-heading">
-          <div><p className="eyebrow">Checklist de entrada</p><h1>{template.shortLabel} · OS {String(link.payload.jobNumber || '').padStart(4, '0')}</h1><p>Inspeção visual e registro das condições no recebimento.</p></div>
+          <div><p className="eyebrow">Checklist de entrada</p><h1>{assetTypeLabel} · OS {String(link.payload.jobNumber || '').padStart(4, '0')}</h1><p>Inspeção visual e registro das condições no recebimento.</p></div>
           <span className="status-pill">Em preenchimento</span>
         </section>
 
         <section className="hero-data">
           <div><UserRound size={18} /><span>Cliente<strong>{String(link.payload.customer || 'Não informado')}</strong></span></div>
           <div><ClipboardCheck size={18} /><span>{String(link.payload.identifierLabel || 'Identificação')}<strong>{String(assetInfo.identifier || link.payload.asset || 'Não informado')}</strong></span></div>
-          <div><Wrench size={18} /><span>{assetLabel}<strong>{String(assetInfo.model || template.label)}</strong></span></div>
+          <div><Wrench size={18} /><span>{assetTypeLabel}<strong>{assetModel || 'Não informado'}</strong></span></div>
         </section>
 
         <div className="top-grid">
           <section className="form-card">
-            <div className="section-title"><ClipboardCheck size={18} /><div><h2>Dados do {assetLabel.toLowerCase()}</h2><p>Informações principais do item recebido.</p></div></div>
+            <div className="section-title"><ClipboardCheck size={18} /><div><h2>Dados — {assetTypeLabel}</h2><p>Informações principais do item recebido.</p></div></div>
             <div className="fields">
               <label><span>Marca</span><input readOnly value={String(assetInfo.brand || '')} placeholder="Não informado" /></label>
               <label><span>Modelo</span><input readOnly value={String(assetInfo.model || '')} placeholder="Não informado" /></label>
