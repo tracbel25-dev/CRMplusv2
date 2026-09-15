@@ -13,6 +13,7 @@ type Product = {
   price_cents: number;
   allergens: string;
   preparation_minutes: number;
+  image_url?: string;
 };
 
 type MenuPayload = {
@@ -34,10 +35,15 @@ type MenuPayload = {
 };
 
 type CartLine = { quantity: number; note: string };
-
 type Props = { slug: string; mode: 'menu' | 'delivery' };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+
+function ProductMedia({ product }: { product: Product }) {
+  if (product.image_url) return <div className="public-product-media"><img src={product.image_url} alt={product.name} /></div>;
+  const initials = product.name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+  return <div className="public-product-media is-placeholder" aria-hidden="true"><span>{initials || 'AR'}</span></div>;
+}
 
 export function PublicMenu({ slug, mode }: Props) {
   const searchParams = useSearchParams();
@@ -82,6 +88,7 @@ export function PublicMenu({ slug, mode }: Props) {
     return matchesCategory && haystack.includes(query.toLocaleLowerCase('pt-BR'));
   }), [payload, category, query]);
   const selected = useMemo(() => (payload?.products || []).filter(product => (cart[product.id]?.quantity || 0) > 0), [payload, cart]);
+  const itemCount = selected.reduce((sum, product) => sum + cart[product.id].quantity, 0);
   const subtotal = selected.reduce((sum, product) => sum + product.price_cents * cart[product.id].quantity, 0);
   const fee = channel === 'Delivery' ? payload?.restaurant.deliveryFee || 0 : 0;
   const total = subtotal + fee;
@@ -131,10 +138,13 @@ export function PublicMenu({ slug, mode }: Props) {
   if (!payload) return null;
 
   return <main className="artemis-public">
-    <header className="public-restaurant-head">
-      <span className="public-app-mark">Artemis</span>
-      <div><h1>{payload.restaurant.name}</h1><p>{payload.restaurant.address || 'Cardápio digital'}</p></div>
-      {payload.table && <span className="public-table"><UtensilsCrossed size={16} />{payload.table.name}</span>}
+    <header className="public-terminal-head">
+      <div className="public-brand-block"><span className="public-app-mark">ARTEMIS</span><div><h1>{payload.restaurant.name}</h1><p>{payload.restaurant.address || 'Cardápio digital'}</p></div></div>
+      <div className="public-head-actions">
+        <label className="public-head-search"><Search size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar" /></label>
+        {payload.table && <span className="public-table"><UtensilsCrossed size={16} />{payload.table.name}</span>}
+        {canOrder && <button className="public-order-shortcut" onClick={() => selected.length && setCheckout(true)}><ShoppingBag size={18} /><span>Pedido</span>{itemCount > 0 && <b>{itemCount}</b>}</button>}
+      </div>
     </header>
 
     {success && <div className="public-success"><CheckCircle2 size={24} /><div><strong>Pedido #{String(success.number).padStart(3, '0')} recebido</strong><span>Total: {money(success.total_cents)}. O restaurante agora confirma e prepara seu pedido.</span></div></div>}
@@ -144,21 +154,32 @@ export function PublicMenu({ slug, mode }: Props) {
       {payload.restaurant.onlinePaused && <p>O restaurante pausou temporariamente os pedidos online.</p>}
     </section>}
 
-    <div className="public-search"><Search size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar no cardápio" /></div>
-    <div className="public-categories">{categories.map(value => <button key={value} className={category === value ? 'active' : ''} onClick={() => setCategory(value)}>{value}</button>)}</div>
+    <div className="public-terminal-layout">
+      <aside className="public-category-rail" aria-label="Categorias do cardápio">
+        <span className="public-category-title">Categorias</span>
+        {categories.map(value => <button key={value} className={category === value ? 'active' : ''} onClick={() => setCategory(value)}><i />{value}</button>)}
+      </aside>
 
-    <section className="public-menu-list">
-      {visible.map(product => <article className="public-product" key={product.id}>
-        <div className="public-product-copy"><span>{product.category}</span><h2>{product.name}</h2>{product.description && <p>{product.description}</p>}{product.allergens && <small>{product.allergens}</small>}<strong>{money(product.price_cents)}</strong></div>
-        {canOrder && <div className="public-quantity"><button aria-label={`Remover ${product.name}`} onClick={() => changeQuantity(product.id, -1)}><Minus size={16} /></button><span>{cart[product.id]?.quantity || 0}</span><button aria-label={`Adicionar ${product.name}`} onClick={() => changeQuantity(product.id, 1)}><Plus size={16} /></button></div>}
-        {(cart[product.id]?.quantity || 0) > 0 && <label className="public-note"><span>Observação</span><input value={cart[product.id]?.note || ''} onChange={event => setCart(current => ({ ...current, [product.id]: { ...(current[product.id] || { quantity: 1 }), note: event.target.value } }))} placeholder="Ex.: sem cebola" /></label>}
-      </article>)}
-      {!visible.length && <div className="public-state">Nenhum item encontrado.</div>}
-    </section>
+      <section className="public-catalog-area">
+        <div className="public-mobile-categories">{categories.map(value => <button key={value} className={category === value ? 'active' : ''} onClick={() => setCategory(value)}>{value}</button>)}</div>
+        <div className="public-catalog-title"><div><span>{category === 'Todos' ? 'Cardápio' : category}</span><h2>{category === 'Todos' ? 'Escolha o que deseja pedir' : `Opções de ${category}`}</h2></div><small>{visible.length} item(ns)</small></div>
+        <div className="public-menu-grid">
+          {visible.map(product => <article className="public-product" key={product.id}>
+            <ProductMedia product={product} />
+            <div className="public-product-copy"><span>{product.category}</span><h3>{product.name}</h3>{product.description && <p>{product.description}</p>}{product.allergens && <small>{product.allergens}</small>}<div className="public-product-bottom"><strong>{money(product.price_cents)}</strong>{product.preparation_minutes > 0 && <small>{product.preparation_minutes} min</small>}</div></div>
+            {canOrder && <div className="public-product-actions">
+              {(cart[product.id]?.quantity || 0) === 0 ? <button className="public-add" onClick={() => changeQuantity(product.id, 1)}>Adicionar ao pedido</button> : <div className="public-quantity"><button aria-label={`Remover ${product.name}`} onClick={() => changeQuantity(product.id, -1)}><Minus size={16} /></button><span>{cart[product.id]?.quantity || 0}</span><button aria-label={`Adicionar ${product.name}`} onClick={() => changeQuantity(product.id, 1)}><Plus size={16} /></button></div>}
+            </div>}
+            {(cart[product.id]?.quantity || 0) > 0 && <label className="public-note"><span>Observação</span><input value={cart[product.id]?.note || ''} onChange={event => setCart(current => ({ ...current, [product.id]: { ...(current[product.id] || { quantity: 1 }), note: event.target.value } }))} placeholder="Ex.: sem cebola" /></label>}
+          </article>)}
+          {!visible.length && <div className="public-state">Nenhum item encontrado.</div>}
+        </div>
+      </section>
+    </div>
 
     {mode === 'menu' && !payload.table && <div className="public-info"><Store size={18} /><span>Este é o cardápio público para consulta. Para pedir na mesa, use o QR Code disponibilizado pelo restaurante.</span></div>}
 
-    {canOrder && selected.length > 0 && <button className="public-cart-bar" onClick={() => setCheckout(true)}><ShoppingBag size={19} /><span>{selected.reduce((sum, product) => sum + cart[product.id].quantity, 0)} item(ns)</span><strong>{money(total)}</strong></button>}
+    {canOrder && selected.length > 0 && <button className="public-cart-bar" onClick={() => setCheckout(true)}><ShoppingBag size={19} /><span>{itemCount} item(ns)</span><strong>{money(total)}</strong></button>}
 
     {checkout && <div className="public-checkout-backdrop" onClick={event => { if (event.target === event.currentTarget) setCheckout(false); }}><section className="public-checkout">
       <header><div><span>Seu pedido</span><h2>{channel === 'Mesa' ? payload.table?.name : channel}</h2></div><button onClick={() => setCheckout(false)}>Fechar</button></header>
