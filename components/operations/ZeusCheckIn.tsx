@@ -6,26 +6,26 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Empty, Modal, Section, Title } from './ui';
 import { date, normalize, uid } from '@/lib/operations/model';
-import { inferZeusChecklistSegment, ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
+import { ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
 
 const CONFIG_KEY='__zeus_checkin_config__';
-type CheckConfig={enabled:boolean;requireSignature:boolean;itemsBySegment:Record<ZeusChecklistSegment,string[]>};
+type CheckConfig={enabled:boolean;requireSignature:boolean;defaultSegment:ZeusChecklistSegment;itemsBySegment:Record<ZeusChecklistSegment,string[]>};
 type ResponseRow={id:string;record_id:string;created_at:string;response:Record<string,unknown>};
 type ShareState={jobId:string;url:string}|null;
 
 function defaults():CheckConfig{
-  return {enabled:true,requireSignature:true,itemsBySegment:Object.fromEntries(ZEUS_CHECKLIST_SEGMENTS.map(segment=>[segment.id,[...segment.items]])) as Record<ZeusChecklistSegment,string[]>};
+  return {enabled:true,requireSignature:true,defaultSegment:'auto',itemsBySegment:Object.fromEntries(ZEUS_CHECKLIST_SEGMENTS.map(segment=>[segment.id,[...segment.items]])) as Record<ZeusChecklistSegment,string[]>};
 }
 function readConfig(w:Workspace):CheckConfig{
   const fallback=defaults();
   try{
     const raw=w.data.customFieldValues?.[CONFIG_KEY]?.value;if(!raw)return fallback;
     const parsed=JSON.parse(raw) as Partial<CheckConfig>&{items?:string[];defaultSegment?:ZeusChecklistSegment};
-    const legacySegment=ZEUS_CHECKLIST_TEMPLATES[parsed.defaultSegment as ZeusChecklistSegment]?parsed.defaultSegment as ZeusChecklistSegment:'auto';
+    const defaultSegment=ZEUS_CHECKLIST_TEMPLATES[parsed.defaultSegment as ZeusChecklistSegment]?parsed.defaultSegment as ZeusChecklistSegment:fallback.defaultSegment;
     const itemsBySegment={...fallback.itemsBySegment};
     for(const segment of ZEUS_CHECKLIST_SEGMENTS){const list=parsed.itemsBySegment?.[segment.id];if(Array.isArray(list)&&list.length)itemsBySegment[segment.id]=list;}
-    if(Array.isArray(parsed.items)&&parsed.items.length&&!parsed.itemsBySegment)itemsBySegment[legacySegment]=parsed.items;
-    return {enabled:parsed.enabled!==false,requireSignature:parsed.requireSignature!==false,itemsBySegment};
+    if(Array.isArray(parsed.items)&&parsed.items.length&&!parsed.itemsBySegment)itemsBySegment[defaultSegment]=parsed.items;
+    return {enabled:parsed.enabled!==false,requireSignature:parsed.requireSignature!==false,defaultSegment,itemsBySegment};
   }catch{return fallback;}
 }
 function writeConfig(data:Workspace['data'],config:CheckConfig){data.customFieldValues??={};data.customFieldValues[CONFIG_KEY]={value:JSON.stringify(config)};}
@@ -37,7 +37,6 @@ export function ZeusCheckIn({w}:{w:Workspace}){
   const [share,setShare]=useState<ShareState>(null);
   const [newItem,setNewItem]=useState('');
   const [configSegment,setConfigSegment]=useState<ZeusChecklistSegment>('auto');
-  const [segmentByJob,setSegmentByJob]=useState<Record<string,ZeusChecklistSegment>>({});
   const config=readConfig(w);
   const jobs=useMemo(()=>w.data.jobs.filter(job=>!['Encerrado','Cancelado','Reprovado'].includes(job.status)),[w.data.jobs]);
 
@@ -49,18 +48,13 @@ export function ZeusCheckIn({w}:{w:Workspace}){
   };
   useEffect(()=>{void loadResponses();},[w.accountId]);
   const latestFor=(jobId:string)=>responses.find(row=>row.record_id===jobId);
-  const segmentFor=(jobId:string)=>{
-    if(segmentByJob[jobId])return segmentByJob[jobId];
-    const job=w.data.jobs.find(item=>item.id===jobId);const asset=job?w.data.assets.find(item=>item.id===job.assetId):undefined;
-    return inferZeusChecklistSegment(w.data.settings.assetLabel,asset?.model||'');
-  };
 
   const createLink=async(jobId:string)=>{
     if(!config.enabled){w.setError('O checklist de entrada está desativado.');return;}
     if(!w.accountId||w.accountId==='guest'){w.setError('Entre com a conta da oficina para gerar o link.');return;}
     const job=w.data.jobs.find(item=>item.id===jobId);if(!job)return;
     const customer=w.data.customers.find(item=>item.id===job.customerId);const asset=w.data.assets.find(item=>item.id===job.assetId);
-    const segment=segmentFor(jobId);const template=ZEUS_CHECKLIST_TEMPLATES[segment];
+    const segment=config.defaultSegment;const template=ZEUS_CHECKLIST_TEMPLATES[segment];
     const supabase=createStoreClient();const {data:auth}=await supabase.auth.getUser();if(!auth.user){w.setError('Sua sessão expirou.');return;}
     setBusy(jobId);const token=`${crypto.randomUUID().replaceAll('-','')}${crypto.randomUUID().replaceAll('-','')}`;
     const payload={business:w.data.settings.business,customer:customer?.name||'',customerPhone:customer?.phone||'',asset:asset?`${asset.identifier} · ${asset.model}`:'',assetInfo:{identifier:asset?.identifier||'',model:asset?.model||'',year:asset?.year||'',meter:asset?.meter||''},jobNumber:job.number,segment,segmentLabel:template.label,items:config.itemsBySegment[segment],requireSignature:config.requireSignature,assetLabel:w.data.settings.assetLabel,meterLabel:w.data.settings.meterLabel,identifierLabel:w.data.settings.identifierLabel};
@@ -81,10 +75,9 @@ export function ZeusCheckIn({w}:{w:Workspace}){
     <div className="op-compact-tabs zeus-checkin-tabs" style={{marginBottom:18}}><button aria-current={tab==='checklists'?'page':undefined} onClick={()=>setTab('checklists')}>Checklists</button><button aria-current={tab==='config'?'page':undefined} onClick={()=>setTab('config')}>Configuração</button></div>
 
     {tab==='checklists'&&<Section title="Ordens em aberto" action={<Button variant="secondary" disabled={busy==='responses'} onClick={()=>void loadResponses()}><RefreshCw size={16}/>{busy==='responses'?'Atualizando…':'Atualizar respostas'}</Button>}>
-      <p className="zeus-checkin-lead">Selecione o tipo correto do veículo ou equipamento e gere o link para o responsável.</p>
-      {!config.enabled?<Empty>O checklist de entrada está desativado na configuração.</Empty>:jobs.length?<div className="zeus-checkin-list">{jobs.map(job=>{const customer=w.data.customers.find(item=>item.id===job.customerId);const asset=w.data.assets.find(item=>item.id===job.assetId);const latest=latestFor(job.id);const segment=segmentFor(job.id);return <div className="zeus-checkin-row" key={job.id}>
+      <p className="zeus-checkin-lead">Gere o link para o responsável. O modelo usado é definido exclusivamente na configuração do checklist.</p>
+      {!config.enabled?<Empty>O checklist de entrada está desativado na configuração.</Empty>:jobs.length?<div className="zeus-checkin-list">{jobs.map(job=>{const customer=w.data.customers.find(item=>item.id===job.customerId);const asset=w.data.assets.find(item=>item.id===job.assetId);const latest=latestFor(job.id);return <div className="zeus-checkin-row" key={job.id}>
         <div className="zeus-checkin-identity"><small>OS {String(job.number).padStart(4,'0')}</small><strong>{asset?.identifier||'Sem identificação'}</strong><span>{customer?.name||'Cliente'} · {asset?.model||''}</span></div>
-        <label className="zeus-checkin-segment"><span>Modelo</span><select value={segment} onChange={e=>setSegmentByJob(current=>({...current,[job.id]:e.target.value as ZeusChecklistSegment}))}>{ZEUS_CHECKLIST_SEGMENTS.map(item=><option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
         <div className="zeus-checkin-status">{latest?<><Badge><CheckCircle2 size={13}/>Preenchido</Badge><small>{date(latest.created_at,true)}</small></>:<Badge tone="warning">Pendente</Badge>}</div>
         <Button variant="secondary" disabled={busy===job.id} onClick={()=>void createLink(job.id)}><Link2 size={16}/>{busy===job.id?'Gerando…':'Gerar link / QR'}</Button>
       </div>;})}</div>:<Empty>Nenhuma OS em aberto.</Empty>}
@@ -92,7 +85,8 @@ export function ZeusCheckIn({w}:{w:Workspace}){
 
     {tab==='config'&&<>
       <Section title="Comportamento do checklist">
-        <p className="zeus-config-note">O modelo é escolhido diretamente em cada OS. Aqui ficam apenas as regras gerais do checklist.</p>
+        <p className="zeus-config-note">Defina aqui o único modelo padrão/ativo. Todas as OS usarão automaticamente esse modelo ao gerar link ou QR Code.</p>
+        <label className="op-field zeus-default-segment"><span>Modelo padrão/ativo</span><select value={config.defaultSegment} disabled={!config.enabled} onChange={e=>void saveConfig({...config,defaultSegment:e.target.value as ZeusChecklistSegment},'Modelo padrão do checklist atualizado.')}>{ZEUS_CHECKLIST_SEGMENTS.map(item=><option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
         <div className="op-module-choice"><input type="checkbox" checked={config.enabled} onChange={e=>void saveConfig({...config,enabled:e.target.checked})}/><span><strong>Usar checklist de entrada</strong><small>Quando desligado, o Zeus continua funcionando normalmente.</small></span><Badge>{config.enabled?'Ativo':'Desativado'}</Badge></div>
         <div className="op-module-choice"><input type="checkbox" checked={config.requireSignature} disabled={!config.enabled} onChange={e=>void saveConfig({...config,requireSignature:e.target.checked})}/><span><strong>Exigir assinatura</strong><small>O preenchimento só é concluído depois da assinatura na tela.</small></span><Badge>{config.requireSignature?'Obrigatória':'Opcional'}</Badge></div>
       </Section>
@@ -111,16 +105,13 @@ export function ZeusCheckIn({w}:{w:Workspace}){
       .zeus-checkin-tabs button{min-width:132px;border-radius:8px!important;padding:10px 16px!important;font-size:13px!important}
       .zeus-checkin-lead,.zeus-config-note{margin:-4px 0 18px;color:var(--op-muted);font-size:12px;line-height:1.45}
       .zeus-config-note{padding:11px 13px;border:1px solid #dfe8f2;border-radius:9px;background:#f7faff;color:#536a83}
+      .zeus-default-segment{max-width:360px;margin-bottom:16px}
       .zeus-checkin-list{display:grid;gap:10px;border:0;margin-top:4px}
-      .zeus-checkin-row{display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,260px) auto auto;gap:18px;align-items:center;padding:18px 20px;border:1px solid #e2e9f1;border-radius:11px;background:#fbfcfe}
+      .zeus-checkin-row{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;gap:18px;align-items:center;padding:18px 20px;border:1px solid #e2e9f1;border-radius:11px;background:#fbfcfe}
       .zeus-checkin-identity{display:grid;gap:3px;min-width:0}
       .zeus-checkin-identity small{font-size:11px;color:#718297}
       .zeus-checkin-identity strong{font-size:18px;line-height:1.15;color:var(--op-ink)}
       .zeus-checkin-identity span{font-size:13px;color:var(--op-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .zeus-checkin-segment{display:grid;gap:6px}
-      .zeus-checkin-segment>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:#718297}
-      .zeus-checkin-segment select{width:100%;min-height:46px;border:1px solid #d3deea;border-radius:9px;background:#fff;color:var(--op-ink);padding:9px 12px;font-size:13px;outline:none}
-      .zeus-checkin-segment select:focus{border-color:#7aa8de;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
       .zeus-checkin-status{display:grid;gap:4px;justify-items:center;min-width:92px}
       .zeus-checkin-status .op-badge{display:flex;gap:5px;align-items:center;justify-content:center;border-radius:999px;padding:7px 11px}
       .zeus-checkin-status small{font-size:10px;color:var(--op-muted)}
@@ -139,7 +130,7 @@ export function ZeusCheckIn({w}:{w:Workspace}){
       .zeus-checkin-share{display:grid;gap:14px}
       .zeus-qr{display:grid;place-items:center;padding:16px;background:#fff;border:1px solid var(--op-line);border-radius:12px}
       .zeus-qr img{width:220px;max-width:100%;height:auto}
-      @media(max-width:1050px){.zeus-checkin-row{grid-template-columns:1fr minmax(210px,250px) auto}.zeus-checkin-row>.op-button{grid-column:3}.zeus-template-tabs{grid-template-columns:1fr 1fr}}
+      @media(max-width:1050px){.zeus-checkin-row{grid-template-columns:1fr auto auto}.zeus-template-tabs{grid-template-columns:1fr 1fr}}
       @media(max-width:720px){.zeus-checkin-tabs{width:100%;display:grid!important;grid-template-columns:1fr 1fr}.zeus-checkin-tabs button{min-width:0}.zeus-checkin-row{grid-template-columns:1fr;padding:15px;gap:12px}.zeus-checkin-status{justify-items:start}.zeus-checkin-row>.op-button{grid-column:auto;width:100%}.zeus-checkin-config-list>div{grid-template-columns:28px minmax(0,1fr) auto}.zeus-template-tabs{grid-template-columns:1fr}.zeus-template-head{display:grid}.zeus-template-head .op-button{width:100%}}
     `}</style>
   </>;
