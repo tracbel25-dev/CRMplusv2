@@ -23,6 +23,29 @@ function validWorkspace(value: unknown): value is Record<string, unknown> {
   return arrays.every(key => Array.isArray(data[key]));
 }
 
+function validArtemisImageKey(value: unknown, accountId: string, productId: string) {
+  const key = typeof value === 'string' ? value.trim() : '';
+  const prefix = `accounts/${accountId}/cardapio/${productId}/`;
+  return key && key.startsWith(prefix) && !key.includes('..') ? key : '';
+}
+
+async function hydrateArtemisProductImages(data: Record<string, unknown>, accountId: string) {
+  const imageRows = await operationalRest('artemis', `products?${query({
+    select: 'id,image_object_key',
+    tenant_key: `eq.${accountId}`,
+  })}`) as Array<{ id?: string; image_object_key?: string | null }>;
+
+  const imageByProduct = new Map(imageRows.map(row => [String(row.id || ''), row.image_object_key || '']));
+  const hydrated = structuredClone(data);
+  const products = hydrated.products as Array<Record<string, unknown>>;
+  for (const product of products) {
+    const productId = String(product.id || '');
+    const key = validArtemisImageKey(imageByProduct.get(productId), accountId, productId);
+    if (key) product.imageObjectKey = key;
+  }
+  return hydrated;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ app: string }> }) {
   const { app: raw } = await params;
   const app = cloudApp(raw);
@@ -33,7 +56,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const rows = await operationalRest(app, `workspace_state?${query({ select: 'revision,data,updated_at', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ revision: number; data: unknown; updated_at: string }>;
     const row = rows?.[0];
-    return NextResponse.json(row ? { data: row.data, revision: Number(row.revision || 0), updatedAt: row.updated_at } : { data: null, revision: 0 });
+    if (!row) return NextResponse.json({ data: null, revision: 0 });
+
+    let data = row.data;
+    if (app === 'artemis' && validWorkspace(data)) {
+      data = await hydrateArtemisProductImages(data, access.accountId);
+    }
+
+    return NextResponse.json({ data, revision: Number(row.revision || 0), updatedAt: row.updated_at });
   } catch (reason) {
     return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível carregar os dados.' }, { status: 503 });
   }
