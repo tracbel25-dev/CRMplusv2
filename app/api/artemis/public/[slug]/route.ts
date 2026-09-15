@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const tenantKey = String(restaurant.tenant_key || '');
 
     const rows = await artemisRest(`products?${query({
-      select: 'id,name,description,category,price_cents,allergens,preparation_minutes,image_object_key',
+      select: 'id,name,description,category,price_cents,allergens,preparation_minutes,image_object_key,variants',
       tenant_key: `eq.${tenantKey}`,
       available: 'eq.true',
       order: 'category.asc,name.asc',
@@ -109,7 +109,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const tableId = text(body.tableId, 64);
   const items = Array.isArray(body.items) ? body.items.slice(0, 50).map(item => {
     const value = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-    return { product_id: text(value.productId, 64), quantity: Number(value.quantity), note: text(value.note, 500) };
+    const variantId = text(value.variantId, 64);
+    return {
+      product_id: text(value.productId, 64),
+      variant_id: uuidPattern.test(variantId) ? variantId : null,
+      quantity: Number(value.quantity),
+      note: text(value.note, 500),
+    };
   }) : [];
 
   try {
