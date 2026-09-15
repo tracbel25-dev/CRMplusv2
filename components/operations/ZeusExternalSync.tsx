@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Workspace } from '@/lib/operations/storage';
 import { syncExternalResponses } from '@/lib/operations/externalLinks';
 import { migrateLegacyZeusChecklists, syncAllZeusChecklistResponses } from '@/lib/operations/zeusChecklistClient';
+import { syncZeusQuoteExternalResponses } from '@/lib/operations/zeusQuoteExternalSync';
 
 export function ZeusExternalSync({ w }: { w: Workspace }) {
   const running = useRef(false);
@@ -14,10 +15,17 @@ export function ZeusExternalSync({ w }: { w: Workspace }) {
     running.current = true;
     try {
       if (!legacyChecked.current) {
-        await migrateLegacyZeusChecklists();
-        legacyChecked.current = true;
+        try {
+          await migrateLegacyZeusChecklists();
+        } catch (reason) {
+          // Migração antiga é complementar. Falha/permissão nela não pode bloquear respostas atuais.
+          console.warn('Zeus legacy checklist migration:', reason);
+        } finally {
+          legacyChecked.current = true;
+        }
       }
       await syncAllZeusChecklistResponses(w);
+      await syncZeusQuoteExternalResponses(w);
       await syncExternalResponses(w, 'zeus');
     } catch (reason) {
       // A sincronização automática não deve interromper a operação. Ações explícitas continuam exibindo o erro.
