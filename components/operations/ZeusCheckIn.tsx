@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import type { Workspace } from '@/lib/operations/storage';
 import { ZeusCheckIn as ZeusCheckInBase } from './ZeusCheckInBase';
 
-const CHECKLIST_LEAD = 'O checklist agora é habilitado e escolhido dentro da OS, na etapa Identificação. Esta tela acompanha as respostas e mantém a configuração padrão.';
+const CHECKLIST_LEAD = 'O checklist agora é habilitado e escolhido dentro da OS, na etapa Identificação. Esta tela mostra somente inspeções pendentes e mantém a configuração padrão.';
 
 export function ZeusCheckIn({ w }: { w: Workspace }) {
   useEffect(() => {
@@ -13,6 +13,10 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
 
     const apply = () => {
       root.querySelectorAll<HTMLElement>('.zeus-checkin-row').forEach(row => {
+        const completed = row.textContent?.includes('Preenchido') || row.textContent?.includes('Concluído');
+        row.hidden = !!completed;
+        if (completed) return;
+
         const button = Array.from(row.querySelectorAll<HTMLButtonElement>('button')).find(item =>
           item.textContent?.includes('Gerar link / QR') || item.textContent?.includes('Gerando')
         );
