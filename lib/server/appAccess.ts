@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 
 export type ServerApp = 'zeus' | 'artemis';
+export type ServerPermissionMap = Record<string, boolean>;
 
 async function storeFetch(path: string, token: string) {
   try {
@@ -21,7 +22,15 @@ function restPath(table: string, params: Record<string, string>) {
   return `/rest/v1/${table}?${query.toString()}`;
 }
 
-export async function authorizeAppRequest(request: NextRequest, app: ServerApp) {
+export function serverPermissionGranted(role: string, permissions: ServerPermissionMap, permission?: string) {
+  if (!permission || role === 'owner') return true;
+  const keys = Object.keys(permissions || {});
+  // Contas antigas sem mapa explícito preservam o comportamento anterior até o titular configurar as permissões.
+  if (!keys.length) return true;
+  return permissions[permission] === true;
+}
+
+export async function authorizeAppRequest(request: NextRequest, app: ServerApp, requiredPermission?: string) {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
   if (!token) return null;
 
@@ -47,7 +56,10 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
   }), token) as Array<{ account_id: string; role: string }> | null;
   const membership = memberships?.[0];
   if (!membership?.account_id) return null;
-  const accounts = await storeFetch(restPath('accounts', { select: 'id', id: `eq.${membership.account_id}`, status: 'eq.active' }), token) as Array<{ id: string }> | null;
+
+  const accounts = await storeFetch(restPath('accounts', {
+    select: 'id', id: `eq.${membership.account_id}`, status: 'eq.active',
+  }), token) as Array<{ id: string }> | null;
   if (!accounts?.length) return null;
 
   const accountApps = await storeFetch(restPath('account_apps', {
@@ -60,15 +72,21 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
   }), token) as Array<{ app_id: string }> | null;
   if (!accountApps?.length) return null;
 
+  let permissions: ServerPermissionMap = {};
+  let canConfigure = false;
   if (membership.role !== 'owner') {
     const access = await storeFetch(restPath('member_app_access', {
-      select: 'app_id,user_id',
+      select: 'app_id,user_id,permissions,can_configure',
       account_id: `eq.${membership.account_id}`,
       user_id: `eq.${user.id}`,
       app_id: `eq.${app}`,
       limit: '1',
-    }), token) as Array<{ app_id: string }> | null;
-    if (!access?.length) return null;
+    }), token) as Array<{ app_id: string; permissions?: ServerPermissionMap | null; can_configure?: boolean }> | null;
+    const row = access?.[0];
+    if (!row) return null;
+    permissions = row.permissions && typeof row.permissions === 'object' ? row.permissions : {};
+    canConfigure = !!row.can_configure;
+    if (!serverPermissionGranted(membership.role, permissions, requiredPermission)) return null;
   }
 
   return {
@@ -76,5 +94,7 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp) 
     userId: user.id as string,
     accountId: membership.account_id as string,
     role: membership.role as string,
+    permissions,
+    canConfigure,
   };
 }
