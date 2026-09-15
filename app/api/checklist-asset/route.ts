@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { presignR2, readR2Config } from '@/lib/r2/server';
-import { isZeusChecklistAssetFolder, isZeusChecklistView } from '@/lib/operations/checklistAssets';
+import { isZeusChecklistAssetFolder, isZeusChecklistView, type ZeusChecklistView } from '@/lib/operations/checklistAssets';
 
 export const runtime = 'nodejs';
+
+const R2_VIEW_FILENAME: Record<ZeusChecklistView, string> = {
+  teto: 'teto',
+  frente: 'frente',
+  traseira: 'traseira',
+  lateral_esquerda: 'lateral_esq',
+  lateral_direita: 'lateral_dir',
+};
 
 export async function GET(request: NextRequest) {
   const folder = request.nextUrl.searchParams.get('folder') || '';
@@ -14,7 +22,8 @@ export async function GET(request: NextRequest) {
 
   try {
     readR2Config('zeus');
-    const key = `accounts/checklist/${folder}/${view}.png`;
+    const filename = R2_VIEW_FILENAME[view];
+    const key = `accounts/checklist/${folder}/${filename}.png`;
     const signedUrl = presignR2('zeus', 'GET', key, 3600);
     const response = NextResponse.redirect(signedUrl, 307);
     response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
