@@ -21,10 +21,17 @@ async function readError(response: Response) {
   return new Error(typeof payload?.error === 'string' ? payload.error : `Falha no armazenamento (${response.status}).`);
 }
 
-export async function uploadOperationalFile(app: R2App, file: File) {
+export type R2UploadOptions = {
+  purpose?: 'product-image';
+  resourceId?: string;
+};
+
+export async function uploadOperationalFile(app: R2App, file: File, options: R2UploadOptions = {}) {
   const token = await accessToken();
   const form = new FormData();
   form.set('file', file);
+  if (options.purpose) form.set('purpose', options.purpose);
+  if (options.resourceId) form.set('resourceId', options.resourceId);
   const response = await fetch(`/api/storage/${app}`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },
