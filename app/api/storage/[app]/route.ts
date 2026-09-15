@@ -5,6 +5,8 @@ export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const imageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const resourceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const windows = new Map<string, { startedAt: number; count: number }>();
 
 function isR2App(value: string): value is R2App {
@@ -40,12 +42,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const form = await request.formData().catch(() => null);
   const file = form?.get('file');
+  const purpose = String(form?.get('purpose') || '');
+  const resourceId = String(form?.get('resourceId') || '');
   if (!(file instanceof File)) return NextResponse.json({ error: 'Selecione um arquivo válido.' }, { status: 400 });
   if (!allowedTypes.has(file.type)) return NextResponse.json({ error: 'Formato não permitido. Use JPG, PNG, WEBP ou PDF.' }, { status: 400 });
   if (file.size <= 0 || file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'O arquivo deve ter no máximo 8 MB.' }, { status: 400 });
 
+  let prefix = `accounts/${access.accountId}`;
+  if (purpose === 'product-image') {
+    if (app !== 'artemis') return NextResponse.json({ error: 'Imagem de cardápio disponível apenas no Artemis.' }, { status: 400 });
+    if (!resourceIdPattern.test(resourceId)) return NextResponse.json({ error: 'Produto inválido para este upload.' }, { status: 400 });
+    if (!imageTypes.has(file.type)) return NextResponse.json({ error: 'Use JPG, PNG ou WEBP para a imagem do produto.' }, { status: 400 });
+    prefix = `accounts/${access.accountId}/cardapio/${resourceId}`;
+  }
+
   const objectName = safeObjectName(file.name, file.type);
-  const key = `accounts/${access.accountId}/${objectName}`;
+  const key = `${prefix}/${objectName}`;
   const payload = Buffer.from(await file.arrayBuffer());
   const upload = await fetch(presignR2(app, 'PUT', key, 300), {
     method: 'PUT',

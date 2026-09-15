@@ -32,6 +32,12 @@ function labelMap(value: unknown) {
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([, current]) => typeof current === 'string').map(([key, current]) => [key, String(current).slice(0, 120)]));
 }
 
+function productImageKey(value: unknown, accountId: string, productId: string) {
+  const key = text(value, 700);
+  const prefix = `accounts/${accountId}/cardapio/${productId}/`;
+  return key && key.startsWith(prefix) && !key.includes('..') ? key : null;
+}
+
 export async function GET(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'artemis');
   if (!access) return NextResponse.json({ error: 'Entre na CRM PLUS Store para sincronizar o Artemis.' }, { status: 401 });
@@ -128,6 +134,7 @@ export async function POST(request: NextRequest) {
         minimum_stock: Math.max(0, Number(product.minimum) || 0),
         allergens: text(product.allergens, 2000),
         preparation_minutes: Math.max(0, Math.round(Number(product.preparation) || 0)),
+        image_object_key: productImageKey(product.imageObjectKey, access.accountId, id),
         updated_at: new Date().toISOString(),
       }];
     });

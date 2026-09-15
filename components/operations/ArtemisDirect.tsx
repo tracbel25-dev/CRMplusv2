@@ -7,7 +7,8 @@ import { advanceOrder, cancelOrder, money, orderTotal } from '@/lib/operations/m
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
 import { Artemis } from './Artemis';
-import { Badge, Button, Empty, Title } from './ui';
+import { ArtemisMenuManager } from './ArtemisMenuManager';
+import { Badge, Button, Title } from './ui';
 import { useArtemisCloud } from './useArtemisCloud';
 import './artemis-direct.css';
 
@@ -95,7 +96,10 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   }, [view, physicalEnabled, kitchenEnabled]);
 
   if (!operationPages.has(page)) {
-    return <>{page === 'cardapio' && <SharePanel w={w} slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} />}<Artemis w={w} page={page} recordId={recordId} /></>;
+    if (page === 'cardapio') {
+      return <><SharePanel w={w} slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} /><ArtemisMenuManager w={w} /></>;
+    }
+    return <Artemis w={w} page={page} recordId={recordId} />;
   }
 
   if (!w.data.products.length && !w.data.orders.length) {
@@ -162,4 +166,3 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     <div className="artemis-operation-body"><Artemis key={view} w={w} page={view} /></div>
   </>;
 }
-

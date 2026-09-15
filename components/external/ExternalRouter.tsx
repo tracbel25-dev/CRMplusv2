@@ -34,6 +34,12 @@ export function ExternalRouter({ token }: { token: string }) {
   return <ArtemisExternalMenu token={token} link={link} />;
 }
 
+function ProductPhoto({ token, product }: { token: string; product: any }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <div className="aet-photo"><span>{String(product.name || '?').slice(0, 1).toUpperCase()}</span></div>;
+  return <div className="aet-photo"><img src={`/api/artemis/external-image/${encodeURIComponent(token)}/${encodeURIComponent(String(product.id || ''))}`} alt={String(product.name || 'Produto')} onError={() => setFailed(true)} /></div>;
+}
+
 function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData }) {
   const products = Array.isArray(link.payload.products) ? link.payload.products : [];
   const [query, setQuery] = useState('');
@@ -100,7 +106,7 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
         <div className="aet-products">{visible.map((product: any) => {
           const quantity = cart[product.id] || 0;
           return <article key={product.id}>
-            <div className="aet-photo"><span>{String(product.name || '?').slice(0,1).toUpperCase()}</span><small>Imagem do produto</small></div>
+            <ProductPhoto token={token} product={product} />
             <div className="aet-product-copy"><span>{product.category}</span><h2>{product.name}</h2><p>{product.description || 'Produto disponível no cardápio.'}</p>{product.allergens && <small>{product.allergens}</small>}<div className="aet-product-bottom"><strong>{money(Number(product.price || 0))}</strong>{quantity === 0 ? <button className="aet-add" onClick={() => change(product.id, 1)}>Adicionar ao pedido</button> : <div className="aet-qty"><button onClick={() => change(product.id, -1)} aria-label={`Remover ${product.name}`}><Minus size={15} /></button><b>{quantity}</b><button onClick={() => change(product.id, 1)} aria-label={`Adicionar ${product.name}`}><Plus size={15} /></button></div>}</div>{quantity > 0 && <input className="aet-note" value={notes[product.id] || ''} onChange={event => setNotes(current => ({ ...current, [product.id]: event.target.value }))} placeholder="Observação deste item" />}</div>
           </article>;
         })}</div>
@@ -122,5 +128,6 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
       <label><span>Observações gerais</span><textarea rows={2} value={general} onChange={event => setGeneral(event.target.value)} /></label>
       <button className="aet-submit" disabled={busy} onClick={() => void submit()}>{busy ? 'Enviando…' : 'Enviar pedido'}</button>
     </section></div>}
+    <style jsx global>{`.aet-photo img{width:100%;height:100%;object-fit:cover;display:block}.aet-photo>span{display:grid;place-items:center;width:100%;height:100%;font-size:42px;font-weight:800}`}</style>
   </main>;
 }
