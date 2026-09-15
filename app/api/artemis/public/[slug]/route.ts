@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { artemisRest, artemisRpc } from '@/lib/artemis/cloudServer';
+import { presignR2, readR2Config } from '@/lib/r2/server';
 
 export const runtime = 'nodejs';
 
@@ -26,6 +27,15 @@ function rateLimit(key: string) {
   return true;
 }
 
+function publicImageUrl(value: unknown, tenantKey: string, productId: string, r2Ready: boolean) {
+  if (!r2Ready) return '';
+  const key = text(value, 700);
+  const prefix = `accounts/${tenantKey}/cardapio/${productId}/`;
+  if (!key || !key.startsWith(prefix) || key.includes('..')) return '';
+  try { return presignR2('artemis', 'GET', key, 900); }
+  catch { return ''; }
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const safeSlug = text(slug, 50).toLowerCase();
@@ -41,12 +51,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!restaurant) return NextResponse.json({ error: 'Cardápio não encontrado.' }, { status: 404 });
     const tenantKey = String(restaurant.tenant_key || '');
 
-    const products = await artemisRest(`products?${query({
-      select: 'id,name,description,category,price_cents,allergens,preparation_minutes',
+    const rows = await artemisRest(`products?${query({
+      select: 'id,name,description,category,price_cents,allergens,preparation_minutes,image_object_key',
       tenant_key: `eq.${tenantKey}`,
       available: 'eq.true',
       order: 'category.asc,name.asc',
-    })}`) as unknown[];
+    })}`) as Array<Record<string, unknown>>;
+
+    let r2Ready = true;
+    try { readR2Config('artemis'); } catch { r2Ready = false; }
+    const products = (rows || []).map(product => ({
+      ...product,
+      image_object_key: undefined,
+      image_url: publicImageUrl(product.image_object_key, tenantKey, String(product.id || ''), r2Ready),
+    }));
 
     let table: { id: string; name: string } | null = null;
     const tableId = request.nextUrl.searchParams.get('mesa') || '';
