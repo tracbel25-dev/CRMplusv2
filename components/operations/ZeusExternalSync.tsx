@@ -3,15 +3,20 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Workspace } from '@/lib/operations/storage';
 import { syncExternalResponses } from '@/lib/operations/externalLinks';
-import { syncAllZeusChecklistResponses } from '@/lib/operations/zeusChecklistClient';
+import { migrateLegacyZeusChecklists, syncAllZeusChecklistResponses } from '@/lib/operations/zeusChecklistClient';
 
 export function ZeusExternalSync({ w }: { w: Workspace }) {
   const running = useRef(false);
+  const legacyChecked = useRef(false);
 
   const sync = useCallback(async () => {
     if (running.current || !w.accountId || w.accountId === 'guest') return;
     running.current = true;
     try {
+      if (!legacyChecked.current) {
+        await migrateLegacyZeusChecklists();
+        legacyChecked.current = true;
+      }
       await syncAllZeusChecklistResponses(w);
       await syncExternalResponses(w, 'zeus');
     } catch (reason) {
