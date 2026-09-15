@@ -4,9 +4,12 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Minus, Plus, Search, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
-import { money } from '@/lib/operations/model';
+import { money, type Product } from '@/lib/operations/model';
 import { useWorkspace } from '@/lib/operations/storage';
+import { OperationalR2Image } from '@/components/operations/OperationalR2Image';
 import './artemis-digital-preview.css';
+
+type ProductWithImage = Product & { imageObjectKey?: string };
 
 export function ArtemisDigitalPreview() {
   const access = useStoreAccess();
@@ -16,7 +19,7 @@ export function ArtemisDigitalPreview() {
   const [category, setCategory] = useState('Todos');
   const [cart, setCart] = useState<Record<string, number>>({});
 
-  const products = workspace.data.products.filter(product => product.available);
+  const products = workspace.data.products.filter(product => product.available) as ProductWithImage[];
   const categories = useMemo(() => ['Todos', ...Array.from(new Set(products.map(product => product.category).filter(Boolean)))], [products]);
   const visible = useMemo(() => products.filter(product => {
     const categoryOk = category === 'Todos' || product.category === category;
@@ -68,7 +71,7 @@ export function ArtemisDigitalPreview() {
           {visible.map(product => {
             const quantity = cart[product.id] || 0;
             return <article className="artemis-terminal-product" key={product.id}>
-              <div className="artemis-terminal-photo"><span>{product.name.slice(0, 1).toUpperCase()}</span><small>Imagem do produto</small></div>
+              <div className="artemis-terminal-photo">{product.imageObjectKey ? <OperationalR2Image app="artemis" storedData={`r2:${product.imageObjectKey}`} alt={product.name} /> : <><span>{product.name.slice(0, 1).toUpperCase()}</span><small>Imagem do produto</small></>}</div>
               <div className="artemis-terminal-product-copy">
                 <span>{product.category}</span>
                 <h2>{product.name}</h2>
@@ -84,5 +87,6 @@ export function ArtemisDigitalPreview() {
     </div>}
 
     {itemCount > 0 && <div className="artemis-terminal-orderbar"><span><ShoppingBag size={18} /><b>{itemCount}</b> item(ns) no pedido</span><strong>{money(total)}</strong><button type="button">Ver pedido</button></div>}
+    <style jsx global>{`.artemis-terminal-photo img{width:100%;height:100%;object-fit:cover;display:block}`}</style>
   </main>;
 }
