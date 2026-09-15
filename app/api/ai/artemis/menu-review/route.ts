@@ -10,7 +10,27 @@ import {
 
 export const runtime = 'nodejs';
 
-const allowedKinds = new Set(['variants', 'category', 'completion', 'organization']);
+type MenuReviewProduct = {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  allergens: string;
+  preparation: number;
+  variantNames: string[];
+};
+
+type MenuReviewSuggestion = {
+  kind: string;
+  title: string;
+  reason: string;
+  productId: string;
+  productIds: string[];
+  suggestedCategory: string;
+  variantNames: string[];
+};
+
+const allowedKinds = new Set<string>(['variants', 'category', 'completion', 'organization']);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function cleanText(value: unknown, max = 500) {
@@ -22,12 +42,12 @@ function cleanText(value: unknown, max = 500) {
     .slice(0, max);
 }
 
-function cleanVariantNames(value: unknown) {
-  if (!Array.isArray(value)) return [] as string[];
-  return Array.from(new Set(value
+function cleanVariantNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set<string>(value
     .slice(0, 8)
-    .map(item => cleanText(item, 50))
-    .filter(item => item && !/R\$|pre[cç]o\s*[:=]?\s*\d|valor\s*[:=]?\s*\d/i.test(item))))
+    .map((item: unknown) => cleanText(item, 50))
+    .filter((item: string) => item.length > 0 && !/R\$|pre[cç]o\s*[:=]?\s*\d|valor\s*[:=]?\s*\d/i.test(item))))
     .slice(0, 6);
 }
 
@@ -37,14 +57,19 @@ function parseResult(raw: string, validProducts: Set<string>) {
   const end = cleaned.lastIndexOf('}');
   if (start < 0 || end <= start) throw new Error('A IA não retornou uma revisão válida.');
   const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { summary?: unknown; suggestions?: unknown[] };
-  const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : []).slice(0, 8).flatMap(item => {
+  const source: unknown[] = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+  const suggestions: MenuReviewSuggestion[] = source.slice(0, 8).flatMap((item: unknown): MenuReviewSuggestion[] => {
     if (!item || typeof item !== 'object') return [];
     const row = item as Record<string, unknown>;
     const kind = cleanText(row.kind, 30);
     if (!allowedKinds.has(kind)) return [];
-    const productId = uuidPattern.test(cleanText(row.productId, 64)) && validProducts.has(cleanText(row.productId, 64)) ? cleanText(row.productId, 64) : '';
+    const candidateProductId = cleanText(row.productId, 64);
+    const productId = uuidPattern.test(candidateProductId) && validProducts.has(candidateProductId) ? candidateProductId : '';
     const productIds = Array.isArray(row.productIds)
-      ? row.productIds.map(value => cleanText(value, 64)).filter(value => uuidPattern.test(value) && validProducts.has(value)).slice(0, 30)
+      ? row.productIds
+        .map((value: unknown) => cleanText(value, 64))
+        .filter((value: string) => uuidPattern.test(value) && validProducts.has(value))
+        .slice(0, 30)
       : [];
     const suggestedCategory = cleanText(row.suggestedCategory, 90);
     const variantNames = cleanVariantNames(row.variantNames);
@@ -63,9 +88,9 @@ export async function POST(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'artemis');
   if (!access) return NextResponse.json({ error: 'Entre com a conta do restaurante para revisar o cardápio.' }, { status: 401 });
 
-  const body = await request.json().catch(() => ({}));
-  const rawProducts = Array.isArray(body?.products) ? body.products.slice(0, 220) : [];
-  const products = rawProducts.flatMap((item: unknown) => {
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const rawProducts: unknown[] = Array.isArray(body.products) ? (body.products as unknown[]).slice(0, 220) : [];
+  const products: MenuReviewProduct[] = rawProducts.flatMap((item: unknown): MenuReviewProduct[] => {
     if (!item || typeof item !== 'object') return [];
     const row = item as Record<string, unknown>;
     const id = cleanText(row.id, 64);
@@ -79,13 +104,13 @@ export async function POST(request: NextRequest) {
       preparation: Math.max(0, Math.min(1440, Math.round(Number(row.preparation) || 0))),
       variantNames: cleanVariantNames(row.variantNames),
     }];
-  }).filter(item => item.name && item.category);
+  }).filter((item: MenuReviewProduct) => item.name.length > 0 && item.category.length > 0);
 
   if (!products.length) return NextResponse.json({ error: 'Cadastre ao menos um produto antes de revisar o cardápio.' }, { status: 400 });
 
-  const validProducts = new Set(products.map(item => item.id));
-  const categories = Array.from(new Set(products.map(item => item.category))).slice(0, 80);
-  const query = `${products.slice(0, 30).map(item => `${item.name} ${item.category}`).join(' ')} ${categories.join(' ')}`.slice(0, 3000);
+  const validProducts = new Set<string>(products.map((item: MenuReviewProduct) => item.id));
+  const categories = Array.from(new Set<string>(products.map((item: MenuReviewProduct) => item.category))).slice(0, 80);
+  const query = `${products.slice(0, 30).map((item: MenuReviewProduct) => `${item.name} ${item.category}`).join(' ')} ${categories.join(' ')}`.slice(0, 3000);
   const lessons = await findRelevantLessons('artemis', access.accountId, query || 'organização do cardápio', 8).catch(() => []);
   const memory = lessonsForPrompt(lessons);
 
@@ -132,8 +157,8 @@ Responda SOMENTE JSON válido neste formato:
         userId: access.userId,
         functionName: 'revisao_cardapio',
         model: DEFAULT_GROQ_MODEL,
-        contextSummary: products.slice(0, 40).map(item => `${item.name} · ${item.category}`).join(' | ').slice(0, 4000),
-        suggestion: [result.summary, ...result.suggestions.map(item => `${item.kind}: ${item.title} — ${item.reason}`)].filter(Boolean).join('\n').slice(0, 7000),
+        contextSummary: products.slice(0, 40).map((item: MenuReviewProduct) => `${item.name} · ${item.category}`).join(' | ').slice(0, 4000),
+        suggestion: [result.summary, ...result.suggestions.map((item: MenuReviewSuggestion) => `${item.kind}: ${item.title} — ${item.reason}`)].filter(Boolean).join('\n').slice(0, 7000),
         metadata: { suggestions: result.suggestions.length, lessonsUsed: lessons.map(item => item.id), commercialValuesBlocked: true },
       });
     } catch {
