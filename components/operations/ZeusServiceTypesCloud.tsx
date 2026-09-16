@@ -6,7 +6,8 @@ import type { Workspace } from '@/lib/operations/storage';
 import { readZeusServiceTypes, saveZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
 import { setCustomValues } from '@/lib/operations/model';
 import { ZEUS_SERVICE_TYPES_KEY } from '@/lib/operations/zeusChecklistKeys';
-import { Badge, Button, Section } from './ui';
+import { Badge, Button } from './ui';
+import { SettingsSection } from './SettingsSection';
 
 const DEFAULT_TYPES = ['Diagnóstico', 'Revisão', 'Reparo', 'Retorno / Garantia'];
 const eventName = 'crmplus:zeus-service-types';
@@ -92,9 +93,8 @@ export function ZeusServiceTypeSettings({ w }: { w: Workspace }) {
     setNewType('');
   };
 
-  return <Section title="Tipos de atendimento">
-    <p className="op-muted">A lista é compartilhada no Zeus. Todos os usuários da oficina recebem os mesmos tipos em OS e agendamentos.</p>
+  return <SettingsSection title="Tipos de atendimento" description="Lista compartilhada entre OS e agendamentos para toda a equipe da oficina.">
     <div className="zeus-service-type-list">{types.map(type => <div className="op-row" key={type}><strong className="op-grow">{type}</strong><button type="button" className="op-icon" aria-label={`Remover ${type}`} onClick={() => { void persist(types.filter(item => item !== type)); }}><Trash2 size={16} /></button></div>)}</div>
     <div className="op-config-add"><label className="op-field"><span>Novo tipo</span><input value={newType} onChange={event => { setNewType(event.target.value); setSaved(false); }} list="zeus-service-type-suggestions" placeholder="Ex.: Alinhamento, inspeção, revisão" /><datalist id="zeus-service-type-suggestions">{zeusServiceTypeSuggestions.map(item => <option key={item} value={item} />)}</datalist></label><Button variant="secondary" onClick={() => { void add(); }}><Plus size={16} />Adicionar</Button>{saved && <Badge>Salvo</Badge>}</div>
-  </Section>;
+  </SettingsSection>;
 }
