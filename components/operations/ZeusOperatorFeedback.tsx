@@ -79,5 +79,6 @@ export function ZeusOperatorFeedback({ w, jobId, children }: { w: Workspace; job
     }
   };
 
-  return <div className={`zeus-operator-feedback ${action ? `is-${action}ing` : ''} ${result ? 'is-result' : ''}`} onClickCapture={capture}>{children}</div>;
+  const actionClass = action === 'advance' ? 'is-advancing' : action === 'close' ? 'is-closing' : '';
+  return <div className={`zeus-operator-feedback ${actionClass} ${result ? 'is-result' : ''}`} onClickCapture={capture}>{children}</div>;
 }
