@@ -6,6 +6,7 @@ import type { Workspace } from '@/lib/operations/storage';
 import { readZeusServiceTypes, saveZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
 import { setCustomValues } from '@/lib/operations/model';
 import { ZEUS_SERVICE_TYPES_KEY } from '@/lib/operations/zeusChecklistKeys';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { Badge, Button, Section } from './ui';
 
 const DEFAULT_TYPES = ['Diagnóstico', 'Revisão', 'Reparo', 'Retorno / Garantia'];
@@ -24,8 +25,10 @@ function same(a: string[], b: string[]) {
 }
 
 export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
+  const access = useStoreAccess();
   const applying = useRef(false);
   const cloud = parseCloud(w.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
+  const canWriteConfiguration = access.ready && access.canConfigureApp('zeus');
 
   useEffect(() => {
     if (!w.accountId || w.accountId === 'guest') return;
@@ -38,13 +41,14 @@ export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
       }
       return;
     }
+    if (!canWriteConfiguration) return;
     const seed = local.length ? local : DEFAULT_TYPES;
     void w.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(seed) }), 'Tipos de atendimento sincronizados.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [w.accountId, w.data.revision]);
+  }, [w.accountId, w.data.revision, canWriteConfiguration]);
 
   useEffect(() => {
-    if (!w.accountId || w.accountId === 'guest') return;
+    if (!w.accountId || w.accountId === 'guest' || !canWriteConfiguration) return;
     const syncLocal = () => {
       if (applying.current) return;
       const values = readZeusServiceTypes();
@@ -54,7 +58,7 @@ export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
     };
     window.addEventListener(eventName, syncLocal);
     return () => window.removeEventListener(eventName, syncLocal);
-  }, [w]);
+  }, [w, canWriteConfiguration]);
 
   return null;
 }
