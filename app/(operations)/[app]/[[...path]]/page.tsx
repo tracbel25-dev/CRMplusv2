@@ -1,11 +1,13 @@
 import { notFound, redirect } from 'next/navigation';
 import { AppRuntime } from '@/components/operations/AppRuntime';
 import { OperationAccessGate } from '@/components/operations/OperationAccessGate';
+import { ZeusOperatorPolish } from '@/components/operations/ZeusOperatorPolish';
 import { appPages, isApp, navigation } from '@/lib/operations/navigation';
 import './operations.css';
 import './configuration.css';
 import './access-control.css';
 import './zeus-brand.css';
+import './zeus-operator-feedback.css';
 import './kronos.css';
 
 export const dynamicParams = true;
@@ -38,5 +40,5 @@ export default async function OperationPage({ params }: { params: Promise<{ app:
   if (page === 'cadastro') redirect(`/cadastro?app=${encodeURIComponent(app)}&redirect=${encodeURIComponent(`/${app}`)}`);
   if (!appPages(app).includes(page)) notFound();
   if (recordId && !recordPages[app]?.includes(page)) notFound();
-  return <OperationAccessGate app={app}><AppRuntime app={app} page={page} recordId={recordId} /></OperationAccessGate>;
+  return <OperationAccessGate app={app}><ZeusOperatorPolish enabled={app === 'zeus'} /><AppRuntime app={app} page={page} recordId={recordId} /></OperationAccessGate>;
 }
