@@ -1,7 +1,7 @@
-import type { Data, Job, Quote } from '@/lib/operations/model';
-import { initialData } from '@/lib/operations/model';
+import type { Data, Job, Quote } from '../operations/model';
+import { initialData } from '../operations/model';
 import { serverPermissionGranted, type ServerPermissionMap } from './appAccess';
-import { ZEUS_ATTACHMENT_META_KEY, ZEUS_CHECKLIST_CONFIG_KEY, ZEUS_SERVICE_TYPES_KEY } from '@/lib/operations/zeusChecklistKeys';
+import { ZEUS_ATTACHMENT_META_KEY, ZEUS_CHECKLIST_CONFIG_KEY, ZEUS_SERVICE_TYPES_KEY } from '../operations/zeusChecklistKeys';
 
 type Access = {
   role: string;
@@ -30,10 +30,8 @@ function requireConfiguration(access: Access) {
 }
 
 function withoutPresentationSettings(data: Data['settings']) {
-  const clone = structuredClone(data) as Data['settings'] & Record<string, unknown>;
-  delete clone.theme;
-  delete clone.collapsed;
-  return clone;
+  const { theme: _theme, collapsed: _collapsed, ...operational } = data;
+  return operational;
 }
 
 function quotePermission(access: Access, previous: Quote | undefined, next: Quote | undefined) {
@@ -77,14 +75,8 @@ function safeCreatedCustomerAssetChanges(current: Data, next: Data, addedJobs: J
 }
 
 function jobCore(job: Job) {
-  const clone = structuredClone(job) as Job & Record<string, unknown>;
-  delete clone.stage;
-  delete clone.status;
-  delete clone.events;
-  delete clone.quote;
-  delete clone.attachments;
-  delete clone.tasks;
-  return clone;
+  const { stage: _stage, status: _status, events: _events, quote: _quote, attachments: _attachments, tasks: _tasks, ...core } = job;
+  return core;
 }
 
 function changedCustomKeys(previous: Record<string, string> | undefined, next: Record<string, string> | undefined) {
