@@ -7,7 +7,8 @@ import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { mercadoPagoConnectRequest, type MercadoPagoConnectStatus } from '@/lib/mercadopagoConnect';
-import { Badge, Section } from './ui';
+import { Badge } from './ui';
+import { SettingsSection } from './SettingsSection';
 
 export function PaymentIntegrationSetting({ app }: { app: AppId }) {
   const access = useStoreAccess();
@@ -50,15 +51,14 @@ export function PaymentIntegrationSetting({ app }: { app: AppId }) {
     }
   }
 
-  if (trialing) return <Section title="Pagamentos pelo Mercado Pago">
+  if (trialing) return <SettingsSection title="Pagamentos pelo Mercado Pago" description="Conexão e cobranças ficam disponíveis após a ativação da assinatura.">
     <div className="op-config-group">
       <div className="op-row"><span className="op-config-choice-icon"><LockKeyhole size={18} /></span><div className="op-grow"><strong>Integração protegida no modo teste</strong><small>Conexão, configuração e uso do Mercado Pago ficam disponíveis após a ativação da assinatura.</small></div><Badge>Assinatura necessária</Badge></div>
       <Link className="op-button secondary" href="/assinaturas">Assine agora para liberar <ExternalLink size={15} /></Link>
     </div>
-  </Section>;
+  </SettingsSection>;
 
-  return <Section title="Pagamentos pelo Mercado Pago">
-    <p className="op-muted">A conta Mercado Pago é conectada uma única vez na área financeira do CRM PLUS. Depois, cada aplicativo decide se pode usar essa conta para criar cobranças.</p>
+  return <SettingsSection title="Pagamentos pelo Mercado Pago" description="Controle se este aplicativo pode usar a conta Mercado Pago conectada para criar cobranças.">
     {error && <div className="op-error">{error}</div>}
     {!status ? <p className="op-muted">Conferindo conexão…</p> : !connected ? <div className="op-config-group">
       <div className="op-row"><span className="op-config-choice-icon"><WalletCards size={18} /></span><div className="op-grow"><strong>Mercado Pago não conectado</strong><small>O titular precisa aceitar o termo e autorizar a conta antes de habilitar cobranças neste aplicativo.</small></div><Badge>Desconectado</Badge></div>
@@ -71,5 +71,5 @@ export function PaymentIntegrationSetting({ app }: { app: AppId }) {
     </label>}
     {saved && <p className="op-muted"><CheckCircle2 size={14} /> Configuração de pagamento atualizada.</p>}
     {status && !canConfigure && <p className="op-muted">Você pode consultar esta configuração, mas apenas o titular ou um usuário com permissão de configuração do aplicativo pode alterá-la.</p>}
-  </Section>;
+  </SettingsSection>;
 }
