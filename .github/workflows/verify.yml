@@ -33,7 +33,8 @@ jobs:
           set -o pipefail
           {
             npm test
-            node --experimental-strip-types --test tests/operations.test.mjs tests/billing.test.mjs
+            node --test tests/billing.test.mjs
+            node --experimental-strip-types --experimental-loader ./tests/ts-loader.mjs --test tests/operations.test.mjs
           } 2>&1 | tee test.log
       - name: Build
         id: build
