@@ -14,7 +14,6 @@ export function ZeusStageAssistant({ w, job }: { w: Workspace; job: Job }) {
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const asset = w.data.assets.find(item => item.id === job.assetId);
-  const customer = w.data.customers.find(item => item.id === job.customerId);
 
   const load = async () => {
     setOpen(true);
@@ -24,7 +23,6 @@ export function ZeusStageAssistant({ w, job }: { w: Workspace; job: Job }) {
       const token = data.session?.access_token;
       if (!token) throw new Error('Entre novamente para usar a assistência da IA.');
       const context = [
-        `Cliente: ${customer?.name || 'não informado'}`,
         `Veículo/equipamento: ${asset ? `${asset.identifier} ${asset.model} ${asset.year}` : 'não informado'}`,
         `Tipo: ${job.type}`,
         `Relato: ${job.complaint}`,
@@ -56,7 +54,7 @@ export function ZeusStageAssistant({ w, job }: { w: Workspace; job: Job }) {
     <Button variant="secondary" onClick={() => { void load(); }}><Sparkles size={16} />Sugestões da IA</Button>
     {open && <Modal title={`Sugestões para ${job.stage.toLowerCase()}`} wide onClose={() => setOpen(false)}>
       <div className="zeus-ai-helper">
-        <p className="op-muted">A IA só sugere caminhos. Nada é aplicado sem você escolher.</p>
+        <p className="op-muted">A IA usa apenas os dados técnicos necessários desta OS. Nada é aplicado sem você escolher.</p>
         {busy ? <p>Preparando sugestões…</p> : suggestions.length ? suggestions.map((item, index) => <div className="zeus-ai-suggestion" key={`${item.title}-${index}`}><div><strong>{item.title}</strong><small>{item.reason}</small></div>{job.stage === 'Execução' && <Button variant="secondary" onClick={() => { void addExecutionTask(item.title); }}>Adicionar à execução</Button>}</div>) : <p>Nenhuma sugestão disponível.</p>}
       </div>
     </Modal>}
