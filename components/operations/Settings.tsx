@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Download, FileUp, HelpCircle, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { clientMessage } from '@/lib/clientMessage';
 import { AppId, Settings, stages, uid } from '@/lib/operations/model';
 import { Workspace, decodeData, download } from '@/lib/operations/storage';
 import {
   CustomField, OperationPreferences, defaultOperationPreferences, saveOperationPreferences,
   segmentDefinitions, useOperationPreferences
 } from '@/lib/operations/configuration';
+import { readZeusPreferences, writeZeusPreferences, type ZeusPreferences } from '@/lib/operations/zeus';
 import { Badge, Button, Confirm, Section, Title } from './ui';
 import { ConfigFieldNameSelect, resetFieldLabelOptions } from './ConfigFieldNameSelect';
 import { ZeusSettingsExtras } from './ZeusSettingsExtras';
@@ -58,6 +60,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const definition = segmentDefinitions[app];
   const [draft, setDraft] = useState<Settings>(() => ({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] }));
   const [preferences, setPreferences] = useState<PreferencesWithHelp>(() => withDefaultHelp(app, defaultOperationPreferences(app)));
+  const [zeusPreferences, setZeusPreferences] = useState<ZeusPreferences>(() => readZeusPreferences(w.data));
   const [importData, setImportData] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [customName, setCustomName] = useState('');
@@ -66,9 +69,32 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const flowPreviewRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
 
-  useEffect(() => setPreferences(withDefaultHelp(app, operation.preferences)), [app, operation.preferences]);
-  useEffect(() => setDraft({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] }), [w.data.settings]);
+  const markDirty = () => {
+    dirtyRef.current = true;
+    setSaved(false);
+  };
+
+  useEffect(() => {
+    dirtyRef.current = false;
+    setSaved(false);
+    setPreferences(withDefaultHelp(app, operation.preferences));
+    setDraft({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] });
+    setZeusPreferences(readZeusPreferences(w.data));
+    setCustomGroup(definition.customFieldGroups[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app]);
+
+  useEffect(() => {
+    if (!dirtyRef.current) setPreferences(withDefaultHelp(app, operation.preferences));
+  }, [app, operation.preferences]);
+  useEffect(() => {
+    if (!dirtyRef.current) {
+      setDraft({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] });
+      if (app === 'zeus') setZeusPreferences(readZeusPreferences(w.data));
+    }
+  }, [app, w.data]);
 
   const fieldGroups = useMemo(() => Array.from(new Set(definition.fields.map(field => field.group))), [definition.fields]);
   const actionGroups = useMemo(() => Array.from(new Set(definition.actions.map(action => action.group))), [definition.actions]);
@@ -77,22 +103,22 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     <label className="op-field">
       <span>{label}</span>
       <input type={type} value={Array.isArray(draft[key]) || typeof draft[key] === 'object' ? '' : String(draft[key] ?? '')} onChange={event => {
-        setSaved(false);
+        markDirty();
         setDraft({ ...draft, [key]: event.target.value });
       }} />
     </label>
   );
 
   const setFieldLabel = (key: string, value: string) => {
-    setSaved(false);
+    markDirty();
     setPreferences(current => ({ ...current, fieldLabels: { ...current.fieldLabels, [key]: value } }));
   };
   const setFieldHelp = (key: string, value: string) => {
-    setSaved(false);
+    markDirty();
     setPreferences(current => ({ ...current, fieldHelp: { ...(current.fieldHelp || {}), [key]: value } }));
   };
   const setFieldVisible = (key: string, value: boolean) => {
-    setSaved(false);
+    markDirty();
     setPreferences(current => ({ ...current, fieldVisibility: { ...current.fieldVisibility, [key]: value } }));
   };
   const scrollToFlowPreview = () => {
@@ -100,7 +126,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     window.requestAnimationFrame(() => flowPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
   const setActionVisible = (key: string, value: boolean) => {
-    setSaved(false);
+    markDirty();
     setPreferences(current => normalizeDependencies(app, { ...current, actionVisibility: { ...current.actionVisibility, [key]: value } }));
     scrollToFlowPreview();
   };
@@ -115,7 +141,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     const newField: CustomField = { id: uid(), label, group: customGroup, visible: true };
     setPreferences(current => ({ ...current, customFields: [...current.customFields, newField] }));
     setCustomName('');
-    setSaved(false);
+    markDirty();
   };
 
   const moveStage = (index: number, delta: number) => {
@@ -124,7 +150,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     const copy = [...draft.salesStages];
     [copy[index], copy[target]] = [copy[target], copy[index]];
     setDraft({ ...draft, salesStages: copy });
-    setSaved(false);
+    markDirty();
   };
 
   const addStage = () => {
@@ -134,7 +160,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     if (draft.salesStages.some(stage => stage.toLocaleLowerCase('pt-BR') === value.toLocaleLowerCase('pt-BR'))) { w.setError('Essa etapa já existe.'); return; }
     setDraft({ ...draft, salesStages: [...draft.salesStages, value] });
     setNewStage('');
-    setSaved(false);
+    markDirty();
   };
 
   const validate = (nextPreferences: PreferencesWithHelp) => {
@@ -155,7 +181,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     if (requiredEmpty) { w.setError(`O nome do campo “${requiredEmpty.label}” não pode ficar vazio.`); return false; }
 
     const nextPreferences = normalizeDependencies(app, { ...preferences, fieldLabels: normalizedLabels });
-    try { validate(nextPreferences); } catch (error) { w.setError((error as Error).message); return false; }
+    try { validate(nextPreferences); } catch (error) { w.setError(clientMessage(error, 'Revise as configurações antes de salvar.')); return false; }
 
     const ok = await w.mutate(data => {
       const theme = data.settings.theme;
@@ -177,6 +203,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
           }
           if (!next.diagnosisEnabled && job.stage === 'Diagnóstico') job.stage = next.budgetEnabled ? 'Orçamento' : 'Execução';
         }
+        writeZeusPreferences(data, zeusPreferences);
       }
 
       data.settings = next;
@@ -185,6 +212,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     if (!ok) return false;
     saveOperationPreferences(app, nextPreferences);
     setPreferences(nextPreferences);
+    dirtyRef.current = false;
     setSaved(true);
     return true;
   };
@@ -215,6 +243,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       resetFieldLabelOptions(app, definition.fields.map(field => field.key));
       setPreferences(nextPreferences);
       setCustomName('');
+      dirtyRef.current = false;
       setSaved(true);
       return true;
     } finally {
@@ -227,7 +256,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   return <>
     <Title eyebrow="Sua operação" title="Configurações">{definition.description}</Title>
     <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Personalização'},{id:'operacao',label:'Fluxo do processo'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'}]}>
-    <form onSubmit={async event => { event.preventDefault(); await save(); }}>
+    <form onSubmit={async event => { event.preventDefault(); await save(); }} onChange={markDirty}>
       <CompactPanel value="dados"><Section title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'}>
         <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
       </Section></CompactPanel>
@@ -242,7 +271,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
             return <div className="op-config-row" key={configField.key}>
               <label className="op-config-switch"><input type="checkbox" checked={visible} disabled={configField.required} onChange={event => setFieldVisible(configField.key, event.target.checked)} /><span>{visible ? 'Mostrar' : 'Ocultar'}</span></label>
               <div className="op-config-name-stack">
-                <div className="op-field op-config-name"><span>Nome no aplicativo</span><ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} onSave={save} /></div>
+                <div className="op-field op-config-name"><span>Nome no aplicativo</span><ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} /></div>
                 <label className="op-field op-config-help"><span><HelpCircle size={14} /> Personalizar dica</span><input value={preferences.fieldHelp?.[configField.key] ?? configField.description} onChange={event => setFieldHelp(configField.key, event.target.value)} maxLength={240} /><small>Essa dica orienta o preenchimento e não altera o nome do campo.</small></label>
               </div>
               <div className="op-config-description"><strong>{configField.label}{configField.required && <Badge>Essencial</Badge>}</strong><small>{configField.description}</small></div>
@@ -254,7 +283,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       <Section title="Adicionar mais um campo">
         <p className="op-muted">Campos adicionais também podem ser renomeados ou ocultados depois.</p>
         <div className="op-config-add"><label className="op-field"><span>Nome do novo campo</span><input value={customName} onChange={event => setCustomName(event.target.value)} placeholder="Ex.: Frota, número do motor, ocasião, CNPJ…" /></label><label className="op-field"><span>Onde esse campo pertence?</span><select value={customGroup} onChange={event => setCustomGroup(event.target.value)}>{definition.customFieldGroups.map(group => <option key={group}>{group}</option>)}</select></label><Button variant="secondary" onClick={addCustomField}><Plus size={16} />Adicionar campo</Button></div>
-        {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row op-custom-field-edit" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><label className="op-field op-grow"><span>Nome no aplicativo</span><input value={custom.label} onChange={event => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, label: event.target.value } : item) })); }} /></label><small>{custom.group}</small><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { setSaved(false); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
+        {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row op-custom-field-edit" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><label className="op-field op-grow"><span>Nome no aplicativo</span><input value={custom.label} onChange={event => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, label: event.target.value } : item) })); }} /></label><small>{custom.group}</small><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
       </Section></CompactPanel>
 
       <CompactPanel value="operacao">
@@ -278,18 +307,18 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         })}</div>
       </Section>
 
-      {app === 'zeus' && <><div ref={flowPreviewRef} className="op-flow-preview-anchor"><Section title="Prévia do fluxo da oficina"><p className="op-muted">A sequência abaixo mostra como o processo ficará com as opções selecionadas.</p><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></Section></div><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} /></>}
+      {app === 'zeus' && <><div ref={flowPreviewRef} className="op-flow-preview-anchor"><Section title="Prévia do fluxo da oficina"><p className="op-muted">A sequência abaixo mostra como o processo ficará com as opções selecionadas.</p><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></Section></div><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} value={zeusPreferences} onChange={value => { markDirty(); setZeusPreferences(value); }} /></>}
 
-      {app === 'kronos' && <Section title="Etapas do pipeline"><p className="op-muted">Organize a sequência real da sua venda. Etapas com oportunidades abertas não podem ser removidas até que esses registros sejam movidos ou encerrados.</p><div className="op-custom-fields">{draft.salesStages.map((stage, index) => <div className="op-row" key={`${stage}-${index}`}><strong className="op-grow">{index + 1}. {stage}</strong><button type="button" className="op-icon" aria-label={`Mover ${stage} para cima`} disabled={index === 0} onClick={() => moveStage(index, -1)}><ArrowUp size={16} /></button><button type="button" className="op-icon" aria-label={`Mover ${stage} para baixo`} disabled={index === draft.salesStages.length - 1} onClick={() => moveStage(index, 1)}><ArrowDown size={16} /></button><button type="button" className="op-icon" aria-label={`Remover ${stage}`} disabled={draft.salesStages.length <= 2} onClick={() => { setDraft({ ...draft, salesStages: draft.salesStages.filter((_, current) => current !== index) }); setSaved(false); }}><Trash2 size={16} /></button></div>)}</div><div className="op-config-add"><label className="op-field"><span>Nova etapa</span><input value={newStage} onChange={event => setNewStage(event.target.value)} placeholder="Ex.: Demonstração, validação técnica…" /></label><Button variant="secondary" onClick={addStage}><Plus size={16} />Adicionar etapa</Button></div></Section>}
+      {app === 'kronos' && <Section title="Etapas do pipeline"><p className="op-muted">Organize a sequência real da sua venda. Etapas com oportunidades abertas não podem ser removidas até que esses registros sejam movidos ou encerrados.</p><div className="op-custom-fields">{draft.salesStages.map((stage, index) => <div className="op-row" key={`${stage}-${index}`}><strong className="op-grow">{index + 1}. {stage}</strong><button type="button" className="op-icon" aria-label={`Mover ${stage} para cima`} disabled={index === 0} onClick={() => moveStage(index, -1)}><ArrowUp size={16} /></button><button type="button" className="op-icon" aria-label={`Mover ${stage} para baixo`} disabled={index === draft.salesStages.length - 1} onClick={() => moveStage(index, 1)}><ArrowDown size={16} /></button><button type="button" className="op-icon" aria-label={`Remover ${stage}`} disabled={draft.salesStages.length <= 2} onClick={() => { setDraft({ ...draft, salesStages: draft.salesStages.filter((_, current) => current !== index) }); markDirty(); }}><Trash2 size={16} /></button></div>)}</div><div className="op-config-add"><label className="op-field"><span>Nova etapa</span><input value={newStage} onChange={event => setNewStage(event.target.value)} placeholder="Ex.: Demonstração, validação técnica…" /></label><Button variant="secondary" onClick={addStage}><Plus size={16} />Adicionar etapa</Button></div></Section>}
 
-      {app === 'artemis' && <Section title="Delivery e atendimento online"><div className="op-fields"><label className="op-field"><span>Taxa de entrega padrão (R$)</span><input type="number" min="0" step="0.01" value={draft.deliveryFee / 100} onChange={event => setDraft({ ...draft, deliveryFee: Math.round(Number(event.target.value) * 100) })} /></label><label className="op-field"><span>Pedido mínimo de delivery (R$)</span><input type="number" min="0" step="0.01" value={draft.minimumOrder / 100} onChange={event => setDraft({ ...draft, minimumOrder: Math.round(Number(event.target.value) * 100) })} /></label>{field('deliveryAreas', 'Bairros / zonas atendidas')}{field('hours', 'Horários de atendimento')}</div></Section>}
+      {app === 'artemis' && <Section title="Delivery e atendimento online"><div className="op-fields"><label className="op-field"><span>Taxa de entrega padrão (R$)</span><input type="number" min="0" step="0.01" value={draft.deliveryFee / 100} onChange={event => { markDirty(); setDraft({ ...draft, deliveryFee: Math.round(Number(event.target.value) * 100) }); }} /></label><label className="op-field"><span>Pedido mínimo de delivery (R$)</span><input type="number" min="0" step="0.01" value={draft.minimumOrder / 100} onChange={event => { markDirty(); setDraft({ ...draft, minimumOrder: Math.round(Number(event.target.value) * 100) }); }} /></label>{field('deliveryAreas', 'Bairros / zonas atendidas')}{field('hours', 'Horários de atendimento')}</div></Section>}
 
       </CompactPanel><div className="op-form-footer op-settings-actions">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>
     </form>
 
     <CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
     <CompactPanel value="backup">
-      <Section title="Cópia dos seus dados"><p>{cloudCanonical ? 'Seus dados ficam salvos e sincronizados automaticamente. A exportação abaixo é uma cópia adicional para arquivo próprio.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}</p><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { if (file.size > 15000000) throw new Error('A cópia excede o limite de 15 MB.'); const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError((error as Error).message); } event.target.value = ''; }} /></label></div></Section>
+      <Section title="Cópia dos seus dados"><p>{cloudCanonical ? 'Seus dados ficam salvos e sincronizados automaticamente. A exportação abaixo é uma cópia adicional para arquivo próprio.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}</p><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></Section>
       <Section title="Proteção dos seus dados"><p>{cloudCanonical ? 'As informações desta conta são mantidas online e sincronizadas automaticamente. A cópia manual é opcional e serve para seu próprio arquivo.' : 'Este ambiente mantém os dados neste dispositivo. Faça cópias periódicas para preservar suas informações.'}</p></Section>
     </CompactPanel>
     </CompactTabs>
