@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import type { Workspace } from '@/lib/operations/storage';
 import { activeJob, matches, money } from '@/lib/operations/model';
 import { formatLeadTime, jobLeadTime, readZeusPreferences } from '@/lib/operations/zeus';
@@ -53,6 +54,8 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
   const access = useStoreAccess();
   const canViewJobs = access.hasPermission('zeus', 'jobs_view');
   const canViewBilling = access.hasPermission('zeus', 'billing_view');
+  const workspaceRef = useRef(w);
+  workspaceRef.current = w;
   const [query, setQuery] = useState('');
   const [active, setActive] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState('lead');
@@ -63,7 +66,8 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
   const leads = w.data.jobs.map(job => jobLeadTime(job));
 
   const loadBilling = useCallback(async () => {
-    if (!canViewBilling || !w.accountId || w.accountId === 'guest') { setBilling([]); setBillingBusy(false); return; }
+    const current = workspaceRef.current;
+    if (!canViewBilling || !current.accountId || current.accountId === 'guest') { setBilling([]); setBillingBusy(false); return; }
     setBillingBusy(true);
     try {
       const response = await fetch('/api/zeus/faturamento', { headers: { authorization: `Bearer ${await accessToken()}` }, cache: 'no-store' });
@@ -71,9 +75,9 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
       if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o faturamento.');
       setBilling(Array.isArray(payload.records) ? payload.records : []);
     } catch (reason) {
-      w.setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o faturamento.');
+      current.setError(clientMessage(reason, 'Não foi possível carregar o faturamento.'));
     } finally { setBillingBusy(false); }
-  }, [canViewBilling, w]);
+  }, [canViewBilling]);
 
   useEffect(() => {
     void loadBilling();
@@ -199,30 +203,5 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
         })}</div> : <Empty>As OS encerradas com valor aparecerão aqui separadas da operação.</Empty>}
       </>}
     </Section>}
-
-    <style jsx global>{`
-      .zeus-dashboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--op-line);margin:18px 0 24px;background:var(--op-paper)}
-      .zeus-dashboard-kpis>div{padding:18px 20px;display:grid;gap:4px;border-right:1px solid var(--op-line)}
-      .zeus-dashboard-kpis>div:last-child{border-right:0}
-      .zeus-dashboard-kpis span{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--op-muted)}
-      .zeus-dashboard-kpis strong{font-size:27px;letter-spacing:-.04em;line-height:1.2}
-      .zeus-dashboard-kpis small{color:var(--op-muted)}
-      .zeus-dashboard-grid-top{padding-bottom:24px;border-bottom:1px solid var(--op-line)}
-      .zeus-dashboard-secondary{margin-top:24px}
-      .zeus-status-list{display:grid;gap:14px}
-      .zeus-status-list>div{display:grid;gap:7px}
-      .zeus-status-list>div>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
-      .zeus-status-list span{color:var(--op-muted);font-size:12px}
-      .zeus-status-list i{height:7px;background:var(--op-soft);overflow:hidden;border-radius:999px}
-      .zeus-status-list i b{display:block;height:100%;background:var(--op-accent);border-radius:999px}
-      .zeus-attention-list{display:grid;border-top:1px solid var(--op-line)}
-      .zeus-attention-list button{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:13px 0;border:0;border-bottom:1px solid var(--op-line);background:none;color:inherit;text-align:left}
-      .zeus-attention-list button:hover:not(:disabled){background:var(--op-soft)}
-      .zeus-attention-list button:disabled,.zeus-lead-list button:disabled{cursor:default;opacity:1}
-      .zeus-attention-list button>span{display:grid;gap:2px}
-      .zeus-attention-list small{color:var(--op-muted)}
-      @media(max-width:1050px){.zeus-dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.zeus-dashboard-kpis>div:nth-child(2){border-right:0}.zeus-dashboard-kpis>div:nth-child(-n+2){border-bottom:1px solid var(--op-line)}}
-      @media(max-width:720px){.zeus-dashboard-kpis{grid-template-columns:1fr}.zeus-dashboard-kpis>div{border-right:0;border-bottom:1px solid var(--op-line)}.zeus-dashboard-kpis>div:last-child{border-bottom:0}.zeus-attention-list button{grid-template-columns:minmax(0,1fr) auto}.zeus-attention-list button>svg{display:none}}
-    `}</style>
   </>;
 }
