@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Check, Clipboard, Link2, RefreshCw, Sparkles } from 'lucide-react';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink, externalDraft, syncExternalResponses } from '@/lib/operations/externalLinks';
@@ -34,7 +35,7 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
       await navigator.clipboard.writeText(next).catch(() => undefined);
       setCopied(true);
       w.setNotice('Link externo criado e copiado.');
-    } catch (error) { w.setError(error instanceof Error ? error.message : 'Não foi possível criar o link.'); }
+    } catch (error) { w.setError(clientMessage(error, 'Não foi possível criar o link.')); }
     finally { setBusy(false); }
   };
 
@@ -43,7 +44,7 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
     try {
       const count = await syncExternalResponses(w, app);
       if (!count) w.setNotice('Nenhuma atualização nova.');
-    } catch (error) { w.setError(error instanceof Error ? error.message : 'Não foi possível atualizar os dados externos.'); }
+    } catch (error) { w.setError(clientMessage(error, 'Não foi possível atualizar os dados externos.')); }
     finally { setBusy(false); }
   };
 
