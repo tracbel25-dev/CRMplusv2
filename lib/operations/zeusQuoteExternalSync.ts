@@ -61,12 +61,9 @@ export async function syncZeusQuoteExternalResponses(w: Workspace) {
       const quote = job?.quote || data.quotes.find(item => item.id === raw.record_id);
       if (!quote || quote.status !== 'Enviado') continue;
 
-      if (job && !activeJob(job)) {
-        if (!job.events.some(item => item.text.includes(`Resposta externa ignorada porque a OS está ${job.status}`))) {
-          job.events.push(event(`Resposta externa ignorada porque a OS está ${job.status}.`));
-        }
-        continue;
-      }
+      // Atendimentos finalizados são imutáveis. A resposta fica marcada como processada,
+      // mas nunca reabre nem altera o histórico preservado da OS.
+      if (job && !activeJob(job)) continue;
 
       const responseVersion = Number(response.version || payload.version || 0);
       if (responseVersion && responseVersion !== quote.version) {
