@@ -189,7 +189,7 @@ function useStoreAccessState() {
     const row = memberApp(app);
     if (!row) return false;
     const p = row.permissions || {};
-    return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true || p.customers_manage === true;
+    return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true;
   };
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
