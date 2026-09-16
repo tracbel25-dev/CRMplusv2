@@ -7,8 +7,6 @@ import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink, externalDraft, syncExternalResponses } from '@/lib/operations/externalLinks';
 import { OperationalAIAssist } from './OperationalAIAssist';
 import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
-import { ZeusExternalSync } from './ZeusExternalSync';
-import { ZeusServiceTypesCloudBridge } from './ZeusServiceTypesCloud';
 import { Modal } from './ui';
 
 const labels: Record<AppId, string> = {
@@ -50,7 +48,6 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
   };
 
   return <>
-    {app === 'zeus' && <><ZeusExternalSync w={w} /><ZeusServiceTypesCloudBridge w={w} /></>}
     <div className="op-external-share">
       {app === 'artemis' && page !== 'cardapio' && <OperationalAIAssist w={w} app={app} />}
       {app === 'artemis' && page === 'cardapio' && <button className="op-icon" type="button" onClick={() => setMenuReview(true)} title="Revisar cardápio com IA" aria-label="Revisar cardápio com IA"><Sparkles size={19} /></button>}
