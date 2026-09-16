@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Download, MessageCircle } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Job, Quote } from '@/lib/operations/model';
-import { advanceJob, decideQuote, effectiveQuoteStatus, event, money, reviseQuote, sendQuote, total } from '@/lib/operations/model';
+import { activeJob, advanceJob, decideQuote, effectiveQuoteStatus, event, money, reviseQuote, sendQuote, total } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink } from '@/lib/operations/externalLinks';
 import { downloadQuotePdf } from '@/lib/operations/pdf';
@@ -37,6 +37,10 @@ function QuoteEditor({ w, quote, job, onSaved }: { w: Workspace; quote: Quote; j
       if (!draft.validUntil) throw new Error('Informe a validade do orçamento.');
       setBusy(true);
       const ok = await w.mutate(data => {
+        if (job) {
+          const currentJob = data.jobs.find(item => item.id === job.id);
+          if (!currentJob || !activeJob(currentJob)) throw new Error('Esta OS já foi finalizada e não pode mais ter o orçamento alterado.');
+        }
         const current = locateQuote(data, quote.id, job?.id);
         if (!current) throw new Error('Orçamento não encontrado.');
         if (current.status !== 'Rascunho') throw new Error('Esta versão já foi compartilhada. Crie uma nova versão para editar.');
@@ -69,6 +73,7 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
   const [busy, setBusy] = useState(false);
   const customer = w.data.customers.find(item => item.id === quote.customerId);
   const status = effectiveQuoteStatus(quote);
+  const jobWritable = !job || activeJob(job);
   const record = useMemo(() => ({ quote, origin: job ? 'OS' as const : 'Balcão' as const, job }), [quote, job]);
   const label = budgetLabel(record);
   const reference = job ? `OS ${String(job.number).padStart(4, '0')}` : 'Venda de balcão';
@@ -78,6 +83,7 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
 
   const share = async () => {
     if (!canShare) { w.setError('Seu perfil não possui permissão para compartilhar orçamentos.'); return; }
+    if (job && !activeJob(job)) { w.setError('Esta OS já foi finalizada. O orçamento permanece apenas para consulta.'); return; }
     if (busy) return;
     if (!customer?.phone) { w.setError('Cadastre o telefone do cliente antes de compartilhar pelo WhatsApp.'); return; }
     if (!quote.lines.length) { w.setError('Adicione os itens antes de compartilhar.'); return; }
@@ -86,6 +92,10 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
       let externalQuote = structuredClone(quote);
       if (quote.status === 'Rascunho') {
         const ok = await w.mutate(data => {
+          if (job) {
+            const currentJob = data.jobs.find(item => item.id === job.id);
+            if (!currentJob || !activeJob(currentJob)) throw new Error('Esta OS já foi finalizada e não pode mais compartilhar um novo orçamento.');
+          }
           const current = locateQuote(data, quote.id, job?.id);
           if (!current) throw new Error('Orçamento não encontrado.');
           if (!current.validUntil) current.validUntil = defaultQuoteValidity(data);
@@ -123,24 +133,33 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
 
   return <div className="zeus-quote-panel">
     <div className="zeus-quote-heading"><div><span className="op-kicker">{label}</span><strong>{status}</strong><small>Versão {quote.version}</small></div><strong className="op-price">{money(value)}</strong></div>
-    {quote.status === 'Rascunho' && canManage ? <QuoteEditor w={w} quote={quote} job={job} onSaved={() => { if (canShare) setSharePrompt(true); }} /> : readOnlyBody}
+    {quote.status === 'Rascunho' && canManage && jobWritable ? <QuoteEditor w={w} quote={quote} job={job} onSaved={() => { if (canShare) setSharePrompt(true); }} /> : readOnlyBody}
+    {!jobWritable && job && <p className="op-muted">OS finalizada. O orçamento está disponível somente para consulta e exportação.</p>}
     <div className="op-actions zeus-quote-actions">
       {quote.lines.length > 0 && canExport && <Button variant="secondary" onClick={download}><Download size={16} />Baixar PDF</Button>}
-      {quote.lines.length > 0 && canShare && ['Rascunho', 'Enviado'].includes(quote.status) && <Button variant="secondary" onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />{quote.status === 'Rascunho' ? 'Compartilhar' : 'Compartilhar novamente'}</Button>}
-      {canManage && (!['Rascunho', 'Enviado'].includes(quote.status) || status === 'Expirado') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar validade / nova versão' : 'Criar nova versão'}</Button>}
+      {jobWritable && quote.lines.length > 0 && canShare && ['Rascunho', 'Enviado'].includes(quote.status) && <Button variant="secondary" onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />{quote.status === 'Rascunho' ? 'Compartilhar' : 'Compartilhar novamente'}</Button>}
+      {jobWritable && canManage && (!['Rascunho', 'Enviado'].includes(quote.status) || status === 'Expirado') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar validade / nova versão' : 'Criar nova versão'}</Button>}
     </div>
-    {canManage && status === 'Enviado' && <details className="op-version-history zeus-quote-manual-decision"><summary>Registrar uma decisão recebida fora do link</summary><p className="op-muted">Use esta opção somente quando o cliente aprovar ou reprovar por outro canal.</p><div className="op-actions"><Button onClick={() => setDecision(true)}>Registrar aprovação</Button><Button variant="secondary" onClick={() => setDecision(false)}>Registrar reprovação</Button></div></details>}
+    {jobWritable && canManage && status === 'Enviado' && <details className="op-version-history zeus-quote-manual-decision"><summary>Registrar uma decisão recebida fora do link</summary><p className="op-muted">Use esta opção somente quando o cliente aprovar ou reprovar por outro canal.</p><div className="op-actions"><Button onClick={() => setDecision(true)}>Registrar aprovação</Button><Button variant="secondary" onClick={() => setDecision(false)}>Registrar reprovação</Button></div></details>}
     {quote.versions?.length ? <details className="op-version-history"><summary>Versões anteriores ({quote.versions.length})</summary>{quote.versions.map(version => <div key={version.version}><strong>Versão {version.version} · {version.status}</strong><p>{version.decisionNote || 'Sem decisão registrada'}</p></div>)}</details> : null}
     {quote.events.length > 0 && <details><summary>Histórico do orçamento</summary><div style={{ marginTop: 12 }}><Timeline events={quote.events} /></div></details>}
 
-    {sharePrompt && canShare && <Modal title="Orçamento salvo" onClose={() => setSharePrompt(false)}><p>Gostaria de compartilhar o orçamento agora?</p><div className="op-form-footer"><Button variant="secondary" onClick={() => setSharePrompt(false)}>{job ? 'Continuar editando a OS' : 'Deixar para depois'}</Button><Button onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />Compartilhar pelo WhatsApp</Button></div></Modal>}
-    {decision !== null && canManage && <Modal title={decision ? 'Registrar aprovação' : 'Registrar reprovação'} onClose={() => setDecision(null)}><RecordForm draftKey={`zeus-quote-decision:${quote.id}`} fields={[{ name: 'note', label: 'Como a decisão do cliente foi recebida?', type: 'textarea', required: true, wide: true }]} onClose={() => setDecision(null)} submit={decision ? 'Confirmar aprovação' : 'Confirmar reprovação'} onSave={form => w.mutate(data => {
+    {sharePrompt && canShare && jobWritable && <Modal title="Orçamento salvo" onClose={() => setSharePrompt(false)}><p>Gostaria de compartilhar o orçamento agora?</p><div className="op-form-footer"><Button variant="secondary" onClick={() => setSharePrompt(false)}>{job ? 'Continuar editando a OS' : 'Deixar para depois'}</Button><Button onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />Compartilhar pelo WhatsApp</Button></div></Modal>}
+    {decision !== null && canManage && jobWritable && <Modal title={decision ? 'Registrar aprovação' : 'Registrar reprovação'} onClose={() => setDecision(null)}><RecordForm draftKey={`zeus-quote-decision:${quote.id}`} fields={[{ name: 'note', label: 'Como a decisão do cliente foi recebida?', type: 'textarea', required: true, wide: true }]} onClose={() => setDecision(null)} submit={decision ? 'Confirmar aprovação' : 'Confirmar reprovação'} onSave={form => w.mutate(data => {
+      if (job) {
+        const currentJob = data.jobs.find(item => item.id === job.id);
+        if (!currentJob || !activeJob(currentJob)) throw new Error('Esta OS já foi finalizada e não pode receber uma nova decisão de orçamento.');
+      }
       const current = locateQuote(data, quote.id, job?.id); if (!current) throw new Error('Orçamento não encontrado.'); decideQuote(current, decision, form.note);
       if (job) { const currentJob = data.jobs.find(item => item.id === job.id)!; currentJob.status = decision ? 'Em andamento' : 'Reprovado'; currentJob.events.push(event(`Decisão do orçamento: ${current.status}`)); if (decision && currentJob.stage === 'Orçamento') advanceJob(data, currentJob.id, 'Orçamento'); }
     }, decision && job ? 'Orçamento aprovado e OS liberada para execução.' : 'Decisão registrada.')} /></Modal>}
-    {revision && canManage && <Confirm title="Criar nova versão?" onClose={() => setRevision(false)} onConfirm={() => w.mutate(data => {
+    {revision && canManage && jobWritable && <Confirm title="Criar nova versão?" onClose={() => setRevision(false)} onConfirm={() => w.mutate(data => {
+      if (job) {
+        const currentJob = data.jobs.find(item => item.id === job.id);
+        if (!currentJob || !activeJob(currentJob)) throw new Error('Esta OS já foi finalizada e não pode receber uma nova versão de orçamento.');
+      }
       const current = locateQuote(data, quote.id, job?.id); if (!current) throw new Error('Orçamento não encontrado.'); reviseQuote(current); current.validUntil = defaultQuoteValidity(data);
-      if (job) { const currentJob = data.jobs.find(item => item.id === job.id)!; if (!['Encerrado', 'Cancelado'].includes(currentJob.status)) { currentJob.stage = 'Orçamento'; currentJob.status = 'Em andamento'; currentJob.events.push(event(`Nova versão ${current.version} do orçamento aberta`)); } }
+      if (job) { const currentJob = data.jobs.find(item => item.id === job.id)!; currentJob.stage = 'Orçamento'; currentJob.status = 'Em andamento'; currentJob.events.push(event(`Nova versão ${current.version} do orçamento aberta`)); }
     }, 'Nova versão aberta.')}>A versão atual será preservada. A nova versão volta a rascunho e exigirá novo compartilhamento.</Confirm>}
   </div>;
 }
