@@ -12,6 +12,13 @@ export const storageKey = (app: AppId, accountId = 'guest') => app === 'kronos'
 const cloudApp = (app: AppId) => app === 'zeus' || app === 'artemis';
 const workspaceMemoryCache = new Map<string, Data>();
 
+type PendingCloudMutation = {
+  id: number;
+  apply: (data: Data) => void;
+  message: string;
+  resolve: (ok: boolean) => void;
+};
+
 function initialForApp(app: AppId): Data {
   const data = initialData();
   if (app === 'kronos') {
@@ -87,14 +94,79 @@ export function useWorkspace(app: AppId, accountId?: string) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const ref = useRef(data);
+  const confirmedRef = useRef(data);
   const blocked = useRef(false);
+  const pendingCloud = useRef<PendingCloudMutation[]>([]);
+  const savingCloud = useRef(false);
+  const mutationSequence = useRef(0);
+
+  const publish = useCallback((next: Data) => {
+    ref.current = next;
+    if (key) workspaceMemoryCache.set(key, next);
+    setData(next);
+    mirrorConfigurationCache(app, next);
+  }, [app, key]);
+
+  const rebuildVisible = useCallback(() => {
+    const visible = structuredClone(confirmedRef.current);
+    for (const mutation of pendingCloud.current) mutation.apply(visible);
+    publish(visible);
+  }, [publish]);
+
+  const flushCloudQueue = useCallback(async () => {
+    if (savingCloud.current || !cloudApp(app) || accountId === 'guest') return;
+    savingCloud.current = true;
+    try {
+      while (pendingCloud.current.length) {
+        const mutation = pendingCloud.current[0];
+        try {
+          let base = structuredClone(confirmedRef.current);
+          let candidate = structuredClone(base);
+          mutation.apply(candidate);
+          let result = await cloudRequest(app, 'PUT', candidate, base.revision);
+
+          if (result.conflict && result.data) {
+            base = decodeData(JSON.stringify(result.data));
+            confirmedRef.current = base;
+            candidate = structuredClone(base);
+            mutation.apply(candidate);
+            result = await cloudRequest(app, 'PUT', candidate, base.revision);
+          }
+
+          if (result.conflict || !result.data) {
+            if (result.data) confirmedRef.current = decodeData(JSON.stringify(result.data));
+            throw new Error('As informações foram atualizadas enquanto você salvava. Tente novamente.');
+          }
+
+          confirmedRef.current = decodeData(JSON.stringify(result.data));
+          pendingCloud.current = pendingCloud.current.filter(item => item.id !== mutation.id);
+          rebuildVisible();
+          setError('');
+          if (mutation.message) setNotice(mutation.message);
+          mutation.resolve(true);
+        } catch (reason) {
+          pendingCloud.current = pendingCloud.current.filter(item => item.id !== mutation.id);
+          try { rebuildVisible(); } catch { publish(confirmedRef.current); }
+          setError(clientMessage(reason, 'Não foi possível salvar agora. Tente novamente.'));
+          mutation.resolve(false);
+        }
+      }
+    } finally {
+      savingCloud.current = false;
+      if (pendingCloud.current.length) queueMicrotask(() => { void flushCloudQueue(); });
+    }
+  }, [accountId, app, publish, rebuildVisible]);
 
   useEffect(() => {
     if (!key || !accountId) { setReady(false); return; }
+    for (const mutation of pendingCloud.current) mutation.resolve(false);
+    pendingCloud.current = [];
+    savingCloud.current = false;
     let cancelled = false;
     const cached = workspaceMemoryCache.get(key);
     if (cached) {
       ref.current = cached;
+      confirmedRef.current = cached;
       setData(cached);
       blocked.current = false;
       setError('');
@@ -127,10 +199,8 @@ export function useWorkspace(app: AppId, accountId?: string) {
             }
           }
           if (cancelled) return;
-          ref.current = next;
-          workspaceMemoryCache.set(key, next);
-          setData(next);
-          mirrorConfigurationCache(app, next);
+          confirmedRef.current = next;
+          publish(next);
           blocked.current = false;
           setError('');
         } catch (e) {
@@ -164,9 +234,8 @@ export function useWorkspace(app: AppId, accountId?: string) {
       try {
         const raw = scopedRaw();
         const next = raw ? decodeData(raw) : initialForApp(app);
-        ref.current = next;
-        workspaceMemoryCache.set(key, next);
-        setData(next);
+        confirmedRef.current = next;
+        publish(next);
         blocked.current = false;
         setError('');
       } catch (e) {
@@ -179,7 +248,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     const listener = (e: StorageEvent) => { if (e.key === key) sync(); };
     window.addEventListener('storage', listener);
     return () => window.removeEventListener('storage', listener);
-  }, [key, accountId, app]);
+  }, [key, accountId, app, publish]);
 
   useEffect(() => {
     if (!notice) return;
@@ -193,24 +262,16 @@ export function useWorkspace(app: AppId, accountId?: string) {
     if (cloudApp(app) && accountId !== 'guest') {
       try {
         if (blocked.current) throw new Error('Aguarde o carregamento das informações antes de continuar.');
-        const base = structuredClone(ref.current);
-        fn(base);
-        let result = await cloudRequest(app, 'PUT', base, ref.current.revision);
-        if (result.conflict && result.data) {
-          const latest = decodeData(JSON.stringify(result.data));
-          const retry = structuredClone(latest);
-          fn(retry);
-          result = await cloudRequest(app, 'PUT', retry, latest.revision);
-        }
-        if (result.conflict || !result.data) throw new Error('As informações foram atualizadas enquanto você salvava. Tente novamente.');
-        const next = decodeData(JSON.stringify(result.data));
-        ref.current = next;
-        workspaceMemoryCache.set(key, next);
-        setData(next);
-        mirrorConfigurationCache(app, next);
+        const optimistic = structuredClone(ref.current);
+        fn(optimistic);
+        const id = ++mutationSequence.current;
+        const result = new Promise<boolean>(resolve => {
+          pendingCloud.current.push({ id, apply: fn, message, resolve });
+        });
+        publish(optimistic);
         setError('');
-        setNotice(message);
-        return true;
+        void flushCloudQueue();
+        return await result;
       } catch (e) {
         setError(clientMessage(e, 'Não foi possível salvar agora. Tente novamente.'));
         return false;
@@ -225,9 +286,8 @@ export function useWorkspace(app: AppId, accountId?: string) {
         fn(next);
         next.revision++;
         localStorage.setItem(key, JSON.stringify(next));
-        ref.current = next;
-        workspaceMemoryCache.set(key, next);
-        setData(next);
+        confirmedRef.current = next;
+        publish(next);
         setError('');
         setNotice(message);
         return true;
@@ -237,26 +297,24 @@ export function useWorkspace(app: AppId, accountId?: string) {
       }
     };
     return navigator.locks ? navigator.locks.request(key, update) : update();
-  }, [key, app, accountId]);
+  }, [key, app, accountId, flushCloudQueue, publish]);
 
   const restore = async (raw: string) => {
     if (!key || !accountId) { setError('A conta ainda está sendo identificada.'); return false; }
+    if (pendingCloud.current.length) { setError('Aguarde as alterações atuais terminarem de salvar antes de restaurar uma cópia.'); return false; }
     try {
       const next = decodeData(raw);
       if (cloudApp(app) && accountId !== 'guest') {
-        next.revision = ref.current.revision;
-        const result = await cloudRequest(app, 'PUT', next, ref.current.revision);
+        next.revision = confirmedRef.current.revision;
+        const result = await cloudRequest(app, 'PUT', next, confirmedRef.current.revision);
         if (result.conflict || !result.data) throw new Error('As informações mudaram durante a restauração. Atualize e tente novamente.');
         const saved = decodeData(JSON.stringify(result.data));
-        ref.current = saved;
-        workspaceMemoryCache.set(key, saved);
-        setData(saved);
-        mirrorConfigurationCache(app, saved);
+        confirmedRef.current = saved;
+        publish(saved);
       } else {
         localStorage.setItem(key, JSON.stringify(next));
-        ref.current = next;
-        workspaceMemoryCache.set(key, next);
-        setData(next);
+        confirmedRef.current = next;
+        publish(next);
       }
       blocked.current = false;
       setError('');
