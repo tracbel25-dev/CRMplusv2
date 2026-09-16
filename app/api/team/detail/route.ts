@@ -105,7 +105,7 @@ export async function POST(request:NextRequest){
     if(member.role==='owner') return fail(400,'O titular já possui acesso completo.');
 
     const permissions=sanitizePermissions(body.permissions);
-    const canConfigure=permissions.settings_fields||permissions.settings_operation||permissions.settings_access||permissions.customers_manage;
+    const canConfigure=permissions.settings_fields||permissions.settings_operation||permissions.settings_access;
     const title=(body.jobTitle||'').trim().replace(/\s+/g,' ').slice(0,80);
     const {error:titleError}=await service.from('account_members').update({job_title:title||null}).eq('account_id',accountId).eq('user_id',targetId);
     if(titleError) throw titleError;
