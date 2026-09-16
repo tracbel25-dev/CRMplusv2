@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Save, X } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import { fieldLabelOptions } from '@/lib/operations/configurationLabels';
 import { saveZeusServiceTypes, useZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
@@ -33,6 +33,12 @@ function saveExtraOption(app:AppId,fieldKey:string,value:string){
   window.dispatchEvent(new CustomEvent(optionEvent,{detail:{app,fieldKey}}));
 }
 
+export function resetFieldLabelOptions(app:AppId,fieldKeys:string[]){
+  if(typeof window==='undefined')return;
+  for(const fieldKey of fieldKeys)localStorage.removeItem(optionStorageKey(app,fieldKey));
+  for(const fieldKey of fieldKeys)window.dispatchEvent(new CustomEvent(optionEvent,{detail:{app,fieldKey}}));
+}
+
 function ZeusServiceTypesConfigurator(){
   const types=useZeusServiceTypes();
   const listId=useId();
@@ -57,8 +63,9 @@ function ZeusServiceTypesConfigurator(){
   </div>;
 }
 
-export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void}){
+export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange,onSave}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void;onSave?:()=>Promise<boolean>|boolean}){
   const listId=useId();
+  const [saving,setSaving]=useState(false);
   const defaults=useMemo(()=>fieldLabelOptions(app,fieldKey,fallback),[app,fieldKey,fallback]);
   const [extras,setExtras]=useState<string[]>([]);
   useEffect(()=>{
@@ -79,9 +86,9 @@ export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{ap
     <div className="op-config-combobox">
       <input list={listId} value={value} onChange={event=>onChange(event.target.value)} placeholder={fallback} aria-label={`Nome de ${fallback} no aplicativo`}/>
       <datalist id={listId}>{options.map(option=><option key={option} value={option}/>)}</datalist>
-      <button type="button" className="op-button secondary" disabled={!typed||exists} onClick={()=>saveExtraOption(app,fieldKey,typed)}><Plus size={14}/>Incluir opção</button>
+      <button type="button" className="op-button secondary" disabled={!typed||saving} onClick={async()=>{if(!exists)saveExtraOption(app,fieldKey,typed);if(!onSave)return;setSaving(true);try{await onSave();}finally{setSaving(false);}}}><Save size={14}/>{saving?'Salvando…':'Salvar alteração'}</button>
     </div>
-    <small className="op-muted">Digite o nome que quiser. As sugestões aceleram o preenchimento; “Incluir opção” guarda um termo novo na lista da operação.</small>
+    <small className="op-muted">Digite o nome que preferir. As sugestões são opcionais; use “Salvar alteração” para aplicar o nome escolhido.</small>
     {app==='zeus'&&fieldKey==='serviceType'&&<ZeusServiceTypesConfigurator/>}
   </div>;
 }
