@@ -1,0 +1,268 @@
+@import './zeus-enhancements.css';
+@import './zeus-modal-layout.css';
+
+/* Zeus visual system: one entry point, one rhythm, one interaction language. */
+.app-zeus{
+  --zeus-radius:12px;
+  --zeus-radius-lg:14px;
+  --zeus-gap:14px;
+  --zeus-pad:18px;
+}
+
+.app-zeus .op-main{max-width:1480px;width:100%;}
+.app-zeus .op-title{margin-bottom:18px;align-items:flex-end;gap:20px;}
+.app-zeus .op-title>div:first-child{min-width:0;max-width:860px;}
+.app-zeus .op-title h1{letter-spacing:-.045em;line-height:1.04;}
+.app-zeus .op-title p{max-width:760px;margin-top:7px;color:var(--op-muted);line-height:1.5;}
+.app-zeus .op-title>.op-actions{align-items:center;justify-content:flex-end;}
+
+/* Sidebar hierarchy. */
+.app-zeus .op-sidebar nav{gap:4px;}
+.app-zeus .zeus-nav-group{display:flex;flex-direction:column;gap:4px;margin-top:14px;}
+.app-zeus .zeus-nav-group-label{padding:0 13px 5px!important;font-size:10px!important;letter-spacing:.11em;opacity:.82;}
+.app-zeus.is-collapsed .zeus-nav-group{margin-top:8px;}
+
+/* Every expandable work surface follows the same header/body pattern. */
+.app-zeus .op-section{
+  overflow:hidden;
+  margin-bottom:var(--zeus-gap);
+  padding:0!important;
+  border:1px solid var(--op-line);
+  border-radius:var(--zeus-radius-lg)!important;
+  background:var(--op-paper);
+  box-shadow:0 1px 0 color-mix(in srgb,var(--op-ink) 4%,transparent);
+}
+.app-zeus .op-section-head{
+  min-height:58px;
+  margin:0!important;
+  padding:0 var(--zeus-pad);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+}
+.app-zeus .op-section.is-open>.op-section-head{border-bottom:1px solid var(--op-line);}
+.app-zeus .op-section-head h2{margin:0;font-size:16px;letter-spacing:-.015em;}
+.app-zeus .op-section-toggle{
+  width:100%;
+  min-width:0;
+  min-height:42px;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  font:inherit;
+}
+.app-zeus .op-section-toggle>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.app-zeus .op-section-toggle svg{flex:0 0 auto;color:var(--op-muted);transition:transform .16s ease,color .16s ease;}
+.app-zeus .op-section-toggle:hover svg{color:var(--op-accent);}
+.app-zeus .op-section.is-open .op-section-toggle svg{transform:rotate(180deg);}
+.app-zeus .op-section-body{padding:var(--zeus-pad);}
+.app-zeus .op-section-body[hidden]{display:none!important;}
+
+/* Nested sections remain visually related instead of looking like another app. */
+.app-zeus .zeus-now>.op-section,
+.app-zeus #zeus-identification-checklist-slot>.op-section{
+  border-radius:var(--zeus-radius)!important;
+  box-shadow:none;
+}
+.app-zeus .zeus-now>.op-section .op-section-head,
+.app-zeus #zeus-identification-checklist-slot>.op-section .op-section-head{min-height:52px;}
+.app-zeus .zeus-now>.op-section .op-section-body,
+.app-zeus #zeus-identification-checklist-slot>.op-section .op-section-body{padding:14px;}
+
+/* Shared cards and work surfaces. */
+.app-zeus .zeus-now,
+.app-zeus .zeus-context-card,
+.app-zeus .zeus-primary-action,
+.app-zeus .zeus-setting-block,
+.app-zeus .zeus-ai-suggestion,
+.app-zeus .zeus-dashboard-grid>div,
+.app-zeus .op-callout{
+  border-radius:var(--zeus-radius)!important;
+}
+.app-zeus .zeus-now{border-color:var(--op-line);box-shadow:0 1px 0 color-mix(in srgb,var(--op-ink) 4%,transparent);}
+.app-zeus .zeus-context-stack{gap:10px;}
+.app-zeus .zeus-context-card{padding:13px 14px;}
+.app-zeus .zeus-primary-action{padding:13px 14px;}
+.app-zeus .zeus-dashboard-grid>div{min-width:0;padding:18px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);}
+.app-zeus .zeus-dashboard-grid{align-items:start;}
+
+/* Lists use the same container and row treatment across jobs, quotes, billing and checklist. */
+.app-zeus .op-job-list,
+.app-zeus .zeus-budget-list,
+.app-zeus .zeus-billing-list,
+.app-zeus .zeus-checkin-list,
+.app-zeus .zeus-lead-list,
+.app-zeus .zeus-attention-list{
+  overflow:hidden;
+  border:1px solid var(--op-line)!important;
+  border-radius:var(--zeus-radius)!important;
+  background:var(--op-paper);
+}
+.app-zeus .op-job,
+.app-zeus .zeus-budget-row,
+.app-zeus .zeus-billing-row,
+.app-zeus .zeus-checkin-row,
+.app-zeus .zeus-lead-list button,
+.app-zeus .zeus-attention-list button{
+  margin:0!important;
+  padding:14px 16px!important;
+  border:0!important;
+  border-bottom:1px solid var(--op-line)!important;
+  border-radius:0!important;
+  background:transparent!important;
+  transition:background .14s ease;
+}
+.app-zeus .op-job:last-child,
+.app-zeus .zeus-budget-row:last-child,
+.app-zeus .zeus-billing-row:last-child,
+.app-zeus .zeus-checkin-row:last-child,
+.app-zeus .zeus-lead-list button:last-child,
+.app-zeus .zeus-attention-list button:last-child{border-bottom:0!important;}
+.app-zeus .op-job:hover,
+.app-zeus .zeus-budget-row:hover,
+.app-zeus .zeus-billing-row:hover,
+.app-zeus .zeus-checkin-row:hover,
+.app-zeus .zeus-lead-list button:hover:not(:disabled),
+.app-zeus .zeus-attention-list button:hover:not(:disabled){background:var(--op-soft)!important;}
+
+/* Summary blocks now share the same proportions and radius. */
+.app-zeus .zeus-dashboard-kpis,
+.app-zeus .zeus-billing-summary,
+.app-zeus .zeus-lead-summary{
+  overflow:hidden;
+  border:1px solid var(--op-line)!important;
+  border-radius:var(--zeus-radius)!important;
+  background:var(--op-paper);
+}
+.app-zeus .zeus-dashboard-kpis{margin:16px 0 20px!important;}
+.app-zeus .zeus-billing-summary,
+.app-zeus .zeus-lead-summary{margin:16px 0 20px!important;}
+
+/* Tabs and filters should feel like one control family. */
+.app-zeus .op-compact-tabs,
+.app-zeus .zeus-checkin-tabs{
+  border:1px solid var(--op-line)!important;
+  border-radius:10px!important;
+  background:var(--op-soft)!important;
+  padding:4px!important;
+  gap:4px!important;
+}
+.app-zeus .op-compact-tabs a,
+.app-zeus .op-compact-tabs button,
+.app-zeus .zeus-checkin-tabs button{
+  min-height:38px;
+  border-radius:8px!important;
+}
+.app-zeus .zeus-filter-bar{margin:0 0 16px;}
+.app-zeus .zeus-filter-trigger,
+.app-zeus .zeus-sort-trigger,
+.app-zeus .zeus-filter-search,
+.app-zeus .op-search,
+.app-zeus .op-field input,
+.app-zeus .op-field select,
+.app-zeus .op-field textarea{
+  border-radius:10px!important;
+}
+.app-zeus .op-button{border-radius:10px!important;}
+.app-zeus .op-icon{border-radius:9px!important;}
+
+/* Checklist inherits the Zeus surface language. */
+.app-zeus .zeus-checkin-tabs{width:max-content!important;}
+.app-zeus .zeus-checklist-categories button,
+.app-zeus .zeus-checklist-model-grid button,
+.app-zeus .zeus-template-tabs button,
+.app-zeus .zeus-checkin-config-list input{
+  border-radius:10px!important;
+  background:var(--op-paper)!important;
+}
+.app-zeus .zeus-checklist-categories button.active,
+.app-zeus .zeus-checklist-model-grid button.active,
+.app-zeus .zeus-template-tabs button.active{
+  background:var(--op-tint)!important;
+  border-color:var(--op-accent)!important;
+}
+
+/* Details around a job use the same expandable language. */
+.app-zeus .zeus-support details,
+.app-zeus .op-version-history,
+.app-zeus .zeus-quote-manual-decision{
+  overflow:hidden;
+  border:1px solid var(--op-line)!important;
+  border-radius:10px!important;
+  background:var(--op-paper);
+  padding:0!important;
+  margin-top:10px;
+}
+.app-zeus .zeus-support details>summary,
+.app-zeus .op-version-history>summary,
+.app-zeus .zeus-quote-manual-decision>summary{
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  padding:0 14px!important;
+  margin:0!important;
+  cursor:pointer;
+  list-style:none;
+}
+.app-zeus .zeus-support details>summary::-webkit-details-marker,
+.app-zeus .op-version-history>summary::-webkit-details-marker,
+.app-zeus .zeus-quote-manual-decision>summary::-webkit-details-marker{display:none;}
+.app-zeus .zeus-support details[open]>summary,
+.app-zeus .op-version-history[open]>summary,
+.app-zeus .zeus-quote-manual-decision[open]>summary{border-bottom:1px solid var(--op-line);}
+.app-zeus .zeus-support details>div,
+.app-zeus .zeus-support details>section,
+.app-zeus .op-version-history>div,
+.app-zeus .zeus-quote-manual-decision>p,
+.app-zeus .zeus-quote-manual-decision>.op-actions{margin:0!important;padding:14px;}
+
+/* Sidebar movement is visual only; persistence never blocks the click. */
+.app-zeus .op-sidebar,
+.app-zeus .op-workspace{transition:width .16s ease,margin-left .16s ease,grid-template-columns .16s ease;}
+.app-zeus .op-sidebar-bottom button{touch-action:manipulation;}
+
+@media(max-width:900px){
+  .app-zeus{--zeus-pad:15px;}
+  .app-zeus .op-title{align-items:stretch;}
+  .app-zeus .zeus-dashboard-grid{grid-template-columns:1fr!important;}
+  .app-zeus .zeus-dashboard-kpis,
+  .app-zeus .zeus-billing-summary,
+  .app-zeus .zeus-lead-summary{margin:14px 0 18px!important;}
+}
+
+@media(max-width:720px){
+  .app-zeus{--zeus-pad:14px;--zeus-gap:12px;}
+  .app-zeus .op-main{padding-left:14px!important;padding-right:14px!important;}
+  .app-zeus .op-title{display:grid!important;gap:14px!important;margin-bottom:15px;}
+  .app-zeus .op-title>.op-actions{width:100%;display:grid!important;grid-template-columns:1fr!important;}
+  .app-zeus .op-title>.op-actions .op-button{width:100%;}
+  .app-zeus .op-section-head{min-height:54px;padding:0 14px;}
+  .app-zeus .op-section-body{padding:14px;}
+  .app-zeus .op-section-head>.op-button,
+  .app-zeus .op-section-head>.op-actions{flex:0 0 auto;}
+  .app-zeus .op-job,
+  .app-zeus .zeus-budget-row,
+  .app-zeus .zeus-billing-row,
+  .app-zeus .zeus-checkin-row,
+  .app-zeus .zeus-lead-list button,
+  .app-zeus .zeus-attention-list button{padding:13px 14px!important;}
+  .app-zeus .zeus-stage-rail{display:flex!important;overflow-x:auto!important;flex-wrap:nowrap!important;scroll-snap-type:x proximity;padding-bottom:7px;}
+  .app-zeus .zeus-stage-rail>span{flex:0 0 auto;scroll-snap-align:start;}
+  .app-zeus .zeus-workbench{grid-template-columns:1fr!important;}
+  .app-zeus .zeus-context-stack{grid-template-columns:1fr 1fr!important;order:2;}
+  .app-zeus .zeus-now{min-width:0;}
+  .app-zeus .op-actions{flex-wrap:wrap;}
+  .app-zeus .op-dialog.wide{width:calc(100vw - 16px)!important;max-width:none!important;}
+  .app-zeus .zeus-nav-group{margin-top:12px;}
+}
+
+@media(max-width:430px){
+  .app-zeus .zeus-context-stack{grid-template-columns:1fr!important;}
+}
