@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Download, FileUp, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Download, FileUp, HelpCircle, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppId, Settings, stages, uid } from '@/lib/operations/model';
 import { Workspace, decodeData, download } from '@/lib/operations/storage';
 import {
@@ -9,7 +9,7 @@ import {
   segmentDefinitions, useOperationPreferences
 } from '@/lib/operations/configuration';
 import { Badge, Button, Confirm, Section, Title } from './ui';
-import { ConfigFieldNameSelect } from './ConfigFieldNameSelect';
+import { ConfigFieldNameSelect, resetFieldLabelOptions } from './ConfigFieldNameSelect';
 import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { CompactTabs, CompactPanel } from './CompactTabs';
 import { LocalAccountSettings } from './LocalAccountSettings';
@@ -63,6 +63,9 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const [customName, setCustomName] = useState('');
   const [customGroup, setCustomGroup] = useState(definition.customFieldGroups[0]);
   const [newStage, setNewStage] = useState('');
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const flowPreviewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setPreferences(withDefaultHelp(app, operation.preferences)), [app, operation.preferences]);
   useEffect(() => setDraft({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] }), [w.data.settings]);
@@ -92,9 +95,14 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     setSaved(false);
     setPreferences(current => ({ ...current, fieldVisibility: { ...current.fieldVisibility, [key]: value } }));
   };
+  const scrollToFlowPreview = () => {
+    if (app !== 'zeus') return;
+    window.requestAnimationFrame(() => flowPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   const setActionVisible = (key: string, value: boolean) => {
     setSaved(false);
     setPreferences(current => normalizeDependencies(app, { ...current, actionVisibility: { ...current.actionVisibility, [key]: value } }));
+    scrollToFlowPreview();
   };
 
   const addCustomField = () => {
@@ -181,18 +189,51 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     return true;
   };
 
+  const restorePersonalization = async () => {
+    const defaults = withDefaultHelp(app, defaultOperationPreferences(app));
+    const nextPreferences = normalizeDependencies(app, {
+      ...preferences,
+      fieldLabels: { ...defaults.fieldLabels },
+      fieldVisibility: { ...defaults.fieldVisibility },
+      actionVisibility: { ...preferences.actionVisibility },
+      fieldHelp: { ...defaults.fieldHelp },
+      customFields: defaults.customFields.map(item => ({ ...item })),
+    });
+    setRestoring(true);
+    try {
+      const ok = await w.mutate(data => {
+        const next: Settings = { ...data.settings, operationPreferences: nextPreferences };
+        if (app === 'zeus') {
+          next.identifierLabel = nextPreferences.fieldLabels.identifier || 'Placa';
+          next.assetLabel = nextPreferences.fieldLabels.asset || 'Veículo';
+          next.meterLabel = nextPreferences.fieldLabels.meter || 'Quilometragem';
+        }
+        data.settings = next;
+      }, 'Personalização restaurada ao padrão.');
+      if (!ok) return false;
+      saveOperationPreferences(app, nextPreferences);
+      resetFieldLabelOptions(app, definition.fields.map(field => field.key));
+      setPreferences(nextPreferences);
+      setCustomName('');
+      setSaved(true);
+      return true;
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const cloudCanonical = (app === 'zeus' || app === 'artemis') && w.accountId !== 'guest';
 
   return <>
     <Title eyebrow="Sua operação" title="Configurações">{definition.description}</Title>
-    <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Campos'},{id:'operacao',label:'Operação'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'}]}>
+    <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Personalização'},{id:'operacao',label:'Fluxo do processo'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'}]}>
     <form onSubmit={async event => { event.preventDefault(); await save(); }}>
       <CompactPanel value="dados"><Section title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'}>
         <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
       </Section></CompactPanel>
 
-      <CompactPanel value="campos"><Section title="Campos, nomes e ajuda">
-        <p className="op-muted">Escolha o que aparece, como cada campo se chama e o texto curto mostrado no ícone de ajuda. O histórico já registrado não é apagado.</p>
+      <CompactPanel value="campos"><Section title="Personalize como sua operação identifica cada item" action={<Button variant="secondary" onClick={() => setRestoreConfirm(true)}><RotateCcw size={16}/>Restaurar padrão</Button>}>
+        <p className="op-muted">Defina quais identificações aparecem e escolha como cada uma será chamada no aplicativo. Você também pode personalizar a dica curta exibida para orientar a equipe. Registros já existentes não são apagados.</p>
         <div className="op-config-groups">{fieldGroups.map(group => <details className="op-config-group" key={group}>
           <summary><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></summary>
           {definition.fields.filter(configField => configField.group === group).map(configField => {
@@ -201,8 +242,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
             return <div className="op-config-row" key={configField.key}>
               <label className="op-config-switch"><input type="checkbox" checked={visible} disabled={configField.required} onChange={event => setFieldVisible(configField.key, event.target.checked)} /><span>{visible ? 'Mostrar' : 'Ocultar'}</span></label>
               <div className="op-config-name-stack">
-                <div className="op-field op-config-name"><span>Nome no aplicativo</span><ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} /></div>
-                <label className="op-field"><span><HelpCircle size={14} /> Ajuda do campo</span><input value={preferences.fieldHelp?.[configField.key] ?? configField.description} onChange={event => setFieldHelp(configField.key, event.target.value)} maxLength={240} /></label>
+                <div className="op-field op-config-name"><span>Nome no aplicativo</span><ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} onSave={save} /></div>
+                <label className="op-field op-config-help"><span><HelpCircle size={14} /> Personalizar dica</span><input value={preferences.fieldHelp?.[configField.key] ?? configField.description} onChange={event => setFieldHelp(configField.key, event.target.value)} maxLength={240} /><small>Essa dica orienta o preenchimento e não altera o nome do campo.</small></label>
               </div>
               <div className="op-config-description"><strong>{configField.label}{configField.required && <Badge>Essencial</Badge>}</strong><small>{configField.description}</small></div>
             </div>;
@@ -221,16 +262,23 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         <p className="op-muted">Defina como sua equipe chama o item atendido. Esse nome também é usado na área de clientes e no menu do Zeus.</p>
         <div className="op-fields"><label className="op-field"><span>Como você chama o item atendido?</span><input value={preferences.fieldLabels.asset || 'Veículo'} onChange={event => setFieldLabel('asset', event.target.value)} placeholder="Ex.: Veículo, Equipamento, Máquina, Moto" /></label></div>
       </Section>}
-      <Section title="Ações e módulos disponíveis">
-        <p className="op-muted">Desative o que a equipe não usa. Quando uma função depende de outra, o Zeus ou Artemis ajusta as opções relacionadas automaticamente.</p>
-        <div className="op-config-groups">{actionGroups.map(group => <div className="op-config-group" key={group}><div className="op-config-group-title"><strong>{group}</strong></div>{definition.actions.filter(action => action.group === group).map(action => {
-          const visible = action.required || preferences.actionVisibility[action.key] !== false;
-          const dependency = dependencyMessage(app, action.key);
-          return <label className="op-module-choice" key={action.key}><input type="checkbox" checked={visible} disabled={action.required} onChange={event => setActionVisible(action.key, event.target.checked)} /><span><strong>{action.label}</strong><small>{action.description}</small>{dependency && <small>{dependency}</small>}</span><Badge>{action.required ? 'Essencial' : visible ? 'Ativo' : 'Oculto'}</Badge></label>;
-        })}</div>)}</div>
+      <Section title="Etapas, recursos e ações do processo">
+        <p className="op-muted">Cada opção abaixo faz parte do fluxo real da operação. Ao desmarcar uma etapa ou ação opcional, ela deixa de fazer parte do processo. Abra cada grupo para consultar o que ele controla, como etapas, fotos, relatórios e outras ações da equipe.</p>
+        <div className="op-config-groups op-flow-groups">{actionGroups.map(group => {
+          const groupActions = definition.actions.filter(action => action.group === group);
+          const activeCount = groupActions.filter(action => action.required || preferences.actionVisibility[action.key] !== false).length;
+          return <details className="op-config-group op-flow-group" key={group}>
+            <summary><span><strong>{group}</strong><small>Toque para consultar</small></span><Badge>{activeCount}/{groupActions.length} ativos</Badge></summary>
+            <div className="op-flow-group-body">{groupActions.map(action => {
+              const visible = action.required || preferences.actionVisibility[action.key] !== false;
+              const dependency = dependencyMessage(app, action.key);
+              return <label className="op-module-choice" key={action.key}><input type="checkbox" checked={visible} disabled={action.required} onChange={event => setActionVisible(action.key, event.target.checked)} /><span><strong>{action.label}</strong><small>{action.description}</small>{dependency && <small>{dependency}</small>}<small className="op-flow-state">{action.required ? 'Etapa essencial do processo.' : visible ? 'Faz parte do fluxo atual.' : 'Fora do fluxo atual.'}</small></span><Badge>{action.required ? 'Essencial' : visible ? 'Ativo' : 'Oculto'}</Badge></label>;
+            })}</div>
+          </details>;
+        })}</div>
       </Section>
 
-      {app === 'zeus' && <><Section title="Prévia do fluxo da oficina"><p className="op-muted">A sequência se recompõe automaticamente quando Diagnóstico ou Orçamento não fazem parte da operação.</p><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></Section><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} /></>}
+      {app === 'zeus' && <><div ref={flowPreviewRef} className="op-flow-preview-anchor"><Section title="Prévia do fluxo da oficina"><p className="op-muted">A sequência abaixo mostra como o processo ficará com as opções selecionadas.</p><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></Section></div><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} /></>}
 
       {app === 'kronos' && <Section title="Etapas do pipeline"><p className="op-muted">Organize a sequência real da sua venda. Etapas com oportunidades abertas não podem ser removidas até que esses registros sejam movidos ou encerrados.</p><div className="op-custom-fields">{draft.salesStages.map((stage, index) => <div className="op-row" key={`${stage}-${index}`}><strong className="op-grow">{index + 1}. {stage}</strong><button type="button" className="op-icon" aria-label={`Mover ${stage} para cima`} disabled={index === 0} onClick={() => moveStage(index, -1)}><ArrowUp size={16} /></button><button type="button" className="op-icon" aria-label={`Mover ${stage} para baixo`} disabled={index === draft.salesStages.length - 1} onClick={() => moveStage(index, 1)}><ArrowDown size={16} /></button><button type="button" className="op-icon" aria-label={`Remover ${stage}`} disabled={draft.salesStages.length <= 2} onClick={() => { setDraft({ ...draft, salesStages: draft.salesStages.filter((_, current) => current !== index) }); setSaved(false); }}><Trash2 size={16} /></button></div>)}</div><div className="op-config-add"><label className="op-field"><span>Nova etapa</span><input value={newStage} onChange={event => setNewStage(event.target.value)} placeholder="Ex.: Demonstração, validação técnica…" /></label><Button variant="secondary" onClick={addStage}><Plus size={16} />Adicionar etapa</Button></div></Section>}
 
@@ -241,10 +289,21 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
 
     <CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
     <CompactPanel value="backup">
-      <Section title="Cópia dos seus dados"><p>{cloudCanonical ? 'Seus dados operacionais ficam salvos na nuvem. A exportação abaixo é uma cópia adicional para arquivo próprio.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}</p><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { if (file.size > 15000000) throw new Error('A cópia excede o limite de 15 MB.'); const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError((error as Error).message); } event.target.value = ''; }} /></label></div></Section>
-      <Section title="Onde seus dados ficam"><p>{cloudCanonical ? `Os dados desta conta são gravados no projeto Supabase exclusivo do ${app === 'zeus' ? 'Zeus' : 'Artemis'}. O navegador não é mais a fonte principal desses registros.` : 'Este ambiente ainda usa armazenamento local.'}</p></Section>
+      <Section title="Cópia dos seus dados"><p>{cloudCanonical ? 'Seus dados ficam salvos e sincronizados automaticamente. A exportação abaixo é uma cópia adicional para arquivo próprio.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}</p><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { if (file.size > 15000000) throw new Error('A cópia excede o limite de 15 MB.'); const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError((error as Error).message); } event.target.value = ''; }} /></label></div></Section>
+      <Section title="Proteção dos seus dados"><p>{cloudCanonical ? 'As informações desta conta são mantidas online e sincronizadas automaticamente. A cópia manual é opcional e serve para seu próprio arquivo.' : 'Este ambiente mantém os dados neste dispositivo. Faça cópias periódicas para preservar suas informações.'}</p></Section>
     </CompactPanel>
     </CompactTabs>
+
+    {restoreConfirm && <div className="op-restore-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !restoring) setRestoreConfirm(false); }}><section className="op-restore-confirm" role="dialog" aria-modal="true" aria-labelledby="restore-personalization-title"><div><span className="op-kicker">Restaurar padrão</span><h2 id="restore-personalization-title">Restaurar a personalização?</h2><p>Você tem certeza que gostaria de restaurar? Essa ação é irreversível.</p></div><div className="op-form-footer"><Button variant="secondary" disabled={restoring} onClick={() => setRestoreConfirm(false)}>Cancelar</Button><Button disabled={restoring} onClick={async () => { if (await restorePersonalization()) setRestoreConfirm(false); }}>{restoring ? 'Restaurando…' : 'Restaurar padrão'}</Button></div></section></div>}
     {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => { const raw = JSON.parse(importData); const ok = await w.restore(JSON.stringify(raw.data)); if (ok && raw.configuration) saveOperationPreferences(app, raw.configuration); return ok; }}>Os registros e configurações atuais deste app serão substituídos pelos da cópia. Exporte os dados atuais antes de continuar, se precisar preservá-los.</Confirm>}
+
+    <style jsx global>{`
+      .op-config-help{margin-top:2px;padding:12px;border:1px solid color-mix(in srgb,var(--op-accent) 28%,var(--op-line));border-radius:11px;background:color-mix(in srgb,var(--op-accent) 7%,var(--op-paper))}
+      .op-config-help>span{color:var(--op-accent)!important;font-weight:800!important}.op-config-help>small{color:var(--op-muted);line-height:1.4}
+      .op-config-help input{border-color:color-mix(in srgb,var(--op-accent) 32%,var(--op-line))!important}
+      .op-flow-group{padding:0!important;overflow:hidden}.op-flow-group>summary{min-height:66px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer;list-style:none}.op-flow-group>summary::-webkit-details-marker{display:none}.op-flow-group>summary>span{display:grid;gap:3px}.op-flow-group>summary>span small{color:var(--op-muted);font-size:12px}.op-flow-group[open]>summary{border-bottom:1px solid var(--op-line)}.op-flow-group-body{padding:4px 16px 16px}.op-flow-state{font-weight:700;color:var(--op-accent)!important}.op-flow-preview-anchor{scroll-margin-top:88px}
+      .op-restore-backdrop{position:fixed;inset:0;z-index:10020;display:grid;place-items:center;padding:20px;background:rgba(7,13,24,.48);backdrop-filter:blur(3px)}.op-restore-confirm{width:min(470px,100%);display:grid;gap:20px;padding:22px;border:1px solid var(--op-line);border-radius:16px;background:var(--op-paper);box-shadow:0 24px 70px rgba(0,0,0,.22);color:var(--op-ink)}.op-restore-confirm h2,.op-restore-confirm p{margin:0}.op-restore-confirm>div:first-child{display:grid;gap:9px}.op-restore-confirm p{color:var(--op-muted);line-height:1.55}
+      @media(max-width:720px){.op-flow-group>summary{align-items:flex-start}.op-restore-confirm{padding:18px}}
+    `}</style>
   </>;
 }
