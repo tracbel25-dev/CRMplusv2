@@ -45,8 +45,8 @@ const GROUPS:{title:string;items:{key:PermissionKey;label:string;help:string}[]}
   {title:'Administração',items:[
     {key:'reports_export',label:'Exportar relatórios e PDF',help:'Baixa documentos e relatórios.'},
     {key:'customers_manage',label:'Gerenciar clientes e veículos',help:'Cadastra e altera clientes e veículos.'},
-    {key:'settings_fields',label:'Configurar campos',help:'Renomeia, mostra, oculta e cria campos.'},
-    {key:'settings_operation',label:'Configurar operação',help:'Altera etapas, módulos e regras.'},
+    {key:'settings_fields',label:'Configurar personalização',help:'Renomeia, mostra, oculta e cria campos.'},
+    {key:'settings_operation',label:'Configurar fluxo do processo',help:'Altera etapas, módulos e regras.'},
     {key:'settings_access',label:'Gerenciar acessos',help:'Administra cargos e permissões de outras pessoas.'},
   ]},
 ];
@@ -164,7 +164,7 @@ export function LocalAccountSettings(){
       <div><span>Pessoas</span><strong>{account.members.length}/{TEAM_LIMIT}</strong></div>
       <div><span>Aplicativo</span><strong>{appName}</strong><small>{appActive?'Ativo':'Inativo'}</small></div>
     </div>
-    <p className="op-muted access-intro">Aqui você define <strong>cargo</strong> e <strong>o que cada pessoa realmente pode fazer</strong> dentro deste aplicativo.</p>
+    <p className="op-muted access-intro">Aqui você define <strong>cargo</strong> e <strong>o que cada pessoa realmente pode fazer</strong> dentro deste aplicativo. Use os filtros de permissões para consultar uma área por vez.</p>
 
     {!access.isOwner&&<div className="access-self-card"><div><strong>Suas permissões no {appName}</strong><small>{permissionCount(ownPermissions)} permissões liberadas</small></div><PermissionGrid value={ownPermissions} disabled/></div>}
 
@@ -205,7 +205,7 @@ export function LocalAccountSettings(){
               <label className="op-field"><span>Cargo / função</span><input value={member.jobTitle} onChange={e=>updateLocal(member.userId,{jobTitle:e.target.value})} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
               <label className="op-field"><span>Perfil de acesso</span><select value={presetFor(member.permissions)} onChange={e=>{if(presets[e.target.value])updateLocal(member.userId,{permissions:{...presets[e.target.value]}});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
             </div>
-            <div className="access-explainer"><strong>O que {member.displayName} pode fazer no {appName}</strong><span>Marque apenas o necessário. As permissões abaixo valem para este aplicativo.</span></div>
+            <div className="access-explainer"><strong>O que {member.displayName} pode fazer no {appName}</strong><span>Marque apenas o necessário. Escolha uma categoria para filtrar as permissões.</span></div>
             <PermissionGrid value={member.permissions} disabled={!member.enabled} onChange={permissions=>updateLocal(member.userId,{permissions})}/>
             <div className="op-form-footer"><Button disabled={!member.enabled||busy===`${member.userId}:save`} onClick={()=>void saveMember(member)}><Save size={16}/>{busy===`${member.userId}:save`?'Salvando…':'Salvar cargo e permissões'}</Button></div>
           </>}
@@ -214,23 +214,33 @@ export function LocalAccountSettings(){
     })}</div>}
 
     <style jsx global>{`
-      .access-summary{margin-bottom:14px}
-      .access-intro{margin:0 0 18px}.access-intro strong{color:var(--op-ink)}
-      .access-toolbar{display:flex;justify-content:flex-start;padding:16px 0;border-top:1px solid var(--op-line)}
+      .access-summary{margin-bottom:10px}.access-intro{margin-bottom:14px}.access-toolbar{display:flex;justify-content:flex-end;margin-bottom:14px}
       .access-editor{border:1px solid var(--op-line);border-radius:14px;background:var(--op-soft);padding:18px;margin-bottom:18px}
       .access-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}.access-editor-head>div{display:grid;gap:3px}.access-editor-head span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--op-muted)}.access-editor-head strong{font-size:18px}
       .access-fields{margin-bottom:4px}.access-member-list{display:grid;gap:10px;margin-top:12px}.access-member-card{border:1px solid var(--op-line);border-radius:14px;background:var(--op-paper);overflow:hidden}.access-member-card.is-open{border-color:color-mix(in srgb,var(--op-accent) 34%,var(--op-line));box-shadow:0 8px 28px rgba(10,20,35,.05)}
       .access-member-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px}.access-person{display:grid;gap:3px;min-width:0}.access-person>strong{display:flex;align-items:center;gap:8px;font-size:16px}.access-person>span{font-size:13px}.access-person>small{color:var(--op-muted)}
       .access-member-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.access-switch{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 11px;border:1px solid var(--op-line);border-radius:10px;font-size:13px;font-weight:700}.access-configure-button{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border:1px solid var(--op-line);border-radius:10px;background:var(--op-paper);color:var(--op-ink);font-weight:700}.access-configure-button:hover{border-color:var(--op-accent);background:var(--op-tint)}
       .access-member-body{padding:18px;border-top:1px solid var(--op-line);background:color-mix(in srgb,var(--op-soft) 62%,var(--op-paper))}.access-editor-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:820px}.access-explainer{display:grid;gap:3px;margin:18px 0 10px}.access-explainer strong{font-size:16px}.access-explainer span{color:var(--op-muted);font-size:13px}
-      .access-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.access-permission-group{border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);padding:14px}.access-permission-group>strong{display:block;margin-bottom:10px;font-size:14px}.access-permission-items{display:grid;gap:7px}.access-permission-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;align-items:start;padding:9px 8px;border-radius:9px}.access-permission-item:hover{background:var(--op-soft)}.access-permission-item>span{display:grid;gap:2px}.access-permission-item>span>strong{font-size:13px}.access-permission-item small{color:var(--op-muted);line-height:1.35}.access-self-card{border:1px solid var(--op-line);border-radius:14px;padding:18px}.access-self-card>div{display:grid;gap:3px}.access-self-card>div small{color:var(--op-muted)}.op-success-text{padding:10px 12px;border:1px solid color-mix(in srgb,#198754 30%,var(--op-line));background:color-mix(in srgb,#198754 8%,var(--op-paper));border-radius:10px}
-      @media(max-width:900px){.access-permission-grid,.access-editor-top{grid-template-columns:1fr}.access-member-head{align-items:flex-start;flex-direction:column}.access-member-actions{width:100%;justify-content:flex-start}}
-      @media(max-width:600px){.access-member-actions{display:grid;grid-template-columns:1fr auto;width:100%}.access-switch,.access-configure-button{justify-content:center}.access-configure-button{grid-column:1/-1}.access-member-body,.access-member-head,.access-editor{padding:14px}}
+      .access-permission-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:thin}.access-permission-tabs button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 11px;border:1px solid var(--op-line);border-radius:999px;background:var(--op-paper);color:var(--op-ink);font-weight:750;white-space:nowrap;cursor:pointer}.access-permission-tabs button small{color:var(--op-muted);font-size:11px}.access-permission-tabs button.is-active{border-color:var(--op-accent);background:var(--op-accent);color:#fff}.access-permission-tabs button.is-active small{color:rgba(255,255,255,.8)}
+      .access-permission-grid{display:grid;grid-template-columns:1fr;gap:12px}.access-permission-group{border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);padding:14px}.access-permission-group>strong{display:block;margin-bottom:10px;font-size:14px}.access-permission-items{display:grid;gap:7px}.access-permission-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;align-items:start;padding:9px 8px;border-radius:9px}.access-permission-item:hover{background:var(--op-soft)}.access-permission-item>span{display:grid;gap:2px}.access-permission-item>span>strong{font-size:13px}.access-permission-item small{color:var(--op-muted);line-height:1.35}.access-self-card{border:1px solid var(--op-line);border-radius:14px;padding:18px}.access-self-card>div{display:grid;gap:3px}.access-self-card>div small{color:var(--op-muted)}.op-success-text{padding:10px 12px;border:1px solid color-mix(in srgb,#198754 30%,var(--op-line));background:color-mix(in srgb,#198754 8%,var(--op-paper));border-radius:10px}
+      @media(max-width:900px){.access-editor-top{grid-template-columns:1fr}.access-member-head{align-items:flex-start;flex-direction:column}.access-member-actions{width:100%;justify-content:flex-start}}
+      @media(max-width:600px){.access-member-actions{display:grid;grid-template-columns:1fr auto;width:100%}.access-switch,.access-configure-button{justify-content:center}.access-configure-button{grid-column:1/-1}.access-member-body,.access-member-head,.access-editor{padding:14px}.access-permission-tabs{margin-right:-6px}}
     `}</style>
   </Section>;
 }
 
 function PermissionGrid({value,onChange,disabled=false}:{value:Record<PermissionKey,boolean>;onChange?:(value:Record<PermissionKey,boolean>)=>void;disabled?:boolean}){
+  const [activeGroup,setActiveGroup]=useState(GROUPS[0].title);
+  const group=GROUPS.find(item=>item.title===activeGroup)||GROUPS[0];
   const toggle=(key:PermissionKey,checked:boolean)=>onChange?.({...value,[key]:checked});
-  return <div className="access-permission-grid">{GROUPS.map(group=><div className="access-permission-group" key={group.title}><strong>{group.title}</strong><div className="access-permission-items">{group.items.map(item=><label className="access-permission-item" key={item.key} style={{opacity:disabled?.62:1}}><input type="checkbox" checked={!!value[item.key]} disabled={disabled} onChange={e=>toggle(item.key,e.target.checked)}/><span><strong>{item.label}</strong><small>{item.help}</small></span></label>)}</div></div>)}</div>;
+  return <>
+    <div className="access-permission-tabs" role="tablist" aria-label="Filtrar permissões">
+      {GROUPS.map(item=>{
+        const enabled=item.items.filter(permission=>value[permission.key]).length;
+        const active=item.title===activeGroup;
+        return <button type="button" role="tab" aria-selected={active} className={active?'is-active':''} onClick={()=>setActiveGroup(item.title)} key={item.title}><span>{item.title}</span><small>{enabled}/{item.items.length}</small></button>;
+      })}
+    </div>
+    <div className="access-permission-grid"><div className="access-permission-group"><strong>{group.title}</strong><div className="access-permission-items">{group.items.map(item=><label className="access-permission-item" key={item.key} style={{opacity:disabled?.62:1}}><input type="checkbox" checked={!!value[item.key]} disabled={disabled} onChange={e=>toggle(item.key,e.target.checked)}/><span><strong>{item.label}</strong><small>{item.help}</small></span></label>)}</div></div></div>
+  </>;
 }
