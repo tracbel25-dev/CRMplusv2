@@ -14,10 +14,75 @@ const workspaceMemoryCache = new Map<string, Data>();
 
 type PendingCloudMutation = {
   id: number;
-  apply: (data: Data) => void;
+  before: Data;
+  after: Data;
   message: string;
   resolve: (ok: boolean) => void;
 };
+
+const clone = <T,>(value: T): T => structuredClone(value);
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const plainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+const keyedArray = (value: unknown[]): value is Array<Record<string, unknown> & { id: string }> => value.every(item => plainObject(item) && typeof item.id === 'string');
+
+function rebaseChange(before: unknown, after: unknown, latest: unknown): unknown {
+  if (same(before, after)) return clone(latest);
+
+  if (Array.isArray(before) && Array.isArray(after) && Array.isArray(latest)) {
+    if (keyedArray(before) && keyedArray(after) && keyedArray(latest)) {
+      const beforeById = new Map(before.map(item => [item.id, item]));
+      const afterById = new Map(after.map(item => [item.id, item]));
+      const output = latest.map(item => clone(item));
+
+      for (const item of before) {
+        if (!afterById.has(item.id)) {
+          const index = output.findIndex(current => current.id === item.id);
+          if (index >= 0) output.splice(index, 1);
+        }
+      }
+
+      for (const item of after) {
+        const previous = beforeById.get(item.id);
+        const index = output.findIndex(current => current.id === item.id);
+        if (!previous) {
+          if (index >= 0) output[index] = clone(item);
+          else output.push(clone(item));
+          continue;
+        }
+        if (same(previous, item)) continue;
+        const current = index >= 0 ? output[index] : previous;
+        const rebased = rebaseChange(previous, item, current) as Record<string, unknown> & { id: string };
+        if (index >= 0) output[index] = rebased;
+        else output.push(rebased);
+      }
+      return output;
+    }
+    return clone(after);
+  }
+
+  if (plainObject(before) && plainObject(after) && plainObject(latest)) {
+    const output = clone(latest);
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    for (const key of keys) {
+      if (!(key in after)) {
+        delete output[key];
+        continue;
+      }
+      if (!(key in before)) {
+        output[key] = clone(after[key]);
+        continue;
+      }
+      output[key] = rebaseChange(before[key], after[key], latest[key]);
+    }
+    return output;
+  }
+
+  return clone(after);
+}
+
+function applyMutation(mutation: PendingCloudMutation, latest: Data) {
+  return rebaseChange(mutation.before, mutation.after, latest) as Data;
+}
 
 function initialForApp(app: AppId): Data {
   const data = initialData();
@@ -108,8 +173,8 @@ export function useWorkspace(app: AppId, accountId?: string) {
   }, [app, key]);
 
   const rebuildVisible = useCallback(() => {
-    const visible = structuredClone(confirmedRef.current);
-    for (const mutation of pendingCloud.current) mutation.apply(visible);
+    let visible = clone(confirmedRef.current);
+    for (const mutation of pendingCloud.current) visible = applyMutation(mutation, visible);
     publish(visible);
   }, [publish]);
 
@@ -120,16 +185,14 @@ export function useWorkspace(app: AppId, accountId?: string) {
       while (pendingCloud.current.length) {
         const mutation = pendingCloud.current[0];
         try {
-          let base = structuredClone(confirmedRef.current);
-          let candidate = structuredClone(base);
-          mutation.apply(candidate);
+          let base = clone(confirmedRef.current);
+          let candidate = applyMutation(mutation, base);
           let result = await cloudRequest(app, 'PUT', candidate, base.revision);
 
           if (result.conflict && result.data) {
             base = decodeData(JSON.stringify(result.data));
             confirmedRef.current = base;
-            candidate = structuredClone(base);
-            mutation.apply(candidate);
+            candidate = applyMutation(mutation, base);
             result = await cloudRequest(app, 'PUT', candidate, base.revision);
           }
 
@@ -262,13 +325,14 @@ export function useWorkspace(app: AppId, accountId?: string) {
     if (cloudApp(app) && accountId !== 'guest') {
       try {
         if (blocked.current) throw new Error('Aguarde o carregamento das informações antes de continuar.');
-        const optimistic = structuredClone(ref.current);
-        fn(optimistic);
+        const before = clone(ref.current);
+        const after = clone(before);
+        fn(after);
         const id = ++mutationSequence.current;
         const result = new Promise<boolean>(resolve => {
-          pendingCloud.current.push({ id, apply: fn, message, resolve });
+          pendingCloud.current.push({ id, before, after, message, resolve });
         });
-        publish(optimistic);
+        publish(after);
         setError('');
         void flushCloudQueue();
         return await result;
