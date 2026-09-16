@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Plus, X } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import { fieldLabelOptions } from '@/lib/operations/configurationLabels';
-import { saveZeusServiceTypes, useZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
 
 const optionEvent='crmplus:field-label-options';
 const optionStorageKey=(app:AppId,fieldKey:string)=>`crmplus:${app}:field-label-options:${fieldKey}:v1`;
@@ -39,30 +37,6 @@ export function resetFieldLabelOptions(app:AppId,fieldKeys:string[]){
   for(const fieldKey of fieldKeys)window.dispatchEvent(new CustomEvent(optionEvent,{detail:{app,fieldKey}}));
 }
 
-function ZeusServiceTypesConfigurator(){
-  const types=useZeusServiceTypes();
-  const listId=useId();
-  const [draft,setDraft]=useState('');
-  const suggestions=normalize([...types,...zeusServiceTypeSuggestions]);
-  const exists=types.some(value=>value.toLocaleLowerCase('pt-BR')===draft.trim().toLocaleLowerCase('pt-BR'));
-  const add=()=>{
-    const normalized=draft.trim();
-    if(!normalized||exists)return;
-    saveZeusServiceTypes([...types,normalized]);
-    setDraft('');
-  };
-  return <div className="op-config-option-list">
-    <span>Tipos disponíveis</span>
-    <div className="op-config-option-chips">{types.map(type=><span key={type}>{type}<button type="button" aria-label={`Remover ${type}`} disabled={types.length===1} onClick={()=>saveZeusServiceTypes(types.filter(value=>value!==type))}><X size={13}/></button></span>)}</div>
-    <div className="op-config-option-add">
-      <input list={listId} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="Digite ou escolha um tipo de atendimento" aria-label="Adicionar tipo de atendimento"/>
-      <datalist id={listId}>{suggestions.map(value=><option key={value} value={value}/>)}</datalist>
-      <button type="button" className="op-button secondary" disabled={!draft.trim()||exists} onClick={add}><Plus size={15}/>Incluir tipo</button>
-    </div>
-    <small>Você pode digitar livremente ou aproveitar uma sugestão.</small>
-  </div>;
-}
-
 export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void}){
   const listId=useId();
   const defaults=useMemo(()=>fieldLabelOptions(app,fieldKey,fallback),[app,fieldKey,fallback]);
@@ -86,7 +60,6 @@ export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{ap
       <input list={listId} value={value} onChange={event=>onChange(event.target.value)} onBlur={()=>{if(typed&&!exists)saveExtraOption(app,fieldKey,typed)}} placeholder={fallback} aria-label={`Nome de ${fallback} no aplicativo`}/>
       <datalist id={listId}>{options.map(option=><option key={option} value={option}/>)}</datalist>
     </div>
-    <small className="op-muted">Digite o nome que preferir. As sugestões são opcionais; use o botão único de salvar no fim das configurações.</small>
-    {app==='zeus'&&fieldKey==='serviceType'&&<ZeusServiceTypesConfigurator/>}
+    <small className="op-muted">Digite livremente ou escolha uma sugestão.</small>
   </div>;
 }
