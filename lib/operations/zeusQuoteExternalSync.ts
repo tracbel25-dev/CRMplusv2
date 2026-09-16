@@ -62,7 +62,7 @@ export async function syncZeusQuoteExternalResponses(w: Workspace) {
     }
   }, `${rows.length} resposta(s) externa(s) de orçamento processada(s).`);
 
-  if (!ok) return 0;
+  if (!ok) throw new Error('A resposta externa de orçamento ainda não pôde ser aplicada ao estado atual.');
   const { error: updateError } = await supabase.from('external_link_responses').update({ processed_at: now() }).in('id', imported);
   if (updateError) throw updateError;
   return imported.length;
