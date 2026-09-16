@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleDollarSign } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { money } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Empty, Modal, RecordForm, Section, Title } from './ui';
@@ -32,6 +33,9 @@ async function token() {
 }
 
 export function ZeusBilling({ w }: { w: Workspace }) {
+  const access = useStoreAccess();
+  const canCollect = access.hasPermission('zeus', 'billing_collect');
+  const canManage = access.hasPermission('zeus', 'billing_manage');
   const [records, setRecords] = useState<BillingRecord[]>([]);
   const [busy, setBusy] = useState(true);
   const [selectedJob, setSelectedJob] = useState('');
@@ -57,7 +61,7 @@ export function ZeusBilling({ w }: { w: Workspace }) {
       let rows = (payload.records || []) as BillingRecord[];
 
       const autoPaid = rows.filter(row => row.status === 'Pendente' && w.data.jobs.find(job => job.id === row.job_id)?.events.some(item => item.text.includes('Pagamento Mercado Pago confirmado')));
-      if (autoPaid.length) {
+      if (autoPaid.length && canManage) {
         await Promise.all(autoPaid.map(row => patch(row.job_id, { status: 'Pago', paymentMethod: 'Mercado Pago', paymentProvider: 'Mercado Pago', notes: 'Pagamento confirmado automaticamente.' })));
         const refreshed = await fetch('/api/zeus/faturamento', { headers: { authorization: `Bearer ${await token()}` }, cache: 'no-store' });
         const next = await refreshed.json().catch(() => ({}));
@@ -67,19 +71,19 @@ export function ZeusBilling({ w }: { w: Workspace }) {
     } catch (reason) {
       w.setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o faturamento.');
     } finally { setBusy(false); }
-  }, [patch, w]);
+  }, [canManage, patch, w]);
 
+  useEffect(() => { void load(); }, [load, w.data.revision]);
   useEffect(() => {
-    void load();
     const onFocus = () => { void load(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [load, w.data.revision]);
+  }, [load]);
 
   const visible = useMemo(() => filter === 'Todos' ? records : records.filter(row => row.status === filter), [filter, records]);
   const pendingTotal = records.filter(row => row.status === 'Pendente').reduce((sum, row) => sum + row.amount_cents, 0);
   const paidTotal = records.filter(row => row.status === 'Pago' || row.status === 'Baixado').reduce((sum, row) => sum + row.amount_cents, 0);
-  const selected = records.find(row => row.job_id === selectedJob);
+  const selected = canCollect ? records.find(row => row.job_id === selectedJob) : undefined;
 
   return <>
     <Title eyebrow="Financeiro separado da operação" title="Faturamento">A OS termina no atendimento. Aqui você acompanha somente o que ainda precisa ser recebido ou baixado.</Title>
@@ -99,17 +103,17 @@ export function ZeusBilling({ w }: { w: Workspace }) {
           <div><span>OS {String(row.job_number).padStart(4, '0')}</span><strong>{customer?.name || 'Cliente'}</strong><small>{asset ? `${asset.identifier} · ${asset.model}` : 'Atendimento encerrado'}</small></div>
           <div><span>Valor</span><strong>{money(row.amount_cents)}</strong></div>
           <Badge tone={row.status === 'Pendente' ? 'warning' : ''}>{row.status}</Badge>
-          <div className="op-actions">
-            {row.status === 'Pendente' && <Button variant="secondary" onClick={() => setSelectedJob(row.job_id)}><CircleDollarSign size={16} />Cobrar</Button>}
-            {row.status === 'Pendente' && <Button onClick={() => setManualJob(row.job_id)}><CheckCircle2 size={16} />Dar baixa</Button>}
-          </div>
+          {(canCollect || canManage) && <div className="op-actions">
+            {row.status === 'Pendente' && canCollect && <Button variant="secondary" onClick={() => setSelectedJob(row.job_id)}><CircleDollarSign size={16} />Cobrar</Button>}
+            {row.status === 'Pendente' && canManage && <Button onClick={() => setManualJob(row.job_id)}><CheckCircle2 size={16} />Dar baixa</Button>}
+          </div>}
         </div>;
       })}</div>}
     </Section>
 
     {selected && <Modal title={`Cobrança · OS ${String(selected.job_number).padStart(4, '0')}`} wide onClose={() => setSelectedJob('')}><PostCompletionPayments w={w} app="zeus" page="faturamento" recordId={selected.job_id} /></Modal>}
 
-    {manualJob && <Modal title="Registrar recebimento" onClose={() => setManualJob('')}><RecordForm
+    {manualJob && canManage && <Modal title="Registrar recebimento" onClose={() => setManualJob('')}><RecordForm
       draftKey={`zeus-billing:${manualJob}`}
       fields={[{ name: 'paymentMethod', label: 'Como foi recebido?', required: true, options: [{ value: 'Pix', label: 'Pix' }, { value: 'Dinheiro', label: 'Dinheiro' }, { value: 'Cartão de débito', label: 'Cartão de débito' }, { value: 'Cartão de crédito', label: 'Cartão de crédito' }, { value: 'Mercado Pago', label: 'Mercado Pago' }, { value: 'Outro', label: 'Outro' }] }, { name: 'notes', label: 'Observação', type: 'textarea', wide: true }]}
       submit="Confirmar recebimento"

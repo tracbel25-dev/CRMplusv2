@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileDown, Plus, Wrench } from 'lucide-react';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { Appointment, Asset, Job, activeJob, date, event, localDay, matches, newJob, setCustomValues, stages, uid } from '@/lib/operations/model';
 import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -22,10 +23,16 @@ const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
 
 export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const router = useRouter();
+  const access = useStoreAccess();
   const d = w.data;
   const s = d.settings;
   const operation = useOperationPreferences('zeus');
   const prefs = readZeusPreferences(d);
+  const canViewJobs = access.hasPermission('zeus', 'jobs_view');
+  const canCreateJobs = access.hasPermission('zeus', 'jobs_create');
+  const canViewAppointments = access.hasPermission('zeus', 'appointments_view');
+  const canManageAppointments = access.hasPermission('zeus', 'appointments_manage');
+  const canExport = access.hasPermission('zeus', 'reports_export');
   const [query, setQuery] = useState('');
   const [create, setCreate] = useState<Appointment | 'new' | null>(null);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
@@ -69,7 +76,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const appointmentList = (list: Appointment[]) => list.length ? <div className="op-agenda">{[...list].sort((a, b) => a.at.localeCompare(b.at)).map(appointment => <div className="op-agenda-row" key={appointment.id}>
     <time>{new Date(appointment.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}<small>{date(appointment.at)}</small></time>
     <div className="op-grow"><strong className="op-identifier">{findAsset(appointment.assetId)?.identifier}</strong><span>{findCustomer(appointment.customerId)} · {findAsset(appointment.assetId)?.model}</span><small>{appointment.type}{appointment.technician && ` · ${appointment.technician}`} · {appointment.status}</small></div>
-    <div className="op-actions">{appointment.status === 'Agendado' ? <><Button variant="secondary" onClick={() => setSchedule(appointment)}>Reagendar</Button><Button onClick={() => setCreate(appointment)}>Abrir OS <ArrowRight size={16} /></Button></> : appointment.jobId && <Button variant="secondary" onClick={() => setSelected(appointment.jobId!)}>Ver OS</Button>}</div>
+    <div className="op-actions">{appointment.status === 'Agendado' ? <>{canManageAppointments && <Button variant="secondary" onClick={() => setSchedule(appointment)}>Reagendar</Button>}{canCreateJobs && <Button onClick={() => setCreate(appointment)}>Abrir OS <ArrowRight size={16} /></Button>}</> : appointment.jobId && canViewJobs && <Button variant="secondary" onClick={() => setSelected(appointment.jobId!)}>Ver OS</Button>}</div>
   </div>)}</div> : <Empty icon={<CalendarDays size={28} />}>Nenhum atendimento agendado neste período.</Empty>;
 
   const jobList = (list: Job[]) => list.length ? <div className="op-job-list">{list.map(job => {
@@ -85,25 +92,26 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
   return <>
     {page === 'inicio' && <>
-      <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />Agendar</Link>}<Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button></>} />
-      <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span><SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente ou OS`} /></div>
-      {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
-      {d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
-      {s.budgetEnabled && d.jobs.some(job => job.status === 'Aguardando aprovação') && <Section title="Aguardando aprovação">{jobList(searchedJobs.filter(job => job.status === 'Aguardando aprovação'))}</Section>}
-      {d.jobs.some(job => job.status === 'Aguardando diagnóstico') && <Section title="Aguardando diagnóstico">{jobList(searchedJobs.filter(job => job.status === 'Aguardando diagnóstico'))}</Section>}
-      {d.jobs.some(job => ['Aguardando peça', 'Pausado'].includes(job.status)) && <Section title="Parados / dependências">{jobList(searchedJobs.filter(job => ['Aguardando peça', 'Pausado'].includes(job.status)))}</Section>}
-      <Section title="Em trabalho" action={<span className="op-muted">{d.jobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)).length} atendimentos</span>}>{jobList(searchedJobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)))}</Section>
-      {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && <Section title="Próximos atendimentos">{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) > localDay() && appointment.status === 'Agendado').slice(0, 5))}</Section>}
+      <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />{canManageAppointments ? 'Agendar' : 'Ver agenda'}</Link>}{canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
+      <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>{canViewJobs && <SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente ou OS`} />}</div>
+      {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
+      {canViewJobs && d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
+      {canViewJobs && s.budgetEnabled && d.jobs.some(job => job.status === 'Aguardando aprovação') && <Section title="Aguardando aprovação">{jobList(searchedJobs.filter(job => job.status === 'Aguardando aprovação'))}</Section>}
+      {canViewJobs && d.jobs.some(job => job.status === 'Aguardando diagnóstico') && <Section title="Aguardando diagnóstico">{jobList(searchedJobs.filter(job => job.status === 'Aguardando diagnóstico'))}</Section>}
+      {canViewJobs && d.jobs.some(job => ['Aguardando peça', 'Pausado'].includes(job.status)) && <Section title="Parados / dependências">{jobList(searchedJobs.filter(job => ['Aguardando peça', 'Pausado'].includes(job.status)))}</Section>}
+      {canViewJobs && <Section title="Em trabalho" action={<span className="op-muted">{d.jobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)).length} atendimentos</span>}>{jobList(searchedJobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)))}</Section>}
+      {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Section title="Próximos atendimentos">{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) > localDay() && appointment.status === 'Agendado').slice(0, 5))}</Section>}
+      {!canViewJobs && !canViewAppointments && <Empty>Seu perfil não possui áreas operacionais liberadas no Zeus.</Empty>}
     </>}
 
     {(page === 'atendimentos' || page === 'historico') && <>
-      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<><Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>{page !== 'historico' && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
+      <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<>{canExport && <Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>}{page !== 'historico' && canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
       <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de abertura' }, { value: 'number', label: 'Número da OS' }, { value: 'due', label: operation.label('due', 'Prazo previsto') }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
       {jobList(filteredJobs(searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job))))}
     </>}
 
     {page === 'agendamentos' && <>
-      <Title eyebrow="Agenda da oficina" title="Organize as próximas chegadas" action={<Button onClick={() => setSchedule('new')}><Plus size={18} />Novo agendamento</Button>} />
+      <Title eyebrow="Agenda da oficina" title="Organize as próximas chegadas" action={canManageAppointments ? <Button onClick={() => setSchedule('new')}><Plus size={18} />Novo agendamento</Button> : undefined} />
       <div className="op-toolbar"><div className="op-actions"><Button variant="secondary" onClick={() => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() - (week ? 7 : 1)); setDay(localDay(value)); }}><ChevronLeft size={17} /></Button><input type="date" value={day} onChange={change => setDay(change.target.value)} /><Button variant="secondary" onClick={() => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() + (week ? 7 : 1)); setDay(localDay(value)); }}><ChevronRight size={17} /></Button><Button variant="secondary" onClick={() => setDay(localDay())}>Hoje</Button></div><div className="op-tabs"><button className={!week ? 'active' : ''} onClick={() => setWeek(false)}>Dia</button><button className={week ? 'active' : ''} onClick={() => setWeek(true)}>Semana</button></div></div>
       {week ? <div className="zeus-week">{Array.from({ length: 7 }, (_, index) => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() + index); const key = localDay(value); return <Section key={key} title={value.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === key))}</Section>; })}</div> : <Section title={date(day)}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === day))}</Section>}
     </>}
@@ -113,7 +121,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(null)}><JobForm w={w} appointment={create === 'new' ? undefined : create} onClose={() => setCreate(null)} onCreated={id => { setCreate(null); setCreatedJobId(id); }} /></Modal>}
     {schedule && <Modal title={schedule === 'new' ? 'Novo agendamento' : 'Reagendar atendimento'} wide onClose={() => setSchedule(null)}><AppointmentForm w={w} appointment={schedule === 'new' ? undefined : schedule} onClose={() => setSchedule(null)} /></Modal>}
     {assetCustomer && <Modal title={`Cadastrar ${s.assetLabel.toLowerCase()}`} onClose={() => setAssetCustomer('')}><AssetForm w={w} customerId={assetCustomer} onClose={() => setAssetCustomer('')} /></Modal>}
-    {createdJobId && <Modal title="OS aberta" onClose={() => setCreatedJobId('')}><div className="zeus-created-choice"><p>A OS foi aberta na etapa <strong>Identificação</strong> e está em <strong>{d.jobs.find(item => item.id === createdJobId)?.status || 'andamento'}</strong>.</p><div className="op-actions"><Button variant="secondary" onClick={() => { setCreatedJobId(''); router.push('/zeus'); }}>Voltar para tela inicial</Button><Button onClick={() => { const id = createdJobId; setCreatedJobId(''); setSelected(id); }}>Ver ordem de serviço <ArrowRight size={16} /></Button></div></div></Modal>}
+    {createdJobId && <Modal title="OS aberta" onClose={() => setCreatedJobId('')}><div className="zeus-created-choice"><p>A OS foi aberta na etapa <strong>Identificação</strong> e está em <strong>{d.jobs.find(item => item.id === createdJobId)?.status || 'andamento'}</strong>.</p><div className="op-actions"><Button variant="secondary" onClick={() => { setCreatedJobId(''); router.push('/zeus'); }}>Voltar para tela inicial</Button>{canViewJobs && <Button onClick={() => { const id = createdJobId; setCreatedJobId(''); setSelected(id); }}>Ver ordem de serviço <ArrowRight size={16} /></Button>}</div></div></Modal>}
   </>;
 }
 

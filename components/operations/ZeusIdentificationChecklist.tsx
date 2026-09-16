@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Camera, CheckCircle2, ExternalLink, RefreshCw } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { uploadOperationalFile, R2AuthRequiredError } from '@/lib/r2/client';
 import { activeJob, customValues, event, setCustomValues, uid } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -37,6 +38,9 @@ function attachmentMeta(raw: string | undefined) {
 }
 
 export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId: string }) {
+  const access = useStoreAccess();
+  const canEdit = access.hasPermission('zeus', 'jobs_edit');
+  const canAttach = access.hasPermission('zeus', 'attachments_manage');
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState('');
@@ -49,6 +53,8 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
   const visibleCategory = ZEUS_CHECKLIST_CATEGORIES.find(category => category.id === selectedCategory);
   const active = !!job && activeJob(job);
   const [configOpen, setConfigOpen] = useState(!state.folder);
+  const metadata = attachmentMeta(customValues(w.data, jobId)[ZEUS_ATTACHMENT_META_KEY]);
+  const identificationPhotoCount = job?.attachments.filter(attachment => metadata[attachment.id]?.source === 'identification').length || 0;
 
   const checkStatus = async () => {
     if (!job || !w.accountId || w.accountId === 'guest') return;
@@ -93,24 +99,15 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.id, w.accountId]);
 
-  useEffect(() => {
-    if (!job || job.stage !== 'Identificação') return;
-    const button = document.querySelector<HTMLButtonElement>('#zeus-current-work .zeus-primary-action button');
-    if (!button) return;
-    const mustFinish = !!selectedFolder && !done;
-    button.disabled = mustFinish;
-    button.title = mustFinish ? 'Conclua o checklist de entrada antes de avançar.' : '';
-  }, [job?.id, job?.stage, selectedFolder, done]);
-
   const choose = async (folder: ZeusChecklistAssetFolder | '') => {
-    if (!job || done) return;
+    if (!job || done || !canEdit) return;
     if (folder) setPickerCategory(zeusChecklistCategoryForFolder(folder)); else setPickerCategory('');
     const ok = await w.mutate(data => setZeusChecklistChoice(data, job.id, folder), folder ? 'Checklist definido para esta OS.' : 'Checklist desabilitado para esta OS.');
     if (ok) setConfigOpen(false);
   };
 
   const openChecklist = async () => {
-    if (!job || !selectedFolder || done) return;
+    if (!job || !selectedFolder || done || !canEdit) return;
     if (!w.accountId || w.accountId === 'guest') { w.setError('Entre com a conta da oficina para abrir o checklist.'); return; }
     setBusy('checklist');
     try {
@@ -138,7 +135,7 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
   };
 
   const addPhotos = async (files: FileList | null) => {
-    if (!job || !files?.length) return;
+    if (!job || !files?.length || !canAttach) return;
     setBusy('photo');
     try {
       for (const file of Array.from(files)) {
@@ -159,9 +156,9 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
           current.attachments.push({ id: attachmentId, name: file.name, data });
           current.events.push(event(`Foto da identificação anexada: ${file.name}`));
           const values = customValues(store, job.id);
-          const metadata = attachmentMeta(values[ZEUS_ATTACHMENT_META_KEY]);
-          metadata[attachmentId] = { stage: 'Identificação', source: 'identification', author: store.settings.operator || '', createdAt: capturedAt, metadata: { purpose: 'entry' } };
-          setCustomValues(store, job.id, { [ZEUS_ATTACHMENT_META_KEY]: JSON.stringify(metadata) });
+          const currentMetadata = attachmentMeta(values[ZEUS_ATTACHMENT_META_KEY]);
+          currentMetadata[attachmentId] = { stage: 'Identificação', source: 'identification', author: store.settings.operator || '', createdAt: capturedAt, metadata: { purpose: 'entry' } };
+          setCustomValues(store, job.id, { [ZEUS_ATTACHMENT_META_KEY]: JSON.stringify(currentMetadata) });
         }, 'Foto vinculada à identificação.');
       }
     } catch (reason) {
@@ -170,20 +167,20 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
   };
 
   if (!target || !job || job.stage !== 'Identificação') return null;
-  const locked = !active || done;
+  const locked = !active || done || !canEdit;
   const selectedLabel = selectedFolder ? ZEUS_CHECKLIST_FOLDER_LABELS[selectedFolder] : 'Checklist desabilitado';
 
   return createPortal(<Section title="Checklist e fotos da identificação" action={done ? <Badge><CheckCircle2 size={13} />Checklist concluído</Badge> : undefined}>
     <div className="zeus-identification-checklist-grid">
       <div className="zeus-identification-actions span-full">
-        <div><span>Checklist desta OS</span><strong>{selectedLabel}</strong><small>{done ? 'Já executado. Não é possível preencher novamente.' : selectedFolder ? 'Conclua para liberar a próxima etapa.' : 'A OS pode seguir sem checklist.'}</small></div>
-        <div className="zeus-identification-action-buttons">
+        <div><span>Checklist desta OS</span><strong>{selectedLabel}</strong><small>{done ? 'Já executado. Não é possível preencher novamente.' : selectedFolder ? canEdit ? 'Conclua para liberar a próxima etapa.' : 'Checklist pendente de execução.' : 'A OS pode seguir sem checklist.'}</small></div>
+        {canEdit && <div className="zeus-identification-action-buttons">
           {selectedFolder && !done && <Button disabled={busy === 'checklist'} onClick={() => { void openChecklist(); }}><ExternalLink size={16} />{busy === 'checklist' ? 'Abrindo…' : 'Preencher checklist'}</Button>}
           {!done && selectedFolder && <Button variant="secondary" disabled={busy === 'checklist'} onClick={() => { void checkStatus(); }}><RefreshCw size={15} />Atualizar</Button>}
-        </div>
+        </div>}
       </div>
 
-      <details className="zeus-checklist-config span-full" open={configOpen} onToggle={event => setConfigOpen(event.currentTarget.open)}>
+      {canEdit && <details className="zeus-checklist-config span-full" open={configOpen} onToggle={event => setConfigOpen(event.currentTarget.open)}>
         <summary><div><span>Configuração do checklist</span><strong>{selectedFolder ? selectedLabel : 'Escolher checklist'}</strong></div><small>{configOpen ? 'Fechar' : done ? 'Consultar' : selectedFolder ? 'Alterar' : 'Escolher'}</small></summary>
         <div className="zeus-checklist-config-body">
           <div className="zeus-checklist-picker-head">
@@ -199,11 +196,11 @@ export function ZeusIdentificationChecklist({ w, jobId }: { w: Workspace; jobId:
           </div>}
           {!done && <small className="zeus-checklist-picker-hint">O padrão da Configuração vem pré-selecionado, mas pode ser trocado nesta OS antes da inspeção.</small>}
         </div>
-      </details>
+      </details>}
 
       <div className="zeus-identification-photo-row span-full">
         <div><span>Fotos da identificação</span><small>As fotos de entrada continuam disponíveis em Fotos e evidências.</small></div>
-        <div className="op-actions"><label className="op-button secondary"><Camera size={16} />{busy === 'photo' ? 'Enviando…' : 'Tirar / anexar'}<input hidden multiple disabled={busy === 'photo' || !active} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={input => { const element = input.currentTarget; void addPhotos(element.files).finally(() => { element.value = ''; }); }} /></label><Badge>{job.attachments.length} foto(s)</Badge></div>
+        <div className="op-actions">{canAttach && <label className="op-button secondary"><Camera size={16} />{busy === 'photo' ? 'Enviando…' : 'Tirar / anexar'}<input hidden multiple disabled={busy === 'photo' || !active} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={input => { const element = input.currentTarget; void addPhotos(element.files).finally(() => { element.value = ''; }); }} /></label>}<Badge>{identificationPhotoCount} foto(s)</Badge></div>
       </div>
     </div>
 

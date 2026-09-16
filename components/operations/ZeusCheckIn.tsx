@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Workspace } from '@/lib/operations/storage';
 import { normalize } from '@/lib/operations/model';
 import { ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
@@ -20,6 +21,8 @@ import { listZeusChecklists, syncZeusChecklistResponse, type ChecklistResponseRo
 import { Badge, Button, Empty, Section, Title } from './ui';
 
 export function ZeusCheckIn({ w }: { w: Workspace }) {
+  const access = useStoreAccess();
+  const canConfigure = access.hasPermission('zeus', 'settings_operation');
   const [tab, setTab] = useState<'checklists' | 'config'>('checklists');
   const [responses, setResponses] = useState<ChecklistResponseRow[]>([]);
   const [configSegment, setConfigSegment] = useState<ZeusChecklistSegment>('auto');
@@ -50,6 +53,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
   }), [w.data, responseJobs]);
 
   const saveConfig = async (next: ZeusChecklistConfig, message = 'Configuração do checklist salva.') => {
+    if (!canConfigure) { w.setError('Seu perfil não possui permissão para alterar o fluxo do checklist.'); return; }
     await w.mutate(data => writeZeusChecklistConfig(data, next), message);
   };
 
@@ -85,21 +89,21 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
 
   return <>
     <Title eyebrow="Recepção" title="Checklist de entrada">A central mostra somente as inspeções ainda pendentes. Checklist concluído passa a fazer parte da própria OS.</Title>
-    <div className="op-compact-tabs zeus-checkin-tabs" style={{ marginBottom: 18 }}><button aria-current={tab === 'checklists' ? 'page' : undefined} onClick={() => setTab('checklists')}>Pendentes</button><button aria-current={tab === 'config' ? 'page' : undefined} onClick={() => setTab('config')}>Configuração</button></div>
+    <div className="op-compact-tabs zeus-checkin-tabs" style={{ marginBottom: 18 }}><button aria-current={tab === 'checklists' ? 'page' : undefined} onClick={() => setTab('checklists')}>Pendentes</button>{canConfigure && <button aria-current={tab === 'config' ? 'page' : undefined} onClick={() => setTab('config')}>Configuração</button>}</div>
 
     {tab === 'checklists' && <Section title="Inspeções pendentes">
       <p className="op-muted">A execução do checklist acontece dentro da etapa Identificação da OS. Esta lista serve apenas para enxergar o que ainda precisa ser concluído.</p>
-      {!config.enabled ? <Empty>O checklist de entrada está desativado na configuração.</Empty> : pendingJobs.length ? <div className="zeus-checkin-list">{pendingJobs.map(job => {
+      {pendingJobs.length ? <div className="zeus-checkin-list">{pendingJobs.map(job => {
         const customer = w.data.customers.find(item => item.id === job.customerId);
         const asset = w.data.assets.find(item => item.id === job.assetId);
         const state = zeusChecklistState(w.data, job.id);
         return <div className="zeus-checkin-row" key={job.id}><div className="zeus-checkin-identity"><small>OS {String(job.number).padStart(4, '0')}</small><strong>{asset?.identifier || 'Sem identificação'}</strong><span>{customer?.name || 'Cliente'} · {asset?.model || ''}</span></div><div className="zeus-checkin-status"><Badge tone="warning">Pendente</Badge><small>{state.folder ? ZEUS_CHECKLIST_FOLDER_LABELS[state.folder] : 'Modelo não definido'}</small></div><a className="op-button secondary" href={`/zeus/atendimentos/${job.id}`}>Abrir OS</a></div>;
-      })}</div> : <Empty icon={<CheckCircle2 size={28} />}>Nenhum checklist pendente.</Empty>}
+      })}</div> : !config.enabled ? <Empty>O checklist de entrada está desativado para novas OS e não há inspeções antigas pendentes.</Empty> : <Empty icon={<CheckCircle2 size={28} />}>Nenhum checklist pendente.</Empty>}
     </Section>}
 
-    {tab === 'config' && <>
+    {tab === 'config' && canConfigure && <>
       <Section title="Comportamento do checklist">
-        <div className="op-module-choice"><input type="checkbox" checked={config.enabled} onChange={event => { void saveConfig({ ...config, enabled: event.target.checked }); }} /><span><strong>Usar checklist de entrada</strong><small>Quando ativo, o modelo padrão é sugerido na abertura/identificação e pode ser trocado por OS.</small></span><Badge>{config.enabled ? 'Ativo' : 'Desativado'}</Badge></div>
+        <div className="op-module-choice"><input type="checkbox" checked={config.enabled} onChange={event => { void saveConfig({ ...config, enabled: event.target.checked }); }} /><span><strong>Usar checklist de entrada</strong><small>Quando ativo, o modelo padrão é sugerido nas novas OS. Uma OS que já iniciou checklist preserva sua escolha.</small></span><Badge>{config.enabled ? 'Ativo' : 'Desativado'}</Badge></div>
         <div className="op-module-choice"><input type="checkbox" checked={config.requireSignature} disabled={!config.enabled} onChange={event => { void saveConfig({ ...config, requireSignature: event.target.checked }); }} /><span><strong>Exigir assinatura</strong><small>Impede a conclusão do checklist sem assinatura do cliente/responsável.</small></span><Badge>{config.requireSignature ? 'Obrigatória' : 'Opcional'}</Badge></div>
         <div className="zeus-checklist-config-picker">
           <strong>Modelo sugerido por padrão</strong>

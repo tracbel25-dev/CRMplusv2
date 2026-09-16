@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Workspace } from '@/lib/operations/storage';
-import { blankQuote, date, effectiveQuoteStatus, matches, nextNumber, total } from '@/lib/operations/model';
+import { blankQuote, date, effectiveQuoteStatus, matches, nextNumber } from '@/lib/operations/model';
 import { budgetLabel, budgetValue, defaultQuoteValidity, findZeusBudget, readZeusPreferences, zeusBudgets } from '@/lib/operations/zeus';
 import { Badge, Button, Empty, Modal, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
@@ -12,6 +13,9 @@ import { ZeusQuotePanel } from './ZeusQuotePanel';
 
 export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: string }) {
   const router = useRouter();
+  const access = useStoreAccess();
+  const canManage = access.hasPermission('zeus', 'quotes_manage');
+  const canViewJobs = access.hasPermission('zeus', 'jobs_view');
   const [query, setQuery] = useState('');
   const [active, setActive] = useState<Record<string, string[]>>({});
   const [sort, setSort] = useState('createdAt');
@@ -27,7 +31,7 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
     const customer = w.data.customers.find(item => item.id === selected.quote.customerId);
     return <>
       <Button variant="text" onClick={() => router.push('/zeus/orcamentos')}><ArrowLeft size={16} />Voltar aos orçamentos</Button>
-      <Title eyebrow={selected.origin === 'OS' ? 'Orçamento vinculado à ordem de serviço' : 'Venda de balcão'} title={budgetLabel(selected)} action={selected.job ? <Button variant="secondary" onClick={() => router.push(`/zeus/atendimentos/${selected.job!.id}`)}>Ver OS <ArrowRight size={16} /></Button> : undefined}>{customer?.name || 'Cliente não encontrado'}</Title>
+      <Title eyebrow={selected.origin === 'OS' ? 'Orçamento vinculado à ordem de serviço' : 'Venda de balcão'} title={budgetLabel(selected)} action={selected.job && canViewJobs ? <Button variant="secondary" onClick={() => router.push(`/zeus/atendimentos/${selected.job!.id}`)}>Ver OS <ArrowRight size={16} /></Button> : undefined}>{customer?.name || 'Cliente não encontrado'}</Title>
       <Section title="Condições e itens"><ZeusQuotePanel w={w} quote={selected.quote} job={selected.job} /></Section>
     </>;
   }
@@ -57,6 +61,7 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
   });
 
   const createCounter = async () => {
+    if (!canManage) { w.setError('Seu perfil não possui permissão para criar orçamentos.'); return; }
     if (!customerId) { w.setError('Selecione o cliente.'); return; }
     let id = '';
     const ok = await w.mutate(data => {
@@ -70,7 +75,7 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
   };
 
   return <>
-    <Title eyebrow="Comercial da oficina" title="Orçamentos" action={<Button onClick={() => setCreate(true)}><Plus size={17} />Novo orçamento balcão</Button>}>Orçamentos de OS e vendas de balcão aparecem juntos para operação, mas continuam identificados separadamente para análise.</Title>
+    <Title eyebrow="Comercial da oficina" title="Orçamentos" action={canManage ? <Button onClick={() => setCreate(true)}><Plus size={17} />Novo orçamento balcão</Button> : undefined}>Orçamentos de OS e vendas de balcão aparecem juntos para operação, mas continuam identificados separadamente para análise.</Title>
     <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de criação' }, { value: 'number', label: 'Número' }, { value: 'value', label: 'Valor' }, { value: 'validUntil', label: 'Validade' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder="Buscar cliente, item ou número" />
     <div className="zeus-budget-list">{filtered.map(item => {
       const customer = w.data.customers.find(current => current.id === item.quote.customerId);
@@ -82,6 +87,6 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
     })}</div>
     {!filtered.length && <Empty>{query || Object.values(active).some(values => values.length) ? 'Nenhum orçamento corresponde aos filtros.' : 'Os orçamentos da oficina aparecerão aqui.'}</Empty>}
 
-    {create && <Modal title="Novo orçamento de balcão" onClose={() => setCreate(false)}><p>Venda sem ordem de serviço. O orçamento terá numeração própria de balcão e continuará separado dos resultados de OS.</p><label className="op-field"><span>Cliente</span><select value={customerId} onChange={event => setCustomerId(event.target.value)}><option value="">Selecionar</option>{w.data.customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><div className="op-form-footer"><Button variant="secondary" onClick={() => setCreate(false)}>Cancelar</Button><Button onClick={() => { void createCounter(); }}>Criar orçamento</Button></div></Modal>}
+    {create && canManage && <Modal title="Novo orçamento de balcão" onClose={() => setCreate(false)}><p>Venda sem ordem de serviço. O orçamento terá numeração própria de balcão e continuará separado dos resultados de OS.</p><label className="op-field"><span>Cliente</span><select value={customerId} onChange={event => setCustomerId(event.target.value)}><option value="">Selecionar</option>{w.data.customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label><div className="op-form-footer"><Button variant="secondary" onClick={() => setCreate(false)}>Cancelar</Button><Button onClick={() => { void createCounter(); }}>Criar orçamento</Button></div></Modal>}
   </>;
 }
