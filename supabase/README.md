@@ -5,8 +5,18 @@ Os bancos operacionais são independentes do Supabase central da CRM PLUS Store.
 - Zeus: `supabase/zeus/schema.sql` → somente `diejjfzvoopcuqulqkqr`
 - Artemis: `supabase/artemis/schema.sql` → somente `sqbjqjjnusmqotlkegyt`
 
-`schema.sql` é o snapshot canônico do estado esperado para bootstrap/revisão. A fonte de verdade de produção continua sendo o histórico de migrations do respectivo projeto Supabase.
+## Como reconstruir um banco operacional
 
-As pastas `migrations/` guardam migrations novas versionadas no repositório a partir desta etapa. Nunca reutilize SQL de um aplicativo no outro e nunca execute estes arquivos no Supabase central da Store.
+`schema.sql` é o **baseline de bootstrap**. Ele não substitui o histórico de migrations.
 
-Até a ponte segura entre a sessão da Store e os bancos operacionais ser implementada, `anon` e `authenticated` permanecem sem CRUD direto. O backend deverá resolver o `tenant_key` após validar conta e acesso ao aplicativo.
+Para uma instalação nova:
+
+1. execute o `schema.sql` do aplicativo;
+2. aplique **todas** as migrations da pasta `migrations/` em ordem de timestamp;
+3. valide que nenhuma migration ficou pendente antes de publicar o aplicativo.
+
+O estado esperado do banco é sempre **baseline + migrations**. Em produção, o histórico de migrations é a fonte de verdade da evolução do schema.
+
+Nunca reutilize SQL de um aplicativo no outro e nunca execute estes arquivos no Supabase central da Store.
+
+A sessão continua sendo autenticada pela Store central. O backend valida conta, aplicativo e permissões antes de acessar os bancos operacionais; `anon` e `authenticated` permanecem sem CRUD direto nesses bancos.
