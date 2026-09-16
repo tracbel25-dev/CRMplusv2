@@ -1,0 +1,9 @@
+.op-settings-section.is-closed>.op-section-head{min-height:72px}
+.op-settings-section .op-section-toggle>.op-settings-section-copy{display:grid;gap:4px;min-width:0;overflow:visible;text-overflow:clip;white-space:normal}
+.op-settings-section-copy>span{font-size:16px;font-weight:700;line-height:1.25;color:var(--op-ink)}
+.op-settings-section-copy>small{max-width:760px;color:var(--op-muted);font-size:12.5px;font-weight:500;line-height:1.45}
+.op-settings-section .op-section-head h2{min-width:0;flex:1}
+.op-settings-section .op-section-toggle{align-items:center}
+.op-settings-section-save{display:flex;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--op-line)}
+.op-settings-section-save .op-button{min-width:148px}
+@media(max-width:720px){.op-settings-section.is-closed>.op-section-head{min-height:78px}.op-settings-section-save .op-button{width:100%}}
