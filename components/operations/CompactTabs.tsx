@@ -31,6 +31,10 @@ const ZEUS_SETTINGS_DESCRIPTIONS: Record<string, string> = {
 
 type StoredAccordionState = { expanded?: string[]; updatedAt?: number };
 
+function clearTemporaryAccordionState() {
+  try { localStorage.removeItem(ZEUS_SETTINGS_STORAGE_KEY); } catch { /* localStorage indisponível */ }
+}
+
 function readTemporaryAccordionState(tabs: Tab[]) {
   try {
     const raw = localStorage.getItem(ZEUS_SETTINGS_STORAGE_KEY);
@@ -38,13 +42,13 @@ function readTemporaryAccordionState(tabs: Tab[]) {
     const parsed = JSON.parse(raw) as StoredAccordionState;
     const updatedAt = Number(parsed.updatedAt || 0);
     if (!updatedAt || Date.now() - updatedAt >= ZEUS_SETTINGS_TTL) {
-      localStorage.removeItem(ZEUS_SETTINGS_STORAGE_KEY);
+      clearTemporaryAccordionState();
       return [];
     }
     const valid = new Set(tabs.map(tab => tab.id));
     return Array.isArray(parsed.expanded) ? parsed.expanded.filter(value => valid.has(value)) : [];
   } catch {
-    localStorage.removeItem(ZEUS_SETTINGS_STORAGE_KEY);
+    clearTemporaryAccordionState();
     return [];
   }
 }
