@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { CheckCircle2, ExternalLink, LockKeyhole, WalletCards } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { mercadoPagoConnectRequest, type MercadoPagoConnectStatus } from '@/lib/mercadopagoConnect';
@@ -26,7 +27,7 @@ export function PaymentIntegrationSetting({ app }: { app: AppId }) {
 
   useEffect(() => {
     if (!accountId || trialing) return;
-    void load().catch(reason => setError((reason as Error).message || 'Não foi possível consultar pagamentos.'));
+    void load().catch(reason => setError(clientMessage(reason, 'Não foi possível consultar pagamentos.')));
   }, [accountId, load, trialing]);
 
   const enabled = status?.appSettings.some(item => item.appId === app && item.enabled) === true;
@@ -43,7 +44,7 @@ export function PaymentIntegrationSetting({ app }: { app: AppId }) {
       await load();
       setSaved(true);
     } catch (reason) {
-      setError((reason as Error).message || 'Não foi possível alterar pagamentos.');
+      setError(clientMessage(reason, 'Não foi possível alterar pagamentos.'));
     } finally {
       setBusy(false);
     }
