@@ -1,5 +1,6 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { AppId, Data, initialData } from './model';
 
@@ -117,10 +118,10 @@ export function useWorkspace(app: AppId, accountId?: string) {
               const migrated = decodeData(legacy);
               migrated.revision = 0;
               const saved = await cloudRequest(app, 'PUT', migrated, 0);
-              if (!saved.data) throw new Error('O banco não confirmou a migração dos dados deste navegador.');
+              if (!saved.data) throw new Error('Não foi possível concluir a atualização dos seus dados.');
               next = decodeData(JSON.stringify(saved.data));
               clearLegacyCloudData(app, accountId);
-              if (!cancelled) setNotice('Seus dados anteriores foram migrados para a nuvem.');
+              if (!cancelled) setNotice('Seus dados anteriores foram importados com sucesso.');
             } else {
               next = initialForApp(app);
             }
@@ -135,7 +136,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         } catch (e) {
           if (cancelled) return;
           blocked.current = true;
-          setError((e as Error).message);
+          setError(clientMessage(e, 'Não foi possível carregar suas informações. Tente novamente.'));
         } finally {
           if (!cancelled) setReady(true);
         }
@@ -170,7 +171,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         setError('');
       } catch (e) {
         blocked.current = true;
-        setError((e as Error).message);
+        setError(clientMessage(e, 'Não foi possível carregar suas informações. Tente novamente.'));
       }
       setReady(true);
     }
@@ -191,7 +192,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
 
     if (cloudApp(app) && accountId !== 'guest') {
       try {
-        if (blocked.current) throw new Error('Os dados da nuvem precisam ser carregados antes de continuar.');
+        if (blocked.current) throw new Error('Aguarde o carregamento das informações antes de continuar.');
         const base = structuredClone(ref.current);
         fn(base);
         let result = await cloudRequest(app, 'PUT', base, ref.current.revision);
@@ -201,7 +202,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
           fn(retry);
           result = await cloudRequest(app, 'PUT', retry, latest.revision);
         }
-        if (result.conflict || !result.data) throw new Error('Outra pessoa atualizou estes dados agora. O Zeus/Artemis carregou a versão mais recente; repita a alteração.');
+        if (result.conflict || !result.data) throw new Error('As informações foram atualizadas enquanto você salvava. Tente novamente.');
         const next = decodeData(JSON.stringify(result.data));
         ref.current = next;
         workspaceMemoryCache.set(key, next);
@@ -211,14 +212,14 @@ export function useWorkspace(app: AppId, accountId?: string) {
         setNotice(message);
         return true;
       } catch (e) {
-        setError((e as Error).message);
+        setError(clientMessage(e, 'Não foi possível salvar agora. Tente novamente.'));
         return false;
       }
     }
 
     const update = () => {
       try {
-        if (blocked.current) throw new Error('Os dados locais precisam ser recuperados antes de continuar.');
+        if (blocked.current) throw new Error('Aguarde o carregamento das informações antes de continuar.');
         const raw = localStorage.getItem(key);
         const next = raw ? decodeData(raw) : initialForApp(app);
         fn(next);
@@ -231,7 +232,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         setNotice(message);
         return true;
       } catch (e) {
-        setError((e as Error).name === 'QuotaExceededError' ? 'O armazenamento deste navegador está cheio. Exporte seus dados e remova anexos que não precisa.' : (e as Error).message);
+        setError((e as Error).name === 'QuotaExceededError' ? 'Não há espaço suficiente para salvar agora. Faça uma cópia dos seus dados e remova anexos que não precisa.' : clientMessage(e, 'Não foi possível salvar agora. Tente novamente.'));
         return false;
       }
     };
@@ -245,7 +246,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       if (cloudApp(app) && accountId !== 'guest') {
         next.revision = ref.current.revision;
         const result = await cloudRequest(app, 'PUT', next, ref.current.revision);
-        if (result.conflict || !result.data) throw new Error('Os dados mudaram enquanto a cópia era restaurada. Atualize e tente novamente.');
+        if (result.conflict || !result.data) throw new Error('As informações mudaram durante a restauração. Atualize e tente novamente.');
         const saved = decodeData(JSON.stringify(result.data));
         ref.current = saved;
         workspaceMemoryCache.set(key, saved);
@@ -262,7 +263,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       setNotice('Cópia restaurada.');
       return true;
     } catch (e) {
-      setError((e as Error).message);
+      setError(clientMessage(e, 'Não foi possível restaurar esta cópia. Tente novamente.'));
       return false;
     }
   };
