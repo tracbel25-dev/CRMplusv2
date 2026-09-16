@@ -57,6 +57,10 @@ function storeTemporaryAccordionState(expanded: string[]) {
   }
 }
 
+function sameExpanded(a: string[], b: string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 export function CompactTabs({ tabs, children, label, initial }: { tabs: Tab[]; children: ReactNode; label: string; initial?: string }) {
   const id = useId();
   const pathname = usePathname();
@@ -69,7 +73,8 @@ export function CompactTabs({ tabs, children, label, initial }: { tabs: Tab[]; c
 
   useEffect(() => {
     if (!accordion) return;
-    setExpanded(readTemporaryAccordionState(hydratedTabs));
+    const restored = readTemporaryAccordionState(hydratedTabs);
+    setExpanded(current => sameExpanded(current, restored) ? current : restored);
   }, [accordion, hydratedTabs]);
 
   const changeExpanded = useCallback((change: (current: string[]) => string[]) => {
