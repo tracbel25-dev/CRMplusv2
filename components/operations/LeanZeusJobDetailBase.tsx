@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, FileDown, Plus, Sparkles, X } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import { deleteOperationalFile, R2AuthRequiredError, uploadOperationalFile } from '@/lib/r2/client';
 import {
   Job, activeJob, advanceJob, customValues, date, effectiveQuoteStatus,
@@ -28,6 +29,7 @@ function DiagnosisEditor({ w, job, assetLabel, canUseAI, onClose }: { w: Workspa
   const [aiInteractionId, setAiInteractionId] = useState('');
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [usedAI, setUsedAI] = useState(false);
+  const [learningCandidate, setLearningCandidate] = useState('');
 
   const assist = async () => {
     if (!canUseAI) { w.setError('Seu perfil não possui permissão para usar a assistência de IA.'); return; }
@@ -53,7 +55,7 @@ function DiagnosisEditor({ w, job, assetLabel, canUseAI, onClose }: { w: Workspa
       setSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : []);
       setAiInteractionId(String(payload.interactionId || ''));
       w.setNotice('Sugestões preparadas. Nada foi preenchido automaticamente.');
-    } catch (reason) { w.setError(reason instanceof Error ? reason.message : 'Não foi possível usar a assistência do diagnóstico.'); }
+    } catch (reason) { w.setError(clientMessage(reason, 'Não foi possível usar a assistência do diagnóstico.')); }
     finally { setAiBusy(false); }
   };
 
@@ -65,6 +67,27 @@ function DiagnosisEditor({ w, job, assetLabel, canUseAI, onClose }: { w: Workspa
     setUsedAI(true);
   };
 
+  const saveLearning = async () => {
+    try {
+      const supabase = createStoreClient();
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error('Sua sessão expirou antes de registrar o aprendizado.');
+      const response = await fetch('/api/ai/zeus/feedback', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ interactionId: aiInteractionId, correctedText: learningCandidate }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível registrar o aprendizado.');
+      if (payload.learned) w.setNotice('Aprendizado salvo para melhorar sugestões futuras desta oficina.');
+      return true;
+    } catch (reason) {
+      w.setError(clientMessage(reason, 'O diagnóstico foi salvo, mas o aprendizado não pôde ser registrado.'));
+      return false;
+    }
+  };
+
   const save = async () => {
     const savedValue = value.trim();
     if (!savedValue) { w.setError('Registre o diagnóstico antes de salvar.'); return; }
@@ -74,41 +97,26 @@ function DiagnosisEditor({ w, job, assetLabel, canUseAI, onClose }: { w: Workspa
       current.diagnosis = savedValue;
       current.events.push(event('Diagnóstico atualizado'));
     }, 'Diagnóstico salvo.');
-
-    if (ok && aiInteractionId && usedAI) {
-      const learn = window.confirm('Usar este diagnóstico confirmado para melhorar as próximas sugestões do Zeus nesta oficina?');
-      if (learn) {
-        try {
-          const supabase = createStoreClient();
-          const { data } = await supabase.auth.getSession();
-          const token = data.session?.access_token;
-          if (!token) throw new Error('Sua sessão expirou antes de registrar o aprendizado.');
-          const response = await fetch('/api/ai/zeus/feedback', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-            body: JSON.stringify({ interactionId: aiInteractionId, correctedText: savedValue }),
-          });
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(payload.error || 'Não foi possível registrar o aprendizado.');
-          if (payload.learned) w.setNotice('Aprendizado salvo para melhorar sugestões futuras desta oficina.');
-        } catch (reason) {
-          w.setError(reason instanceof Error ? reason.message : 'O diagnóstico foi salvo, mas o aprendizado não pôde ser registrado.');
-        }
-      }
-    }
-
     setBusy(false);
-    if (ok) onClose();
+    if (!ok) return;
+    if (aiInteractionId && usedAI) {
+      setLearningCandidate(savedValue);
+      return;
+    }
+    onClose();
   };
 
-  return <Modal title="Diagnóstico técnico" onClose={onClose} wide>
-    <div className="zeus-diagnosis-editor">
-      {canUseAI && <div className="op-callout"><strong>IA como apoio</strong><span> Ela sugere verificações e possibilidades. Você escolhe o que faz sentido, edita e decide o que entra no diagnóstico.</span></div>}
-      <label className="op-field"><span>Diagnóstico registrado pelo profissional</span><textarea rows={9} value={value} onChange={event => setValue(event.target.value)} placeholder="Registre aqui apenas o que foi observado, verificado ou concluído pela oficina." /></label>
-      {suggestions.length > 0 && <div className="zeus-ai-suggestions"><strong>Sugestões para avaliar</strong>{suggestions.map((item, index) => <div className="zeus-ai-suggestion" key={`${item.title}-${index}`}><div className="op-grow"><Badge>{item.category}</Badge><input aria-label={`Editar sugestão ${index + 1}`} value={item.title} onChange={event => setSuggestions(current => current.map((row, i) => i === index ? { ...row, title: event.target.value } : row))} /><small>{item.reason}</small></div><Button variant="secondary" onClick={() => applySuggestion(index)}>Adicionar ao diagnóstico</Button></div>)}</div>}
-      <div className="op-form-footer">{canUseAI && <Button variant="secondary" disabled={aiBusy || busy} onClick={() => { void assist(); }}><Sparkles size={16} />{aiBusy ? 'Buscando sugestões…' : suggestions.length ? 'Atualizar sugestões' : 'Ver sugestões da IA'}</Button>}<Button disabled={busy || aiBusy} onClick={() => { void save(); }}>{busy ? 'Salvando…' : 'Salvar diagnóstico'}</Button></div>
-    </div>
-  </Modal>;
+  return <>
+    {!learningCandidate && <Modal title="Diagnóstico técnico" onClose={onClose} wide>
+      <div className="zeus-diagnosis-editor">
+        {canUseAI && <div className="op-callout"><strong>IA como apoio</strong><span> Ela sugere verificações e possibilidades. Você escolhe o que faz sentido, edita e decide o que entra no diagnóstico.</span></div>}
+        <label className="op-field"><span>Diagnóstico registrado pelo profissional</span><textarea rows={9} value={value} onChange={event => setValue(event.target.value)} placeholder="Registre aqui apenas o que foi observado, verificado ou concluído pela oficina." /></label>
+        {suggestions.length > 0 && <div className="zeus-ai-suggestions"><strong>Sugestões para avaliar</strong>{suggestions.map((item, index) => <div className="zeus-ai-suggestion" key={`${item.title}-${index}`}><div className="op-grow"><Badge>{item.category}</Badge><input aria-label={`Editar sugestão ${index + 1}`} value={item.title} onChange={event => setSuggestions(current => current.map((row, i) => i === index ? { ...row, title: event.target.value } : row))} /><small>{item.reason}</small></div><Button variant="secondary" onClick={() => applySuggestion(index)}>Adicionar ao diagnóstico</Button></div>)}</div>}
+        <div className="op-form-footer">{canUseAI && <Button variant="secondary" disabled={aiBusy || busy} onClick={() => { void assist(); }}><Sparkles size={16} />{aiBusy ? 'Buscando sugestões…' : suggestions.length ? 'Atualizar sugestões' : 'Ver sugestões da IA'}</Button>}<Button disabled={busy || aiBusy} onClick={() => { void save(); }}>{busy ? 'Salvando…' : 'Salvar diagnóstico'}</Button></div>
+      </div>
+    </Modal>}
+    {learningCandidate && <Confirm title="Melhorar as próximas sugestões?" label="Usar este diagnóstico" onClose={() => { setLearningCandidate(''); onClose(); }} onConfirm={saveLearning}>O diagnóstico já foi salvo. Você pode usá-lo como referência para melhorar as próximas sugestões desta oficina.</Confirm>}
+  </>;
 }
 
 export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: string }) {
@@ -187,7 +195,6 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
   const reportReady = canExport && operation.actionVisible('report') && (!active || !!job.diagnosis.trim() || ['Orçamento', 'Execução', 'Conferência', 'Entrega'].includes(job.stage));
 
   const savePhotoLocally = async (file: File) => {
-    if (file.size > 750000) throw new Error('Sem login, escolha uma foto de até 750 KB para salvar somente neste navegador.');
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
@@ -196,28 +203,27 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
     });
     await patch(current => {
       current.attachments.push({ id: uid(), name: file.name, data: dataUrl });
-      current.events.push(event(`Foto anexada localmente: ${file.name}`));
-    }, 'Foto salva neste navegador.');
+      current.events.push(event(`Foto adicionada: ${file.name}`));
+    }, 'Foto adicionada neste dispositivo.');
   };
 
   const addPhoto = async (file: File) => {
     if (!canAttach) { w.setError('Seu perfil não possui permissão para adicionar anexos.'); return; }
-    if (file.size > 8 * 1024 * 1024) { w.setError('Escolha uma foto de até 8 MB.'); return; }
     setPhotoBusy(true);
     try {
       try {
         const uploaded = await uploadOperationalFile('zeus', file);
         await patch(current => {
           current.attachments.push({ id: uid(), name: file.name, data: `r2:${uploaded.key}|${uploaded.url}` });
-          current.events.push(event(`Foto enviada ao R2: ${file.name}`));
-        }, 'Foto enviada e vinculada à OS.');
+          current.events.push(event(`Foto adicionada: ${file.name}`));
+        }, 'Foto adicionada à OS.');
       } catch (reason) {
         if (!(reason instanceof R2AuthRequiredError)) throw reason;
         await savePhotoLocally(file);
-        w.setNotice('Foto salva somente neste navegador. Entre com a conta para usar o armazenamento em nuvem.');
+        w.setNotice('Foto adicionada neste dispositivo. Entre na conta para acessá-la também em outros dispositivos.');
       }
     } catch (reason) {
-      w.setError(reason instanceof Error ? reason.message : 'Não foi possível anexar a foto.');
+      w.setError(clientMessage(reason, 'Não foi possível anexar a foto.'));
     } finally { setPhotoBusy(false); }
   };
 
@@ -230,7 +236,7 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
         current.attachments = current.attachments.filter(item => item.id !== photo.id);
         current.events.push(event(`Foto removida: ${photo.name}`));
       }, 'Foto removida.');
-    } catch (reason) { w.setError(reason instanceof Error ? reason.message : 'Não foi possível remover a foto.'); }
+    } catch (reason) { w.setError(clientMessage(reason, 'Não foi possível remover a foto.')); }
   };
 
   const toggleExecutionTask = async (taskId: string) => {
