@@ -1,5 +1,6 @@
 import type { Data } from './model';
 import { normalize } from './model';
+import { initialJobStatus } from './zeus';
 import { ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from './checklistTemplates';
 import { isZeusChecklistAssetFolder, type ZeusChecklistAssetFolder } from './checklistAssets';
 import {
@@ -114,11 +115,16 @@ export function zeusChecklistState(data: Data, jobId: string) {
 
 export function setZeusChecklistChoice(data: Data, jobId: string, folder: ZeusChecklistAssetFolder | '') {
   data.customFieldValues ??= {};
+  const previous = data.customFieldValues[jobId] || {};
   data.customFieldValues[jobId] = {
-    ...(data.customFieldValues[jobId] || {}),
+    ...previous,
     [ZEUS_CHECKLIST_ENABLED_KEY]: folder ? 'true' : 'false',
     [ZEUS_CHECKLIST_FOLDER_KEY]: folder,
   };
+  const job = data.jobs.find(item => item.id === jobId);
+  if (job?.stage === 'Identificação' && previous[ZEUS_CHECKLIST_COMPLETED_KEY] !== 'true') {
+    job.status = folder ? 'Aguardando checklist' : initialJobStatus(data.settings);
+  }
 }
 
 export function addZeusChecklistItem(config: ZeusChecklistConfig, segment: ZeusChecklistSegment, value: string) {
