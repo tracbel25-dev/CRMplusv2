@@ -1,7 +1,19 @@
 'use client';
 
-export function AppLoadingScreen({ label = 'Carregando' }: { label?: string }) {
-  return <main className="crm-loading-screen" role="status" aria-live="polite" aria-label={label}>
+import { useEffect, useState } from 'react';
+
+export function AppLoadingScreen({ label = 'Carregando', delayMs = 180 }: { label?: string; delayMs?: number }) {
+  const [visible, setVisible] = useState(delayMs <= 0);
+
+  useEffect(() => {
+    if (delayMs <= 0) { setVisible(true); return; }
+    const timer = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs]);
+
+  if (!visible) return null;
+
+  return <div className="crm-loading-screen" role="status" aria-live="polite" aria-label={label}>
     <div className="crm-loading-spinner" aria-hidden="true"><span /></div>
     <span className="crm-loading-sr">{label}</span>
     <style jsx>{`
@@ -14,5 +26,5 @@ export function AppLoadingScreen({ label = 'Carregando' }: { label?: string }) {
       @keyframes crm-loading-spin{to{transform:rotate(360deg)}}
       @media(prefers-reduced-motion:reduce){.crm-loading-spinner{animation-duration:1.8s}}
     `}</style>
-  </main>;
+  </div>;
 }

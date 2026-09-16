@@ -31,8 +31,7 @@ export function OperationAccessGate({ app, children }: { app: AppId; children: R
 
   if (access.error) return <main className="op-access-gate"><section className="op-access-gate-card"><span>CRM PLUS</span><h1>Não foi possível validar seu acesso.</h1><p>{access.error}</p><div><button type="button" onClick={() => void access.refresh()}>Tentar novamente</button><Link href="/conta">Minha conta</Link></div></section></main>;
 
-  if (!access.user) return <AppLoadingScreen label="Abrindo login" />;
-  if (!allowed) return <AppLoadingScreen label="Carregando acesso ao aplicativo" />;
+  if (!access.user || !allowed) return null;
 
   if (trialing && access.account) return <TrialProtection app={app} accountName={access.account.name} email={access.user.email}>{children}</TrialProtection>;
   return <>{children}</>;

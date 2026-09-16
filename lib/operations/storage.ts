@@ -9,6 +9,7 @@ export const storageKey = (app: AppId, accountId = 'guest') => app === 'kronos'
   : `crmplus:${accountId}:${app}:operations:v1`;
 
 const cloudApp = (app: AppId) => app === 'zeus' || app === 'artemis';
+const workspaceMemoryCache = new Map<string, Data>();
 
 function initialForApp(app: AppId): Data {
   const data = initialData();
@@ -78,19 +79,29 @@ function clearLegacyCloudData(app: AppId, accountId: string) {
 }
 
 export function useWorkspace(app: AppId, accountId?: string) {
-  const [data, setData] = useState<Data>(() => initialForApp(app));
-  const [ready, setReady] = useState(false);
+  const key = accountId ? storageKey(app, accountId) : '';
+  const cachedAtMount = key ? workspaceMemoryCache.get(key) : undefined;
+  const [data, setData] = useState<Data>(() => cachedAtMount || initialForApp(app));
+  const [ready, setReady] = useState(() => !!cachedAtMount);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const key = accountId ? storageKey(app, accountId) : '';
   const ref = useRef(data);
   const blocked = useRef(false);
 
   useEffect(() => {
     if (!key || !accountId) { setReady(false); return; }
     let cancelled = false;
-    setReady(false);
-    setError('');
+    const cached = workspaceMemoryCache.get(key);
+    if (cached) {
+      ref.current = cached;
+      setData(cached);
+      blocked.current = false;
+      setError('');
+      setReady(true);
+    } else {
+      setReady(false);
+      setError('');
+    }
 
     if (cloudApp(app) && accountId !== 'guest') {
       const load = async () => {
@@ -116,6 +127,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
           }
           if (cancelled) return;
           ref.current = next;
+          workspaceMemoryCache.set(key, next);
           setData(next);
           mirrorConfigurationCache(app, next);
           blocked.current = false;
@@ -152,6 +164,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         const raw = scopedRaw();
         const next = raw ? decodeData(raw) : initialForApp(app);
         ref.current = next;
+        workspaceMemoryCache.set(key, next);
         setData(next);
         blocked.current = false;
         setError('');
@@ -191,6 +204,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         if (result.conflict || !result.data) throw new Error('Outra pessoa atualizou estes dados agora. O Zeus/Artemis carregou a versão mais recente; repita a alteração.');
         const next = decodeData(JSON.stringify(result.data));
         ref.current = next;
+        workspaceMemoryCache.set(key, next);
         setData(next);
         mirrorConfigurationCache(app, next);
         setError('');
@@ -211,6 +225,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         next.revision++;
         localStorage.setItem(key, JSON.stringify(next));
         ref.current = next;
+        workspaceMemoryCache.set(key, next);
         setData(next);
         setError('');
         setNotice(message);
@@ -233,11 +248,13 @@ export function useWorkspace(app: AppId, accountId?: string) {
         if (result.conflict || !result.data) throw new Error('Os dados mudaram enquanto a cópia era restaurada. Atualize e tente novamente.');
         const saved = decodeData(JSON.stringify(result.data));
         ref.current = saved;
+        workspaceMemoryCache.set(key, saved);
         setData(saved);
         mirrorConfigurationCache(app, saved);
       } else {
         localStorage.setItem(key, JSON.stringify(next));
         ref.current = next;
+        workspaceMemoryCache.set(key, next);
         setData(next);
       }
       blocked.current = false;
