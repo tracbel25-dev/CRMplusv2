@@ -1,7 +1,7 @@
 'use client';
 
 import { Children, Fragment, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, FileDown, HelpCircle, Plus, Search, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, FileDown, HelpCircle, Plus, Search, X } from 'lucide-react';
 import {
   AppId, Customer, Data, Event, Line, Quote, advanceJob, date, decideQuote, effectiveQuoteStatus,
   money, normalize, now, reviseQuote, sendQuote, total, uid
@@ -21,8 +21,16 @@ export function Empty({ icon, children, action }: { icon?: ReactNode; children: 
 export function Title({ eyebrow, title, children, action }: { eyebrow?: string; title: string; children?: ReactNode; action?: ReactNode }) {
   return <div className="op-title"><div>{eyebrow && <span className="op-kicker">{eyebrow}</span>}<h1>{title}</h1>{children && <p>{children}</p>}</div>{action && <div className="op-actions">{action}</div>}</div>;
 }
-export function Section({ title, children, action, className = '' }: { title: string; children: ReactNode; action?: ReactNode; className?: string }) {
-  return <section className={`op-section ${className}`}><div className="op-section-head"><h2>{title}</h2>{action}</div>{children}</section>;
+export function Section({ title, children, action, className = '', collapsible, defaultOpen = true }: { title: string; children: ReactNode; action?: ReactNode; className?: string; collapsible?: boolean; defaultOpen?: boolean }) {
+  const workspace = useCurrentWorkspace();
+  const [open, setOpen] = useState(defaultOpen);
+  const regionId = useId();
+  const canCollapse = collapsible ?? workspace?.app === 'zeus';
+  if (!canCollapse) return <section className={`op-section ${className}`}><div className="op-section-head"><h2>{title}</h2>{action}</div>{children}</section>;
+  return <section className={`op-section is-collapsible ${open ? 'is-open' : 'is-closed'} ${className}`}>
+    <div className="op-section-head"><h2><button type="button" className="op-section-toggle" aria-expanded={open} aria-controls={regionId} onClick={() => setOpen(current => !current)}><span>{title}</span><ChevronDown size={18} aria-hidden="true" /></button></h2>{action}</div>
+    <div id={regionId} className="op-section-body" hidden={!open}>{children}</div>
+  </section>;
 }
 export function Badge({ children, tone = '' }: { children: ReactNode; tone?: string }) {
   return <span className={`op-badge ${tone}`}>{children}</span>;
