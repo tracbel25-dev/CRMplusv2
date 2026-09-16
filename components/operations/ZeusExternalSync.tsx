@@ -5,22 +5,23 @@ import type { Workspace } from '@/lib/operations/storage';
 import { migrateLegacyZeusChecklists, syncAllZeusChecklistResponses } from '@/lib/operations/zeusChecklistClient';
 import { syncZeusQuoteExternalResponses } from '@/lib/operations/zeusQuoteExternalSync';
 
+let legacyMigrationChecked = false;
+
 export function ZeusExternalSync({ w }: { w: Workspace }) {
   const running = useRef(false);
-  const legacyChecked = useRef(false);
 
   const sync = useCallback(async () => {
     if (running.current || !w.accountId || w.accountId === 'guest') return;
     running.current = true;
     try {
-      if (!legacyChecked.current) {
+      if (!legacyMigrationChecked) {
         try {
           await migrateLegacyZeusChecklists();
         } catch (reason) {
           // Migração antiga é complementar. Falha/permissão nela não pode bloquear respostas atuais.
           console.warn('Zeus legacy checklist migration:', reason);
         } finally {
-          legacyChecked.current = true;
+          legacyMigrationChecked = true;
         }
       }
       await syncAllZeusChecklistResponses(w);
@@ -36,13 +37,16 @@ export function ZeusExternalSync({ w }: { w: Workspace }) {
   useEffect(() => {
     void sync();
     const onFocus = () => { void sync(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') void sync(); };
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void sync();
-    }, 15000);
+    }, 60000);
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [sync]);
 
