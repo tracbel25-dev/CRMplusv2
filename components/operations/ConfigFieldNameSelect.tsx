@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Plus, Save, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import type { AppId } from '@/lib/operations/model';
 import { fieldLabelOptions } from '@/lib/operations/configurationLabels';
 import { saveZeusServiceTypes, useZeusServiceTypes, zeusServiceTypeSuggestions } from '@/lib/operations/serviceTypes';
@@ -59,13 +59,12 @@ function ZeusServiceTypesConfigurator(){
       <datalist id={listId}>{suggestions.map(value=><option key={value} value={value}/>)}</datalist>
       <button type="button" className="op-button secondary" disabled={!draft.trim()||exists} onClick={add}><Plus size={15}/>Incluir tipo</button>
     </div>
-    <small>Você pode digitar livremente ou aproveitar uma sugestão. “Incluir tipo” salva a nova opção para os próximos atendimentos.</small>
+    <small>Você pode digitar livremente ou aproveitar uma sugestão.</small>
   </div>;
 }
 
-export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange,onSave}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void;onSave?:()=>Promise<boolean>|boolean}){
+export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange}:{app:AppId;fieldKey:string;fallback:string;value:string;onChange:(value:string)=>void}){
   const listId=useId();
-  const [saving,setSaving]=useState(false);
   const defaults=useMemo(()=>fieldLabelOptions(app,fieldKey,fallback),[app,fieldKey,fallback]);
   const [extras,setExtras]=useState<string[]>([]);
   useEffect(()=>{
@@ -84,11 +83,10 @@ export function ConfigFieldNameSelect({app,fieldKey,fallback,value,onChange,onSa
   const exists=options.some(option=>option.toLocaleLowerCase('pt-BR')===typed.toLocaleLowerCase('pt-BR'));
   return <div className="op-config-name-control">
     <div className="op-config-combobox">
-      <input list={listId} value={value} onChange={event=>onChange(event.target.value)} placeholder={fallback} aria-label={`Nome de ${fallback} no aplicativo`}/>
+      <input list={listId} value={value} onChange={event=>onChange(event.target.value)} onBlur={()=>{if(typed&&!exists)saveExtraOption(app,fieldKey,typed)}} placeholder={fallback} aria-label={`Nome de ${fallback} no aplicativo`}/>
       <datalist id={listId}>{options.map(option=><option key={option} value={option}/>)}</datalist>
-      <button type="button" className="op-button secondary" disabled={!typed||saving} onClick={async()=>{if(!exists)saveExtraOption(app,fieldKey,typed);if(!onSave)return;setSaving(true);try{await onSave();}finally{setSaving(false);}}}><Save size={14}/>{saving?'Salvando…':'Salvar alteração'}</button>
     </div>
-    <small className="op-muted">Digite o nome que preferir. As sugestões são opcionais; use “Salvar alteração” para aplicar o nome escolhido.</small>
+    <small className="op-muted">Digite o nome que preferir. As sugestões são opcionais; use o botão único de salvar no fim das configurações.</small>
     {app==='zeus'&&fieldKey==='serviceType'&&<ZeusServiceTypesConfigurator/>}
   </div>;
 }
