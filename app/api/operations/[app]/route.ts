@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest, operationalRpc, type CloudOperationalApp } from '@/lib/server/operationalWorkspace';
+import { assertZeusWorkspacePermissions } from '@/lib/server/zeusWorkspacePermissions';
 import type { Data } from '@/lib/operations/model';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
@@ -113,7 +114,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (app === 'zeus') {
       const rows = await operationalRest('zeus', `workspace_state?${query({ select: 'data', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ data: unknown }>;
       const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
-      validateZeusTransition(current, body.data as unknown as Data);
+      const next = body.data as unknown as Data;
+      assertZeusWorkspacePermissions(access, current, next);
+      validateZeusTransition(current, next);
     }
 
     const result = await operationalRpc(app, 'save_workspace_state', {
@@ -134,6 +137,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ ok: true, revision: Number(result.revision || 0), data: result.data });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.';
+    if (message.startsWith('PERMISSION_DENIED:')) return NextResponse.json({ error: message.replace('PERMISSION_DENIED: ', '') }, { status: 403 });
     if (message.startsWith('CHECKLIST_REQUIRED:')) return NextResponse.json({ error: message.replace('CHECKLIST_REQUIRED: ', '') }, { status: 409 });
     if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
     return NextResponse.json({ error: message }, { status: 503 });
