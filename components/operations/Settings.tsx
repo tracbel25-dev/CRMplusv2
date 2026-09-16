@@ -10,11 +10,12 @@ import {
   segmentDefinitions, useOperationPreferences
 } from '@/lib/operations/configuration';
 import { readZeusPreferences, writeZeusPreferences, type ZeusPreferences } from '@/lib/operations/zeus';
-import { Badge, Button, Confirm, Section, Title } from './ui';
+import { Badge, Button, Confirm, Title } from './ui';
 import { ConfigFieldNameSelect, resetFieldLabelOptions } from './ConfigFieldNameSelect';
 import { ZeusSettingsExtras } from './ZeusSettingsExtras';
 import { CompactTabs, CompactPanel } from './CompactTabs';
 import { LocalAccountSettings } from './LocalAccountSettings';
+import { SettingsSection } from './SettingsSection';
 
 type PreferencesWithHelp = OperationPreferences & { fieldHelp: Record<string, string> };
 
@@ -63,6 +64,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const [zeusPreferences, setZeusPreferences] = useState<ZeusPreferences>(() => readZeusPreferences(w.data));
   const [importData, setImportData] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [dirtySections, setDirtySections] = useState<Set<string>>(() => new Set());
+  const [savingSection, setSavingSection] = useState('');
   const [customName, setCustomName] = useState('');
   const [customGroup, setCustomGroup] = useState(definition.customFieldGroups[0]);
   const [newStage, setNewStage] = useState('');
@@ -71,14 +74,21 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const flowPreviewRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
 
-  const markDirty = () => {
+  const markDirty = (section = 'geral') => {
     dirtyRef.current = true;
     setSaved(false);
+    if (app === 'zeus') setDirtySections(current => {
+      const next = new Set(current);
+      next.add(section);
+      return next;
+    });
   };
 
   useEffect(() => {
     dirtyRef.current = false;
     setSaved(false);
+    setDirtySections(new Set());
+    setSavingSection('');
     setPreferences(withDefaultHelp(app, operation.preferences));
     setDraft({ ...w.data.settings, salesStages: [...w.data.settings.salesStages] });
     setZeusPreferences(readZeusPreferences(w.data));
@@ -99,26 +109,26 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const fieldGroups = useMemo(() => Array.from(new Set(definition.fields.map(field => field.group))), [definition.fields]);
   const actionGroups = useMemo(() => Array.from(new Set(definition.actions.map(action => action.group))), [definition.actions]);
 
-  const field = (key: keyof Settings, label: string, type = 'text') => (
+  const field = (key: keyof Settings, label: string, type = 'text', section = 'dados') => (
     <label className="op-field">
       <span>{label}</span>
       <input type={type} value={Array.isArray(draft[key]) || typeof draft[key] === 'object' ? '' : String(draft[key] ?? '')} onChange={event => {
-        markDirty();
+        markDirty(section);
         setDraft({ ...draft, [key]: event.target.value });
       }} />
     </label>
   );
 
-  const setFieldLabel = (key: string, value: string) => {
-    markDirty();
+  const setFieldLabel = (key: string, value: string, section = 'personalizacao') => {
+    markDirty(section);
     setPreferences(current => ({ ...current, fieldLabels: { ...current.fieldLabels, [key]: value } }));
   };
   const setFieldHelp = (key: string, value: string) => {
-    markDirty();
+    markDirty('personalizacao');
     setPreferences(current => ({ ...current, fieldHelp: { ...(current.fieldHelp || {}), [key]: value } }));
   };
   const setFieldVisible = (key: string, value: boolean) => {
-    markDirty();
+    markDirty('personalizacao');
     setPreferences(current => ({ ...current, fieldVisibility: { ...current.fieldVisibility, [key]: value } }));
   };
   const scrollToFlowPreview = () => {
@@ -126,7 +136,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     window.requestAnimationFrame(() => flowPreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
   const setActionVisible = (key: string, value: boolean) => {
-    markDirty();
+    markDirty('fluxo');
     setPreferences(current => normalizeDependencies(app, { ...current, actionVisibility: { ...current.actionVisibility, [key]: value } }));
     scrollToFlowPreview();
   };
@@ -141,7 +151,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     const newField: CustomField = { id: uid(), label, group: customGroup, visible: true };
     setPreferences(current => ({ ...current, customFields: [...current.customFields, newField] }));
     setCustomName('');
-    markDirty();
+    markDirty('campos-adicionais');
   };
 
   const moveStage = (index: number, delta: number) => {
@@ -150,7 +160,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     const copy = [...draft.salesStages];
     [copy[index], copy[target]] = [copy[target], copy[index]];
     setDraft({ ...draft, salesStages: copy });
-    markDirty();
+    markDirty('pipeline');
   };
 
   const addStage = () => {
@@ -160,7 +170,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     if (draft.salesStages.some(stage => stage.toLocaleLowerCase('pt-BR') === value.toLocaleLowerCase('pt-BR'))) { w.setError('Essa etapa já existe.'); return; }
     setDraft({ ...draft, salesStages: [...draft.salesStages, value] });
     setNewStage('');
-    markDirty();
+    markDirty('pipeline');
   };
 
   const validate = (nextPreferences: PreferencesWithHelp) => {
@@ -213,9 +223,21 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     saveOperationPreferences(app, nextPreferences);
     setPreferences(nextPreferences);
     dirtyRef.current = false;
+    setDirtySections(new Set());
     setSaved(true);
     return true;
   };
+
+  const saveSection = async (section: string) => {
+    if (savingSection) return false;
+    setSavingSection(section);
+    try { return await save(); }
+    finally { setSavingSection(''); }
+  };
+
+  const sectionSave = (section: string) => app === 'zeus' && dirtySections.has(section)
+    ? <div className="op-settings-section-save"><Button disabled={!!savingSection} onClick={() => { void saveSection(section); }}>{savingSection === section ? 'Salvando…' : 'Salvar alteração'}</Button></div>
+    : null;
 
   const restorePersonalization = async () => {
     const defaults = withDefaultHelp(app, defaultOperationPreferences(app));
@@ -244,6 +266,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       setPreferences(nextPreferences);
       setCustomName('');
       dirtyRef.current = false;
+      setDirtySections(new Set());
       setSaved(true);
       return true;
     } finally {
@@ -256,13 +279,14 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   return <>
     <Title eyebrow="Sua operação" title="Configurações">{definition.description}</Title>
     <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Personalização'},{id:'operacao',label:'Fluxo do processo'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'}]}>
-    <form onSubmit={async event => { event.preventDefault(); await save(); }} onChange={markDirty}>
-      <CompactPanel value="dados"><Section title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'}>
+    <form onSubmit={async event => { event.preventDefault(); if (app !== 'zeus') await save(); }}>
+      <CompactPanel value="dados"><SettingsSection title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'} description="Informações principais usadas no cadastro e na operação.">
         <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
-      </Section></CompactPanel>
+        {sectionSave('dados')}
+      </SettingsSection></CompactPanel>
 
-      <CompactPanel value="campos"><Section title="Personalize como sua operação identifica cada item" action={<Button variant="secondary" onClick={() => setRestoreConfirm(true)}><RotateCcw size={16}/>Restaurar padrão</Button>}>
-        <p className="op-muted">Defina quais identificações aparecem e escolha como cada uma será chamada no aplicativo. Você também pode personalizar a dica curta exibida para orientar a equipe. Registros já existentes não são apagados.</p>
+      <CompactPanel value="campos"><SettingsSection title="Personalize como sua operação identifica cada item" description="Defina nomes, visibilidade e dicas dos campos usados pela equipe.">
+        <div className="op-actions"><Button variant="secondary" onClick={() => setRestoreConfirm(true)}><RotateCcw size={16}/>Restaurar padrão</Button></div>
         <div className="op-config-groups">{fieldGroups.map(group => <details className="op-config-group" key={group}>
           <summary><strong>{group}</strong><span>{definition.fields.filter(configField => configField.group === group).length} campos</span></summary>
           {definition.fields.filter(configField => configField.group === group).map(configField => {
@@ -278,21 +302,21 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
             </div>;
           })}
         </details>)}</div>
-      </Section>
+        {sectionSave('personalizacao')}
+      </SettingsSection>
 
-      <Section title="Adicionar mais um campo">
-        <p className="op-muted">Campos adicionais também podem ser renomeados ou ocultados depois.</p>
+      <SettingsSection title="Adicionar mais um campo" description="Crie campos extras e escolha como eles aparecem para a equipe.">
         <div className="op-config-add"><label className="op-field"><span>Nome do novo campo</span><input value={customName} onChange={event => setCustomName(event.target.value)} placeholder="Ex.: Frota, número do motor, ocasião, CNPJ…" /></label><label className="op-field"><span>Onde esse campo pertence?</span><select value={customGroup} onChange={event => setCustomGroup(event.target.value)}>{definition.customFieldGroups.map(group => <option key={group}>{group}</option>)}</select></label><Button variant="secondary" onClick={addCustomField}><Plus size={16} />Adicionar campo</Button></div>
-        {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row op-custom-field-edit" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><label className="op-field op-grow"><span>Nome no aplicativo</span><input value={custom.label} onChange={event => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, label: event.target.value } : item) })); }} /></label><small>{custom.group}</small><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { markDirty(); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
-      </Section></CompactPanel>
+        {preferences.customFields.length > 0 && <div className="op-custom-fields">{preferences.customFields.map(custom => <div className="op-row op-custom-field-edit" key={custom.id}><label className="op-config-switch"><input type="checkbox" checked={custom.visible} onChange={event => { markDirty('campos-adicionais'); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, visible: event.target.checked } : item) })); }} /><span>{custom.visible ? 'Mostrar' : 'Ocultar'}</span></label><label className="op-field op-grow"><span>Nome no aplicativo</span><input value={custom.label} onChange={event => { markDirty('campos-adicionais'); setPreferences(current => ({ ...current, customFields: current.customFields.map(item => item.id === custom.id ? { ...item, label: event.target.value } : item) })); }} /></label><small>{custom.group}</small><button className="op-icon" type="button" aria-label={`Remover ${custom.label}`} onClick={() => { markDirty('campos-adicionais'); setPreferences(current => ({ ...current, customFields: current.customFields.filter(item => item.id !== custom.id) })); }}><Trash2 size={16} /></button></div>)}</div>}
+        {sectionSave('campos-adicionais')}
+      </SettingsSection></CompactPanel>
 
       <CompactPanel value="operacao">
-      {app === 'zeus' && <Section title="Linguagem da oficina">
-        <p className="op-muted">Defina como sua equipe chama o item atendido. Esse nome também é usado na área de clientes e no menu do Zeus.</p>
-        <div className="op-fields"><label className="op-field"><span>Como você chama o item atendido?</span><input value={preferences.fieldLabels.asset || 'Veículo'} onChange={event => setFieldLabel('asset', event.target.value)} placeholder="Ex.: Veículo, Equipamento, Máquina, Moto" /></label></div>
-      </Section>}
-      <Section title="Etapas, recursos e ações do processo">
-        <p className="op-muted">Cada opção abaixo faz parte do fluxo real da operação. Ao desmarcar uma etapa ou ação opcional, ela deixa de fazer parte do processo. Abra cada grupo para consultar o que ele controla, como etapas, fotos, relatórios e outras ações da equipe.</p>
+      {app === 'zeus' && <SettingsSection title="Linguagem da oficina" description="Defina como sua equipe chama o item atendido no Zeus.">
+        <div className="op-fields"><label className="op-field"><span>Como você chama o item atendido?</span><input value={preferences.fieldLabels.asset || 'Veículo'} onChange={event => setFieldLabel('asset', event.target.value, 'linguagem')} placeholder="Ex.: Veículo, Equipamento, Máquina, Moto" /></label></div>
+        {sectionSave('linguagem')}
+      </SettingsSection>}
+      <SettingsSection title="Etapas, recursos e ações do processo" description="Escolha o que faz parte do fluxo real da operação e o que fica fora dele.">
         <div className="op-config-groups op-flow-groups">{actionGroups.map(group => {
           const groupActions = definition.actions.filter(action => action.group === group);
           const activeCount = groupActions.filter(action => action.required || preferences.actionVisibility[action.key] !== false).length;
@@ -305,21 +329,22 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
             })}</div>
           </details>;
         })}</div>
-      </Section>
+        {sectionSave('fluxo')}
+      </SettingsSection>
 
-      {app === 'zeus' && <><div ref={flowPreviewRef} className="op-flow-preview-anchor"><Section title="Prévia do fluxo da oficina"><p className="op-muted">A sequência abaixo mostra como o processo ficará com as opções selecionadas.</p><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></Section></div><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} value={zeusPreferences} onChange={value => { markDirty(); setZeusPreferences(value); }} /></>}
+      {app === 'zeus' && <><div ref={flowPreviewRef} className="op-flow-preview-anchor"><SettingsSection title="Prévia do fluxo da oficina" description="Veja a sequência atual das etapas e como a identificação aparecerá para a equipe."><div className="zeus-settings-preview"><span className="op-kicker">Prévia da identificação</span><div><strong>{preferences.fieldLabels.identifier || 'Placa'}</strong><span>{preferences.fieldLabels.asset || 'Veículo'}</span><small>{preferences.fieldLabels.meter || 'Quilometragem'}</small></div></div><div className="zeus-process compact">{stages({ ...draft, scheduleEnabled: preferences.actionVisibility['module:agendamentos'] !== false, diagnosisEnabled: preferences.actionVisibility.diagnosis !== false, budgetEnabled: preferences.actionVisibility.budget !== false }).map((value, index) => <span key={value}><b>{String(index + 1).padStart(2, '0')}</b>{value}</span>)}</div></SettingsSection></div><ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} value={zeusPreferences} onChange={value => { markDirty('filtros'); setZeusPreferences(value); }} dirty={dirtySections.has('filtros')} saving={savingSection === 'filtros'} onSave={() => { void saveSection('filtros'); }} /></>}
 
-      {app === 'kronos' && <Section title="Etapas do pipeline"><p className="op-muted">Organize a sequência real da sua venda. Etapas com oportunidades abertas não podem ser removidas até que esses registros sejam movidos ou encerrados.</p><div className="op-custom-fields">{draft.salesStages.map((stage, index) => <div className="op-row" key={`${stage}-${index}`}><strong className="op-grow">{index + 1}. {stage}</strong><button type="button" className="op-icon" aria-label={`Mover ${stage} para cima`} disabled={index === 0} onClick={() => moveStage(index, -1)}><ArrowUp size={16} /></button><button type="button" className="op-icon" aria-label={`Mover ${stage} para baixo`} disabled={index === draft.salesStages.length - 1} onClick={() => moveStage(index, 1)}><ArrowDown size={16} /></button><button type="button" className="op-icon" aria-label={`Remover ${stage}`} disabled={draft.salesStages.length <= 2} onClick={() => { setDraft({ ...draft, salesStages: draft.salesStages.filter((_, current) => current !== index) }); markDirty(); }}><Trash2 size={16} /></button></div>)}</div><div className="op-config-add"><label className="op-field"><span>Nova etapa</span><input value={newStage} onChange={event => setNewStage(event.target.value)} placeholder="Ex.: Demonstração, validação técnica…" /></label><Button variant="secondary" onClick={addStage}><Plus size={16} />Adicionar etapa</Button></div></Section>}
+      {app === 'kronos' && <SettingsSection title="Etapas do pipeline" description="Organize a sequência real da venda e mantenha as etapas em uso disponíveis."><div className="op-custom-fields">{draft.salesStages.map((stage, index) => <div className="op-row" key={`${stage}-${index}`}><strong className="op-grow">{index + 1}. {stage}</strong><button type="button" className="op-icon" aria-label={`Mover ${stage} para cima`} disabled={index === 0} onClick={() => moveStage(index, -1)}><ArrowUp size={16} /></button><button type="button" className="op-icon" aria-label={`Mover ${stage} para baixo`} disabled={index === draft.salesStages.length - 1} onClick={() => moveStage(index, 1)}><ArrowDown size={16} /></button><button type="button" className="op-icon" aria-label={`Remover ${stage}`} disabled={draft.salesStages.length <= 2} onClick={() => { setDraft({ ...draft, salesStages: draft.salesStages.filter((_, current) => current !== index) }); markDirty('pipeline'); }}><Trash2 size={16} /></button></div>)}</div><div className="op-config-add"><label className="op-field"><span>Nova etapa</span><input value={newStage} onChange={event => setNewStage(event.target.value)} placeholder="Ex.: Demonstração, validação técnica…" /></label><Button variant="secondary" onClick={addStage}><Plus size={16} />Adicionar etapa</Button></div></SettingsSection>}
 
-      {app === 'artemis' && <Section title="Delivery e atendimento online"><div className="op-fields"><label className="op-field"><span>Taxa de entrega padrão (R$)</span><input type="number" min="0" step="0.01" value={draft.deliveryFee / 100} onChange={event => { markDirty(); setDraft({ ...draft, deliveryFee: Math.round(Number(event.target.value) * 100) }); }} /></label><label className="op-field"><span>Pedido mínimo de delivery (R$)</span><input type="number" min="0" step="0.01" value={draft.minimumOrder / 100} onChange={event => { markDirty(); setDraft({ ...draft, minimumOrder: Math.round(Number(event.target.value) * 100) }); }} /></label>{field('deliveryAreas', 'Bairros / zonas atendidas')}{field('hours', 'Horários de atendimento')}</div></Section>}
+      {app === 'artemis' && <SettingsSection title="Delivery e atendimento online" description="Defina taxa, pedido mínimo, regiões atendidas e horários do delivery."><div className="op-fields"><label className="op-field"><span>Taxa de entrega padrão (R$)</span><input type="number" min="0" step="0.01" value={draft.deliveryFee / 100} onChange={event => { markDirty('delivery'); setDraft({ ...draft, deliveryFee: Math.round(Number(event.target.value) * 100) }); }} /></label><label className="op-field"><span>Pedido mínimo de delivery (R$)</span><input type="number" min="0" step="0.01" value={draft.minimumOrder / 100} onChange={event => { markDirty('delivery'); setDraft({ ...draft, minimumOrder: Math.round(Number(event.target.value) * 100) }); }} /></label>{field('deliveryAreas', 'Bairros / zonas atendidas', 'text', 'delivery')}{field('hours', 'Horários de atendimento', 'text', 'delivery')}</div></SettingsSection>}
 
-      </CompactPanel><div className="op-form-footer op-settings-actions">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>
+      </CompactPanel>{app !== 'zeus' && <div className="op-form-footer op-settings-actions">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>}
     </form>
 
     <CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
     <CompactPanel value="backup">
-      <Section title="Cópia dos seus dados"><p>{cloudCanonical ? 'Seus dados ficam salvos e sincronizados automaticamente. A exportação abaixo é uma cópia adicional para arquivo próprio.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}</p><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></Section>
-      <Section title="Proteção dos seus dados"><p>{cloudCanonical ? 'As informações desta conta são mantidas online e sincronizadas automaticamente. A cópia manual é opcional e serve para seu próprio arquivo.' : 'Este ambiente mantém os dados neste dispositivo. Faça cópias periódicas para preservar suas informações.'}</p></Section>
+      <SettingsSection title="Cópia dos seus dados" description={cloudCanonical ? 'Exporte uma cópia adicional dos dados sincronizados para seu próprio arquivo.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></SettingsSection>
+      <SettingsSection title="Proteção dos seus dados" description={cloudCanonical ? 'As informações desta conta são mantidas online e sincronizadas automaticamente.' : 'Este ambiente mantém os dados neste dispositivo; faça cópias periódicas para preservá-los.'}><Badge>{cloudCanonical ? 'Sincronização automática' : 'Dados neste dispositivo'}</Badge></SettingsSection>
     </CompactPanel>
     </CompactTabs>
 
