@@ -38,5 +38,5 @@ export default async function OperationPage({ params }: { params: Promise<{ app:
   if (page === 'cadastro') redirect(`/cadastro?app=${encodeURIComponent(app)}&redirect=${encodeURIComponent(`/${app}`)}`);
   if (!appPages(app).includes(page)) notFound();
   if (recordId && !recordPages[app]?.includes(page)) notFound();
-  return <OperationAccessGate app={app}><AppRuntime key={`${app}:${page}:${recordId}`} app={app} page={page} recordId={recordId} /></OperationAccessGate>;
+  return <OperationAccessGate app={app}><AppRuntime app={app} page={page} recordId={recordId} /></OperationAccessGate>;
 }
