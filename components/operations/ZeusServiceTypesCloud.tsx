@@ -25,36 +25,42 @@ function same(a: string[], b: string[]) {
 
 export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
   const applying = useRef(false);
+  const workspaceRef = useRef(w);
+  workspaceRef.current = w;
   const cloud = parseCloud(w.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
+  const cloudSignature = JSON.stringify(cloud);
+  const accountId = w.accountId;
 
   useEffect(() => {
-    if (!w.accountId || w.accountId === 'guest') return;
+    const current = workspaceRef.current;
+    if (!current.accountId || current.accountId === 'guest') return;
     const local = readZeusServiceTypes();
-    if (cloud.length) {
-      if (!same(local, cloud)) {
+    const latestCloud = parseCloud(current.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
+    if (latestCloud.length) {
+      if (!same(local, latestCloud)) {
         applying.current = true;
-        saveZeusServiceTypes(cloud);
+        saveZeusServiceTypes(latestCloud);
         queueMicrotask(() => { applying.current = false; });
       }
       return;
     }
     const seed = local.length ? local : DEFAULT_TYPES;
-    void w.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(seed) }), 'Tipos de atendimento sincronizados.');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [w.accountId, w.data.revision]);
+    void current.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(seed) }), 'Tipos de atendimento sincronizados.');
+  }, [accountId, cloudSignature]);
 
   useEffect(() => {
-    if (!w.accountId || w.accountId === 'guest') return;
+    if (!accountId || accountId === 'guest') return;
     const syncLocal = () => {
       if (applying.current) return;
+      const current = workspaceRef.current;
       const values = readZeusServiceTypes();
-      const current = parseCloud(w.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
-      if (same(values, current)) return;
-      void w.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(values) }), 'Tipos de atendimento atualizados para a equipe.');
+      const currentCloud = parseCloud(current.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
+      if (same(values, currentCloud)) return;
+      void current.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(values) }), 'Tipos de atendimento atualizados para a equipe.');
     };
     window.addEventListener(eventName, syncLocal);
     return () => window.removeEventListener(eventName, syncLocal);
-  }, [w]);
+  }, [accountId]);
 
   return null;
 }
@@ -87,7 +93,7 @@ export function ZeusServiceTypeSettings({ w }: { w: Workspace }) {
   };
 
   return <Section title="Tipos de atendimento">
-    <p className="op-muted">A lista agora é compartilhada no Zeus. Todos os usuários da oficina recebem os mesmos tipos em OS e agendamentos.</p>
+    <p className="op-muted">A lista é compartilhada no Zeus. Todos os usuários da oficina recebem os mesmos tipos em OS e agendamentos.</p>
     <div className="zeus-service-type-list">{types.map(type => <div className="op-row" key={type}><strong className="op-grow">{type}</strong><button type="button" className="op-icon" aria-label={`Remover ${type}`} onClick={() => { void persist(types.filter(item => item !== type)); }}><Trash2 size={16} /></button></div>)}</div>
     <div className="op-config-add"><label className="op-field"><span>Novo tipo</span><input value={newType} onChange={event => { setNewType(event.target.value); setSaved(false); }} list="zeus-service-type-suggestions" placeholder="Ex.: Alinhamento, inspeção, revisão" /><datalist id="zeus-service-type-suggestions">{zeusServiceTypeSuggestions.map(item => <option key={item} value={item} />)}</datalist></label><Button variant="secondary" onClick={() => { void add(); }}><Plus size={16} />Adicionar</Button>{saved && <Badge>Salvo</Badge>}</div>
   </Section>;
