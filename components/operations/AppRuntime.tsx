@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   BarChart3, BookOpen, Box, CalendarDays, ChefHat, ClipboardCheck,
@@ -21,6 +21,7 @@ import { AppAsset } from '@/components/AppAsset';
 import './lean-operations.css';
 import './zeus-enhancements.css';
 import './zeus-modal-layout.css';
+import './zeus-unified.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
@@ -67,9 +68,22 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const operation = useOperationPreferences(app);
   const config = navigation[app];
   const [mobile, setMobile] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(w.data.settings.collapsed);
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
   const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
     || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
+
+  useEffect(() => {
+    setSidebarCollapsed(w.data.settings.collapsed);
+  }, [app, workspaceScope, w.data.settings.collapsed]);
+
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    void w.mutate(data => { data.settings.collapsed = next; }, '').then(ok => {
+      if (!ok) setSidebarCollapsed(w.data.settings.collapsed);
+    });
+  };
 
   if (!w.ready) return <AppLoadingScreen label={`Carregando ${config.name}`} />;
 
@@ -117,7 +131,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={publicError}>
       {app === 'zeus' && <><ZeusExternalSync w={w} /><ZeusServiceTypesCloudBridge w={w} /></>}
-      <div className={`op-app app-${app} theme-${w.data.settings.theme} ${w.data.settings.collapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
+      <div className={`op-app app-${app} theme-${w.data.settings.theme} ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
         <a className="op-skip" href="#op-main">Pular para o conteúdo</a>
         {mobile && <button className="op-nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
 
@@ -140,7 +154,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
           <div className="op-sidebar-bottom">
             {canConfigure ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
-            <button onClick={() => w.mutate(data => { data.settings.collapsed = !data.settings.collapsed; }, '')} aria-label={w.data.settings.collapsed ? 'Expandir menu' : 'Recolher menu'}>{w.data.settings.collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Recolher menu</span></button>
+            <button onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>{sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}</span></button>
           </div>
           <Link className="op-sidebar-credit" href="/" aria-label="Ir para a home da CRM PLUS">CRM PLUS <span>Store</span></Link>
         </aside>
