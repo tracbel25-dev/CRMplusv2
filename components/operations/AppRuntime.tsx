@@ -28,6 +28,8 @@ const ZeusBudgets = dynamic(() => import('./ZeusBudgets').then(module => module.
 const ZeusDashboard = dynamic(() => import('./ZeusDashboard').then(module => module.ZeusDashboard));
 const ZeusBilling = dynamic(() => import('./ZeusBilling').then(module => module.ZeusBilling));
 const ZeusCheckIn = dynamic(() => import('./ZeusCheckIn').then(module => module.ZeusCheckIn));
+const ZeusExternalSync = dynamic(() => import('./ZeusExternalSync').then(module => module.ZeusExternalSync), { ssr: false });
+const ZeusServiceTypesCloudBridge = dynamic(() => import('./ZeusServiceTypesCloud').then(module => module.ZeusServiceTypesCloudBridge), { ssr: false });
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
@@ -114,6 +116,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={publicError}>
+      {app === 'zeus' && <><ZeusExternalSync w={w} /><ZeusServiceTypesCloudBridge w={w} /></>}
       <div className={`op-app app-${app} theme-${w.data.settings.theme} ${w.data.settings.collapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
         <a className="op-skip" href="#op-main">Pular para o conteúdo</a>
         {mobile && <button className="op-nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
@@ -145,7 +148,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
         <div className="op-workspace">
           <header className="op-header">
             <button className="op-icon op-mobile-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir navegação"><Menu size={22} /></button>
-            <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong>{recordId && <><i>/</i><span>registro</span></>}</div>
+            <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong></div>
             <div className="op-header-tools">
               <span className="op-business-name">{w.data.settings.business}</span>
               <ExternalShare w={w} app={app} page={page} recordId={recordId} />

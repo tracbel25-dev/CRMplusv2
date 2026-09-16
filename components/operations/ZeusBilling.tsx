@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleDollarSign, RefreshCw } from 'lucide-react';
+import { CheckCircle2, CircleDollarSign } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { money } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -69,7 +69,12 @@ export function ZeusBilling({ w }: { w: Workspace }) {
     } finally { setBusy(false); }
   }, [patch, w]);
 
-  useEffect(() => { void load(); }, [load, w.data.revision]);
+  useEffect(() => {
+    void load();
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [load, w.data.revision]);
 
   const visible = useMemo(() => filter === 'Todos' ? records : records.filter(row => row.status === filter), [filter, records]);
   const pendingTotal = records.filter(row => row.status === 'Pendente').reduce((sum, row) => sum + row.amount_cents, 0);
@@ -84,7 +89,7 @@ export function ZeusBilling({ w }: { w: Workspace }) {
       <div><span>Recebido / baixado</span><strong>{money(paidTotal)}</strong><small>{records.filter(row => row.status === 'Pago' || row.status === 'Baixado').length} OS</small></div>
     </div>
 
-    <Section title="Ordens encerradas" action={<Button variant="secondary" disabled={busy} onClick={() => { void load(); }}><RefreshCw size={16} />Atualizar</Button>}>
+    <Section title="Ordens encerradas">
       <div className="op-filter-row"><label className="op-field"><span>Situação</span><select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option>Todos</option><option>Pendente</option><option>Pago</option><option>Baixado</option><option>Cancelado</option></select></label></div>
       {busy ? <p className="op-muted">Carregando faturamento…</p> : visible.length === 0 ? <Empty>Nenhuma OS nesta situação.</Empty> : <div className="zeus-billing-list">{visible.map(row => {
         const job = w.data.jobs.find(item => item.id === row.job_id);

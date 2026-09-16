@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { CheckCircle2, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { Workspace } from '@/lib/operations/storage';
 import { normalize } from '@/lib/operations/model';
 import { ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
@@ -22,7 +22,6 @@ import { Badge, Button, Empty, Section, Title } from './ui';
 export function ZeusCheckIn({ w }: { w: Workspace }) {
   const [tab, setTab] = useState<'checklists' | 'config'>('checklists');
   const [responses, setResponses] = useState<ChecklistResponseRow[]>([]);
-  const [busy, setBusy] = useState(false);
   const [configSegment, setConfigSegment] = useState<ZeusChecklistSegment>('auto');
   const [newItem, setNewItem] = useState('');
   const config = readZeusChecklistConfig(w.data);
@@ -30,7 +29,6 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
 
   const load = async () => {
     if (!w.accountId || w.accountId === 'guest') return;
-    setBusy(true);
     try {
       const result = await listZeusChecklists();
       setResponses(result.responses);
@@ -39,7 +37,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
       }
     } catch (reason) {
       w.setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar os checklists.');
-    } finally { setBusy(false); }
+    }
   };
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [w.accountId]);
@@ -70,6 +68,18 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
     if (currentItems.length <= 1) { w.setError('O checklist precisa ter ao menos um item.'); return; }
     await setCurrentItems(currentItems.filter((_, current) => current !== index));
   };
+  const renameItem = async (index: number, raw: string) => {
+    const value = raw.trim();
+    const original = currentItems[index];
+    if (!value || value === original) return;
+    if (currentItems.some((item, current) => current !== index && normalize(item) === normalize(value))) {
+      w.setError('Esse item já existe neste modelo.');
+      return;
+    }
+    const next = [...currentItems];
+    next[index] = value;
+    await setCurrentItems(next, 'Item do checklist atualizado.');
+  };
 
   const activeCategory = ZEUS_CHECKLIST_CATEGORIES.find(item => item.id === category) || ZEUS_CHECKLIST_CATEGORIES[0];
 
@@ -77,7 +87,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
     <Title eyebrow="Recepção" title="Checklist de entrada">A central mostra somente as inspeções ainda pendentes. Checklist concluído passa a fazer parte da própria OS.</Title>
     <div className="op-compact-tabs zeus-checkin-tabs" style={{ marginBottom: 18 }}><button aria-current={tab === 'checklists' ? 'page' : undefined} onClick={() => setTab('checklists')}>Pendentes</button><button aria-current={tab === 'config' ? 'page' : undefined} onClick={() => setTab('config')}>Configuração</button></div>
 
-    {tab === 'checklists' && <Section title="Inspeções pendentes" action={<Button variant="secondary" disabled={busy} onClick={() => { void load(); }}><RefreshCw size={16} />{busy ? 'Atualizando…' : 'Atualizar'}</Button>}>
+    {tab === 'checklists' && <Section title="Inspeções pendentes">
       <p className="op-muted">A execução do checklist acontece dentro da etapa Identificação da OS. Esta lista serve apenas para enxergar o que ainda precisa ser concluído.</p>
       {!config.enabled ? <Empty>O checklist de entrada está desativado na configuração.</Empty> : pendingJobs.length ? <div className="zeus-checkin-list">{pendingJobs.map(job => {
         const customer = w.data.customers.find(item => item.id === job.customerId);
@@ -101,7 +111,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
       <Section title="Itens por segmento">
         <div className="zeus-template-tabs">{ZEUS_CHECKLIST_SEGMENTS.map(item => <button type="button" className={configSegment === item.id ? 'active' : ''} onClick={() => setConfigSegment(item.id)} key={item.id}><strong>{item.label}</strong><small>{item.description}</small></button>)}</div>
         <div className="zeus-template-head"><div><strong>{ZEUS_CHECKLIST_TEMPLATES[configSegment].label}</strong><p className="op-muted">Edite os itens deste segmento sem alterar os demais.</p></div><Button variant="secondary" onClick={() => { void setCurrentItems([...ZEUS_CHECKLIST_TEMPLATES[configSegment].items], 'Modelo padrão restaurado.'); }}><RotateCcw size={16} />Restaurar padrão</Button></div>
-        <div className="zeus-checkin-config-list">{currentItems.map((item, index) => <div key={`${item}-${index}`}><span>{String(index + 1).padStart(2, '0')}</span><input value={item} onChange={event => { const next = [...currentItems]; next[index] = event.target.value; void setCurrentItems(next, 'Item do checklist atualizado.'); }} /><button className="op-icon" type="button" aria-label={`Remover ${item}`} onClick={() => { void removeItem(index); }}><Trash2 size={16} /></button></div>)}</div>
+        <div className="zeus-checkin-config-list">{currentItems.map((item, index) => <div key={`${configSegment}-${index}-${item}`}><span>{String(index + 1).padStart(2, '0')}</span><input defaultValue={item} onBlur={event => { void renameItem(index, event.currentTarget.value); }} /><button className="op-icon" type="button" aria-label={`Remover ${item}`} onClick={() => { void removeItem(index); }}><Trash2 size={16} /></button></div>)}</div>
         <div className="op-config-add"><label className="op-field"><span>Novo item para {ZEUS_CHECKLIST_TEMPLATES[configSegment].shortLabel.toLowerCase()}</span><input value={newItem} onChange={event => setNewItem(event.target.value)} placeholder="Adicionar item de inspeção" /></label><Button variant="secondary" onClick={() => { void addItem(); }}><Plus size={16} />Adicionar</Button></div>
       </Section>
     </>}

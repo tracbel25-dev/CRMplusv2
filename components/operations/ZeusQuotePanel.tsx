@@ -121,9 +121,9 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
     <div className="op-actions zeus-quote-actions">
       {quote.lines.length > 0 && <Button variant="secondary" onClick={download}><Download size={16} />Baixar PDF</Button>}
       {quote.lines.length > 0 && ['Rascunho', 'Enviado'].includes(quote.status) && <Button variant="secondary" onClick={() => { void share(); }} disabled={busy}><MessageCircle size={16} />{quote.status === 'Rascunho' ? 'Compartilhar' : 'Compartilhar novamente'}</Button>}
-      {status === 'Enviado' && <><Button onClick={() => setDecision(true)}>Registrar aprovação</Button><Button variant="secondary" onClick={() => setDecision(false)}>Registrar reprovação</Button></>}
       {(!['Rascunho', 'Enviado'].includes(quote.status) || status === 'Expirado') && <Button variant="secondary" onClick={() => setRevision(true)}>{status === 'Expirado' ? 'Revisar validade / nova versão' : 'Criar nova versão'}</Button>}
     </div>
+    {status === 'Enviado' && <details className="op-version-history zeus-quote-manual-decision"><summary>Registrar uma decisão recebida fora do link</summary><p className="op-muted">Use esta opção somente quando o cliente aprovar ou reprovar por outro canal.</p><div className="op-actions"><Button onClick={() => setDecision(true)}>Registrar aprovação</Button><Button variant="secondary" onClick={() => setDecision(false)}>Registrar reprovação</Button></div></details>}
     {quote.versions?.length ? <details className="op-version-history"><summary>Versões anteriores ({quote.versions.length})</summary>{quote.versions.map(version => <div key={version.version}><strong>Versão {version.version} · {version.status}</strong><p>{version.decisionNote || 'Sem decisão registrada'}</p></div>)}</details> : null}
     {quote.events.length > 0 && <details><summary>Histórico do orçamento</summary><div style={{ marginTop: 12 }}><Timeline events={quote.events} /></div></details>}
 

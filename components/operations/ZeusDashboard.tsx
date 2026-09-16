@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Workspace } from '@/lib/operations/storage';
 import { activeJob, matches, money } from '@/lib/operations/model';
@@ -71,7 +71,12 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
     } finally { setBillingBusy(false); }
   }, [w]);
 
-  useEffect(() => { void loadBilling(); }, [loadBilling, w.data.revision]);
+  useEffect(() => {
+    void loadBilling();
+    const onFocus = () => { void loadBilling(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loadBilling, w.data.revision]);
 
   const definitions = useMemo<FilterDefinition[]>(() => {
     const customerNames = w.data.jobs.map(job => w.data.customers.find(customer => customer.id === job.customerId)?.name || 'Cliente não identificado');
@@ -141,7 +146,7 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
   return <>
     <Title eyebrow="Visão gerencial" title="Dashboard">Operação e faturamento aparecem separados para você analisar a oficina sem misturar andamento da OS com recebimento.</Title>
 
-    <Section title="Relatório de OS">
+    <Section title="Visão das OS">
       <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'lead', label: 'Lead time' }, { value: 'createdAt', label: 'Data de abertura' }, { value: 'due', label: 'Prazo previsto' }, { value: 'number', label: 'Número da OS' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar OS, cliente, ${w.data.settings.assetLabel.toLowerCase()} ou técnico`} />
 
       <section className="zeus-dashboard-kpis">
@@ -177,7 +182,7 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
       </div>
     </Section>
 
-    <Section title="Relatório de faturamento" action={<div className="op-actions"><Button variant="secondary" disabled={billingBusy} onClick={() => { void loadBilling(); }}><RefreshCw size={16} />Atualizar</Button><Button variant="secondary" onClick={() => router.push('/zeus/faturamento')}>Abrir faturamento <ArrowRight size={16} /></Button></div>}>
+    <Section title="Faturamento" action={<Button variant="secondary" onClick={() => router.push('/zeus/faturamento')}>Abrir faturamento <ArrowRight size={16} /></Button>}>
       {billingBusy ? <p className="op-muted">Carregando valores…</p> : <>
         <div className="zeus-billing-summary">
           <div><span>Pendente de recebimento</span><strong>{money(pendingValue)}</strong><small>{pendingBilling.length} OS pendente(s)</small></div>
