@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import type { Workspace } from '@/lib/operations/storage';
 import { normalize } from '@/lib/operations/model';
 import { ZEUS_CHECKLIST_SEGMENTS, ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
@@ -39,7 +40,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
         if (w.data.customFieldValues?.[row.job_id]?.__zeus_checklist_completed__ !== 'true') await syncZeusChecklistResponse(w, row.job_id, row);
       }
     } catch (reason) {
-      w.setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar os checklists.');
+      w.setError(clientMessage(reason, 'Não foi possível atualizar os checklists.'));
     }
   };
 
@@ -119,13 +120,5 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
         <div className="op-config-add"><label className="op-field"><span>Novo item para {ZEUS_CHECKLIST_TEMPLATES[configSegment].shortLabel.toLowerCase()}</span><input value={newItem} onChange={event => setNewItem(event.target.value)} placeholder="Adicionar item de inspeção" /></label><Button variant="secondary" onClick={() => { void addItem(); }}><Plus size={16} />Adicionar</Button></div>
       </Section>
     </>}
-
-    <style jsx global>{`
-      .zeus-checkin-tabs{width:max-content;padding:4px!important;border:1px solid var(--op-line);border-radius:10px;background:#eef3f8;gap:4px!important}.zeus-checkin-tabs button{min-width:132px;border-radius:8px!important;padding:10px 16px!important;font-size:13px!important}
-      .zeus-checkin-list{display:grid;gap:8px;margin-top:16px}.zeus-checkin-row{display:grid;grid-template-columns:minmax(220px,1fr) minmax(150px,.45fr) auto;align-items:center;gap:18px;padding:14px 0;border-bottom:1px solid var(--op-line)}.zeus-checkin-identity,.zeus-checkin-status{display:grid;gap:3px}.zeus-checkin-identity small,.zeus-checkin-status small{color:var(--op-muted)}
-      .zeus-checklist-config-picker{display:grid;gap:12px;margin-top:18px;padding-top:18px;border-top:1px solid var(--op-line)}.zeus-checklist-categories{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.zeus-checklist-categories button,.zeus-checklist-model-grid button{border:1px solid var(--op-line);background:var(--op-paper);color:inherit;cursor:pointer}.zeus-checklist-categories button{padding:12px;text-align:left;display:grid;gap:3px}.zeus-checklist-categories button small{color:var(--op-muted)}.zeus-checklist-categories button.active,.zeus-checklist-model-grid button.active{border-color:var(--op-accent);box-shadow:inset 0 0 0 1px var(--op-accent)}.zeus-checklist-model-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.zeus-checklist-model-grid button{min-height:48px;padding:10px;display:flex;align-items:center;justify-content:space-between;text-align:left}.zeus-checklist-model-grid em{font-size:9px;font-style:normal;color:var(--op-accent);text-transform:uppercase}
-      .zeus-template-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:18px}.zeus-template-tabs button{padding:12px;border:1px solid var(--op-line);background:var(--op-paper);text-align:left;display:grid;gap:3px}.zeus-template-tabs button.active{border-color:var(--op-accent)}.zeus-template-tabs small{color:var(--op-muted)}.zeus-template-head{display:flex;justify-content:space-between;gap:14px;align-items:center}.zeus-checkin-config-list{display:grid;gap:7px;margin:14px 0}.zeus-checkin-config-list>div{display:grid;grid-template-columns:36px 1fr 40px;gap:8px;align-items:center}.zeus-checkin-config-list input{width:100%;padding:10px;border:1px solid var(--op-line);background:var(--op-paper);color:inherit}
-      @media(max-width:900px){.zeus-checklist-categories{grid-template-columns:repeat(2,minmax(0,1fr))}.zeus-checklist-model-grid,.zeus-template-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.zeus-checkin-row{grid-template-columns:1fr auto}.zeus-checkin-status{grid-column:1}.zeus-checkin-row>.op-button{grid-column:2;grid-row:1/3}}@media(max-width:600px){.zeus-checklist-categories,.zeus-checklist-model-grid,.zeus-template-tabs{grid-template-columns:1fr}.zeus-checkin-row{grid-template-columns:1fr}.zeus-checkin-row>.op-button{grid-column:1;grid-row:auto;width:100%}.zeus-template-head{align-items:stretch;flex-direction:column}}
-    `}</style>
   </>;
 }
