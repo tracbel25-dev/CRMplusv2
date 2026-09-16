@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Copy, CreditCard, ExternalLink, MessageCircle, RefreshCw } from 'lucide-react';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { event, money, paid, receiveTablePayment, tableBalance, tableOrders, total } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -42,7 +43,7 @@ function newestCharge(charges: Array<MercadoPagoCharge | null | undefined>) {
 }
 
 function errorMessage(reason: unknown, fallback: string) {
-  return reason instanceof Error && reason.message ? reason.message : fallback;
+  return clientMessage(reason, fallback);
 }
 
 function MercadoPagoChargePanel(props: ChargePanelProps) {
@@ -232,7 +233,7 @@ function ZeusCompletedPayment({ w, recordId }: { w: Workspace; recordId: string 
   return <MercadoPagoChargePanel accountId={w.accountId} appId="zeus" sourceId={`os:${job.id}`} reference={reference} amountCents={amountCents} items={items} phone={customer?.phone} onApproved={() => w.mutate(data => {
     const current = data.jobs.find(item => item.id === job.id);
     if (!current) return;
-    if (!current.events.some(item => item.text.includes('Pagamento Mercado Pago confirmado'))) current.events.push(event(`Pagamento Mercado Pago confirmado: ${money(amountCents)}`));
+    if (!current.events.some(item => item.code === 'payment.mercadopago.confirmed' || item.text.includes('Pagamento Mercado Pago confirmado'))) current.events.push(event(`Pagamento Mercado Pago confirmado: ${money(amountCents)}`, 'payment.mercadopago.confirmed'));
   }, 'Pagamento confirmado pelo Mercado Pago.')} />;
 }
 

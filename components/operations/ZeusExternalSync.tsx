@@ -9,30 +9,32 @@ let legacyMigrationChecked = false;
 
 export function ZeusExternalSync({ w }: { w: Workspace }) {
   const running = useRef(false);
+  const workspaceRef = useRef(w);
+  workspaceRef.current = w;
+  const accountId = w.accountId;
 
   const sync = useCallback(async () => {
-    if (running.current || !w.accountId || w.accountId === 'guest') return;
+    const current = workspaceRef.current;
+    if (running.current || !current.accountId || current.accountId === 'guest') return;
     running.current = true;
     try {
       if (!legacyMigrationChecked) {
         try {
           await migrateLegacyZeusChecklists();
         } catch (reason) {
-          // Migração antiga é complementar. Falha/permissão nela não pode bloquear respostas atuais.
           console.warn('Zeus legacy checklist migration:', reason);
         } finally {
           legacyMigrationChecked = true;
         }
       }
-      await syncAllZeusChecklistResponses(w);
-      await syncZeusQuoteExternalResponses(w);
+      await syncAllZeusChecklistResponses(current);
+      await syncZeusQuoteExternalResponses(current);
     } catch (reason) {
-      // A sincronização automática não deve interromper a operação. Ações explícitas continuam exibindo o erro.
       console.warn('Zeus external sync:', reason);
     } finally {
       running.current = false;
     }
-  }, [w]);
+  }, [accountId]);
 
   useEffect(() => {
     void sync();

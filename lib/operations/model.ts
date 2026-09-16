@@ -1,5 +1,5 @@
 export type AppId = 'zeus' | 'artemis' | 'athena-pesquisa' | 'kronos' | 'athena-orcamentos';
-export type Event = { id: string; at: string; text: string };
+export type Event = { id: string; at: string; text: string; code?: string };
 export type Customer = { id: string; name: string; phone: string; email: string; notes: string };
 export type Asset = { id: string; customerId: string; identifier: string; model: string; year: string; meter: string };
 export type Line = {
@@ -190,7 +190,7 @@ export const initialData = (): Data => ({
 
 export const uid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
-export const event = (text: string): Event => ({ id: uid(), at: now(), text });
+export const event = (text: string, code?: string): Event => ({ id: uid(), at: now(), text, ...(code ? { code } : {}) });
 export const nextNumber = (records: { number: number }[]) => records.reduce((n, r) => Math.max(n, r.number), 0) + 1;
 export const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value / 100);
 export function cents(value: string | number): number {
@@ -238,7 +238,7 @@ export function newJob(d: Data, input: Omit<Job, 'id' | 'number' | 'stage' | 'st
   const asset = d.assets.find(x => x.id === input.assetId && x.customerId === input.customerId);
   if (!asset || !d.customers.some(x => x.id === input.customerId)) throw new Error('Selecione o cliente e o veículo correspondente.');
   const number = nextNumber(d.jobs);
-  const job: Job = { ...input, id: uid(), number, stage: 'Identificação', status: 'Em andamento', createdAt: now(), events: [event('Atendimento aberto')], quote: blankQuote(number, input.customerId), attachments: [], tasks: [] };
+  const job: Job = { ...input, id: uid(), number, stage: 'Identificação', status: 'Em andamento', createdAt: now(), events: [event('Atendimento aberto', 'job.opened')], quote: blankQuote(number, input.customerId), attachments: [], tasks: [] };
   d.jobs.push(job);
   if (a) { a.status = 'Iniciado'; a.jobId = job.id; }
   return job.id;
@@ -255,13 +255,13 @@ export function advanceJob(d: Data, id: string, expectedStage?: string) {
   if (job.stage === 'Orçamento' && d.settings.budgetEnabled && effectiveQuoteStatus(job.quote) !== 'Aprovado') throw new Error(effectiveQuoteStatus(job.quote) === 'Expirado' ? 'O orçamento venceu. Abra uma nova versão antes de iniciar a execução.' : 'Registre a aprovação do orçamento antes de iniciar a execução.');
   if (job.stage === 'Execução' && !job.tasks.length) throw new Error('Registre ao menos uma tarefa real da execução antes da conferência.');
   if (job.stage === 'Execução' && job.tasks.some(l => !l.done)) throw new Error('Conclua os serviços antes da conferência.');
-  if (index === flow.length - 1) { job.status = 'Encerrado'; job.events.push(event('Entrega registrada e atendimento encerrado')); return; }
+  if (index === flow.length - 1) { job.status = 'Encerrado'; job.events.push(event('Entrega registrada e atendimento encerrado', 'job.closed')); return; }
   job.stage = flow[index + 1];
   if (job.stage === 'Execução') {
     for (const l of job.quote.lines.filter(l => l.kind === 'Serviço')) if (!job.tasks.some(t => t.id === l.id)) job.tasks.push({ id: l.id, description: l.description, done: false });
   }
   job.status = job.stage === 'Entrega' ? 'Pronto para retirada' : 'Em andamento';
-  job.events.push(event(`Etapa: ${job.stage}`));
+  job.events.push(event(`Etapa: ${job.stage}`, 'job.stage'));
 }
 
 export function sendQuote(q: Quote) {
@@ -270,20 +270,20 @@ export function sendQuote(q: Quote) {
   total(q.lines, q.discount);
   if (!q.validUntil || q.validUntil < localDay()) throw new Error('Defina uma validade a partir de hoje.');
   q.status = 'Enviado';
-  q.events.push(event(`Versão ${q.version} marcada como enviada pelo operador`));
+  q.events.push(event(`Versão ${q.version} marcada como enviada pelo operador`, 'quote.sent'));
 }
 export function decideQuote(q: Quote, approved: boolean, note: string) {
   if (effectiveQuoteStatus(q) === 'Expirado') throw new Error('Orçamento vencido. Crie uma nova versão.');
   if (q.status !== 'Enviado') throw new Error('Somente orçamentos enviados podem receber uma decisão.');
   if (!note.trim()) throw new Error('Informe como a decisão do cliente foi recebida.');
   q.status = approved ? 'Aprovado' : 'Reprovado'; q.decisionAt = now(); q.decisionNote = note;
-  q.events.push(event(`Versão ${q.version}: ${q.status.toLowerCase()}, decisão registrada pelo operador. ${note}`));
+  q.events.push(event(`Versão ${q.version}: ${q.status.toLowerCase()}, decisão registrada pelo operador. ${note}`, approved ? 'quote.approved' : 'quote.rejected'));
 }
 export function reviseQuote(q: Quote) {
   q.versions ??= [];
   q.versions.push({ version: q.version, status: effectiveQuoteStatus(q), lines: structuredClone(q.lines), discount: q.discount, validUntil: q.validUntil, notes: q.notes, at: now(), decisionNote: q.decisionNote });
   q.version++; q.status = 'Rascunho'; q.decisionAt = undefined; q.decisionNote = undefined;
-  q.events.push(event(`Nova versão ${q.version} aberta; requer nova aprovação`));
+  q.events.push(event(`Nova versão ${q.version} aberta; requer nova aprovação`, 'quote.revised'));
 }
 
 export function reserved(d: Data, productId: string, except?: string) {

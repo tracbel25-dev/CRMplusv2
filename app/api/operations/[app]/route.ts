@@ -8,7 +8,6 @@ import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MAX_WORKSPACE_BYTES = 8 * 1024 * 1024;
 const ZEUS_TERMINAL_STATUSES = new Set(['Encerrado', 'Cancelado', 'Reprovado']);
 
 function cloudApp(value: string): CloudOperationalApp | null {
@@ -108,7 +107,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!access) return NextResponse.json({ error: 'Sua sessão expirou ou este aplicativo não está liberado para sua conta.' }, { status: 401 });
 
   const rawBody = await request.text();
-  if (!rawBody || Buffer.byteLength(rawBody, 'utf8') > MAX_WORKSPACE_BYTES) return NextResponse.json({ error: 'A quantidade de dados enviada excede o limite deste aplicativo.' }, { status: 413 });
+  if (!rawBody) return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
   let body: Record<string, unknown>;
   try { body = JSON.parse(rawBody) as Record<string, unknown>; }
   catch { return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 }); }

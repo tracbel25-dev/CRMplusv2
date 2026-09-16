@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Download, MessageCircle } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import type { Job, Quote } from '@/lib/operations/model';
 import { activeJob, advanceJob, decideQuote, effectiveQuoteStatus, event, money, reviseQuote, sendQuote, total } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -49,7 +50,7 @@ function QuoteEditor({ w, quote, job, onSaved }: { w: Workspace; quote: Quote; j
         current.events.push(event('Orçamento salvo'));
       }, 'Orçamento salvo.');
       if (ok) onSaved(structuredClone(draft));
-    } catch (reason) { setError((reason as Error).message); }
+    } catch (reason) { setError(clientMessage(reason, 'Não foi possível salvar o orçamento.')); }
     finally { setBusy(false); }
   };
   return <div className="zeus-quote-editor">
@@ -125,7 +126,7 @@ export function ZeusQuotePanel({ w, quote, job }: { w: Workspace; quote: Quote; 
       const message = `${w.data.settings.business || 'Oficina'}\n${label}\nTotal: ${money(value)}\nAcesse para conferir e aprovar ou reprovar:\n${url}`;
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
       setSharePrompt(false);
-    } catch (reason) { w.setError(reason instanceof Error ? reason.message : 'Não foi possível compartilhar o orçamento.'); }
+    } catch (reason) { w.setError(clientMessage(reason, 'Não foi possível compartilhar o orçamento.')); }
     finally { setBusy(false); }
   };
 

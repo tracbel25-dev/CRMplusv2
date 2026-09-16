@@ -88,15 +88,25 @@ export type LeadSegment = { stage: string; startedAt: string; endedAt: string; d
 export type JobLeadTime = { job: Job; totalMs: number; finished: boolean; segments: LeadSegment[] };
 
 function terminalAt(job: Job) {
-  const terminal = [...job.events].reverse().find(item => /encerrad|cancelad|reprovad/i.test(item.text));
+  const terminal = [...job.events].reverse().find(item =>
+    ['job.closed', 'job.cancelled', 'job.rejected'].includes(item.code || '') ||
+    /encerrad|cancelad|reprovad/i.test(item.text)
+  );
   return terminal?.at || '';
+}
+
+function stageFromEvent(item: Job['events'][number]) {
+  const encoded = item.code?.startsWith('job.stage:') ? item.code.slice('job.stage:'.length).trim() : '';
+  if (encoded) return encoded;
+  return item.text.replace(/^Etapa:\s*/i, '').trim();
 }
 
 export function jobLeadTime(job: Job, reference = new Date()): JobLeadTime {
   const transitions = [...job.events]
-    .filter(item => /^Etapa:\s*/i.test(item.text))
+    .filter(item => item.code === 'job.stage' || item.code?.startsWith('job.stage:') || /^Etapa:\s*/i.test(item.text))
     .sort((a, b) => a.at.localeCompare(b.at))
-    .map(item => ({ stage: item.text.replace(/^Etapa:\s*/i, '').trim(), at: item.at }));
+    .map(item => ({ stage: stageFromEvent(item), at: item.at }))
+    .filter(item => !!item.stage);
   const terminal = terminalAt(job);
   const finished = !!terminal || ['Encerrado', 'Cancelado', 'Reprovado'].includes(job.status);
   const end = terminal || reference.toISOString();

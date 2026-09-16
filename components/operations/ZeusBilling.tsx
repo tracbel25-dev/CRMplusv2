@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, CircleDollarSign } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import { money } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Empty, Modal, RecordForm, Section, Title } from './ui';
@@ -36,6 +37,8 @@ export function ZeusBilling({ w }: { w: Workspace }) {
   const access = useStoreAccess();
   const canCollect = access.hasPermission('zeus', 'billing_collect');
   const canManage = access.hasPermission('zeus', 'billing_manage');
+  const workspaceRef = useRef(w);
+  workspaceRef.current = w;
   const [records, setRecords] = useState<BillingRecord[]>([]);
   const [busy, setBusy] = useState(true);
   const [selectedJob, setSelectedJob] = useState('');
@@ -53,6 +56,7 @@ export function ZeusBilling({ w }: { w: Workspace }) {
   }, []);
 
   const load = useCallback(async () => {
+    const current = workspaceRef.current;
     setBusy(true);
     try {
       const response = await fetch('/api/zeus/faturamento', { headers: { authorization: `Bearer ${await token()}` }, cache: 'no-store' });
@@ -60,7 +64,7 @@ export function ZeusBilling({ w }: { w: Workspace }) {
       if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o faturamento.');
       let rows = (payload.records || []) as BillingRecord[];
 
-      const autoPaid = rows.filter(row => row.status === 'Pendente' && w.data.jobs.find(job => job.id === row.job_id)?.events.some(item => item.text.includes('Pagamento Mercado Pago confirmado')));
+      const autoPaid = rows.filter(row => row.status === 'Pendente' && current.data.jobs.find(job => job.id === row.job_id)?.events.some(item => item.code === 'payment.mercadopago.confirmed' || item.text.includes('Pagamento Mercado Pago confirmado')));
       if (autoPaid.length && canManage) {
         await Promise.all(autoPaid.map(row => patch(row.job_id, { status: 'Pago', paymentMethod: 'Mercado Pago', paymentProvider: 'Mercado Pago', notes: 'Pagamento confirmado automaticamente.' })));
         const refreshed = await fetch('/api/zeus/faturamento', { headers: { authorization: `Bearer ${await token()}` }, cache: 'no-store' });
@@ -69,9 +73,9 @@ export function ZeusBilling({ w }: { w: Workspace }) {
       }
       setRecords(rows);
     } catch (reason) {
-      w.setError(reason instanceof Error ? reason.message : 'Não foi possível carregar o faturamento.');
+      current.setError(clientMessage(reason, 'Não foi possível carregar o faturamento.'));
     } finally { setBusy(false); }
-  }, [canManage, patch, w]);
+  }, [canManage, patch]);
 
   useEffect(() => { void load(); }, [load, w.data.revision]);
   useEffect(() => {
@@ -126,7 +130,7 @@ export function ZeusBilling({ w }: { w: Workspace }) {
           await load();
           return true;
         } catch (reason) {
-          w.setError(reason instanceof Error ? reason.message : 'Não foi possível registrar o recebimento.');
+          w.setError(clientMessage(reason, 'Não foi possível registrar o recebimento.'));
           return false;
         }
       }}
