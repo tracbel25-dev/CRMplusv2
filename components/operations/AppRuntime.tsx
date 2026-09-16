@@ -19,9 +19,7 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { AppAsset } from '@/components/AppAsset';
 import './lean-operations.css';
-import './zeus-enhancements.css';
-import './zeus-modal-layout.css';
-import './zeus-unified.css';
+import './zeus.css';
 
 const Zeus = dynamic(() => import('./Zeus').then(module => module.Zeus));
 const LeanZeusJobDetail = dynamic(() => import('./LeanZeusJobDetail').then(module => module.LeanZeusJobDetail));
@@ -60,6 +58,12 @@ const zeusPagePermissions: Record<string,string> = {
   faturamento:'billing_view',
   clientes:'customers_manage'
 };
+
+const zeusNavigationGroups = [
+  { label: 'Ordens de serviço', paths: ['agendamentos', 'atendimentos', 'checklist', 'orcamentos'] },
+  { label: 'Cadastros', paths: ['clientes'] },
+  { label: 'Gestão administrativa', paths: ['faturamento', 'dashboard'] },
+];
 
 export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: string; recordId?: string }) {
   const access = useStoreAccess();
@@ -128,6 +132,13 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     : app === 'athena-pesquisa' ? <Research key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />
     : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />;
 
+  const renderNavItem = (item: (typeof config.sections)[number]) => {
+    const Icon = icons[item.icon as keyof typeof icons];
+    const label = app === 'zeus' && item.path === 'clientes' ? zeusClientsLabel : item.label;
+    const active = navigationPage === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
+    return <Link prefetch key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
+  };
+
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={publicError}>
       {app === 'zeus' && <><ZeusExternalSync w={w} /><ZeusServiceTypesCloudBridge w={w} /></>}
@@ -142,14 +153,16 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             </span>
             <div><strong>{config.name}</strong><small>{config.subtitle}</small></div>
           </Link>
-          <span className="op-nav-label">Sua operação</span>
+          {app !== 'zeus' && <span className="op-nav-label">Sua operação</span>}
           <nav aria-label={`Navegação ${config.name}`}>
-            {nav.map(item => {
-              const Icon = icons[item.icon as keyof typeof icons];
-              const label = app === 'zeus' && item.path === 'clientes' ? zeusClientsLabel : item.label;
-              const active = navigationPage === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
-              return <Link key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
-            })}
+            {app === 'zeus' ? <>
+              {nav.filter(item => item.path === 'inicio').map(renderNavItem)}
+              {zeusNavigationGroups.map(group => {
+                const items = nav.filter(item => group.paths.includes(item.path));
+                if (!items.length) return null;
+                return <div className="zeus-nav-group" key={group.label}><span className="op-nav-label zeus-nav-group-label">{group.label}</span>{items.map(renderNavItem)}</div>;
+              })}
+            </> : nav.map(renderNavItem)}
           </nav>
 
           <div className="op-sidebar-bottom">
@@ -189,23 +202,6 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           details.op-config-group>summary span{margin-left:auto!important;color:var(--op-muted)!important}
           details.op-config-group[open]>summary{border-bottom:1px solid var(--op-line)}
           .op-config-groups{gap:10px!important}
-          .zeus-dashboard-grid>div{min-width:0;padding:18px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper)}
-          .zeus-dashboard-grid{align-items:start}
-          @media(max-width:900px){.zeus-dashboard-grid{grid-template-columns:1fr!important}}
-          @media(max-width:720px){
-            .app-zeus .op-main{padding-left:14px!important;padding-right:14px!important}
-            .app-zeus .op-title{display:grid!important;gap:14px!important}
-            .app-zeus .op-title>.op-actions{width:100%;display:grid!important;grid-template-columns:1fr!important}
-            .app-zeus .op-title>.op-actions .op-button{width:100%}
-            .app-zeus .zeus-stage-rail{display:flex!important;overflow-x:auto!important;flex-wrap:nowrap!important;scroll-snap-type:x proximity;padding-bottom:7px}
-            .app-zeus .zeus-stage-rail>span{flex:0 0 auto;scroll-snap-align:start}
-            .app-zeus .zeus-workbench{grid-template-columns:1fr!important}
-            .app-zeus .zeus-context-stack{grid-template-columns:1fr 1fr!important;order:2}
-            .app-zeus .zeus-now{min-width:0}
-            .app-zeus .op-actions{flex-wrap:wrap}
-            .app-zeus .op-dialog.wide{width:calc(100vw - 16px)!important;max-width:none!important}
-          }
-          @media(max-width:430px){.app-zeus .zeus-context-stack{grid-template-columns:1fr!important}}
         `}</style>
       </div>
     </ErrorContext.Provider>
