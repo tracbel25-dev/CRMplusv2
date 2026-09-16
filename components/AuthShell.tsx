@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { apps } from '@/lib/catalog';
+import { clientMessage } from '@/lib/clientMessage';
 import { precheckSignupIdentity } from '@/lib/antifraud';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
@@ -75,7 +77,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
       const {error:resendError}=await supabase.auth.resend({type:'signup',email:normalized,options:{emailRedirectTo:`${window.location.origin}/auth/confirm`}});
       if(resendError)throw resendError;
       setMessage('Novo e-mail de confirmação enviado. Confira também a caixa de spam.');
-    }catch(reason){setError((reason as Error).message||'Não foi possível reenviar a confirmação.');}
+    }catch(reason){setError(clientMessage(reason,'Não foi possível reenviar a confirmação.'));}
     finally{setLoading(false);}
   };
 
@@ -128,19 +130,18 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
         await continueAfterAuth();
       }
     }catch(reason){
-      const text=(reason as {message?:string}).message||'Não foi possível concluir o acesso.';
-      setError(text==='Invalid login credentials'?'E-mail ou senha incorretos.':text);
+      setError(clientMessage(reason,'Não foi possível concluir o acesso.'));
     }finally{setLoading(false);}
   };
 
-  if(checkingSession)return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Acesso</span><h1>Carregando sua conta…</h1><p>Verificando sua sessão.</p></section></main>;
+  if(checkingSession)return <AppLoadingScreen label="Carregando sua conta" />;
 
   return <main className="auth-shell">
     <Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link>
     <section className="auth-card">
       <span className="eyebrow">{signup?'Criar conta':'Acesso'}</span>
       <h1>{signup?'Crie sua conta CRM PLUS.':'Entre na sua conta.'}</h1>
-      <p>{signup?'A conta centraliza sua assinatura, os aplicativos contratados e quem pode acessar ou configurar cada um.':app?`Depois do acesso, você pode seguir para o ${apps.find(item=>item.slug===app)?.name||'aplicativo'} ou abrir sua área do cliente.`:'Acesse sua área do cliente, aplicativos e assinaturas.'}</p>
+      <p>{signup?'Sua conta reúne os aplicativos contratados e os acessos da sua equipe.':app?`Depois de entrar, você pode seguir para o ${apps.find(item=>item.slug===app)?.name||'aplicativo'} ou abrir sua área do cliente.`:'Acesse sua área do cliente, aplicativos e assinaturas.'}</p>
       <form onSubmit={submit}>
         {signup&&<>
           <label>Seu nome<input type="text" value={name} onChange={event=>setName(event.target.value)} placeholder="Nome completo do titular" autoComplete="name" required/></label>
@@ -148,10 +149,10 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
             <label>CPF<input type="text" inputMode="numeric" value={cpf} onChange={event=>setCpf(event.target.value.replace(/[^0-9.-]/g,''))} placeholder="000.000.000-00" autoComplete="off" maxLength={14} required/></label>
             <label>Data de nascimento<input type="date" value={birthDate} onChange={event=>setBirthDate(event.target.value)} autoComplete="bday" required/></label>
           </div>
-          <small className="auth-privacy-note">CPF e data de nascimento são usados para validar o titular e impedir cadastros/testes duplicados. O registro antifraude guarda identificadores criptográficos, não o CPF em texto puro.</small>
+          <small className="auth-privacy-note">Usamos CPF e data de nascimento somente para confirmar o titular e evitar cadastros duplicados.</small>
           <label>Nome do negócio<input type="text" value={business} onChange={event=>setBusiness(event.target.value)} placeholder="Nome da empresa" autoComplete="organization" required/></label>
         </>}
-        {signup&&<label>Aplicativo de interesse<select value={selectedApp} onChange={event=>setSelectedApp(event.target.value as AppId)}>{apps.map(item=><option key={item.slug} value={item.slug}>{item.name} — {item.category}</option>)}</select><small>Isso não libera o aplicativo. A liberação acontece pela contratação da Store.</small></label>}
+        {signup&&<label>Aplicativo de interesse<select value={selectedApp} onChange={event=>setSelectedApp(event.target.value as AppId)}>{apps.map(item=><option key={item.slug} value={item.slug}>{item.name} — {item.category}</option>)}</select><small>Você poderá contratar ou testar o aplicativo depois de criar a conta.</small></label>}
         <label>E-mail<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="voce@empresa.com.br" autoComplete="email" required/></label>
         <label>Senha<div className="auth-password-field"><input type={showPassword?'text':'password'} value={password} onChange={event=>setPassword(event.target.value)} placeholder="Mínimo de 8 caracteres" autoComplete={signup?'new-password':'current-password'} minLength={8} required/><button type="button" className="auth-password-toggle" onClick={()=>setShowPassword(value=>!value)} aria-label={showPassword?'Ocultar senha':'Visualizar senha'} title={showPassword?'Ocultar senha':'Visualizar senha'}>{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button></div></label>
         {error&&<p className="auth-error" role="alert">{error}</p>}

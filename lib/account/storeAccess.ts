@@ -2,6 +2,7 @@
 
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
@@ -29,7 +30,7 @@ export type TeamInvitePermission = { appId: AppId; canConfigure: boolean };
 async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>): Promise<T> {
   const supabase = createStoreClient();
   const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+  if (error || !data.session) throw new Error('Entre novamente para continuar.');
 
   const response = await fetch('/api/team', {
     method: 'POST',
@@ -40,7 +41,7 @@ async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>
     body: JSON.stringify(payload),
   });
   const result = await response.json().catch(() => ({})) as { error?: string } & T;
-  if (!response.ok) throw new Error(result.error || 'Não foi possível concluir a alteração.');
+  if (!response.ok) throw new Error(clientMessage(result.error, 'Não foi possível concluir a alteração.'));
   return result;
 }
 
@@ -57,7 +58,7 @@ function useStoreAccessState() {
     try {
       supabase = createStoreClient();
     } catch (reason) {
-      setUser(null); setAccount(null); setMember(null); setError((reason as Error).message); setReady(true); return;
+      setUser(null); setAccount(null); setMember(null); setError(clientMessage(reason, 'Não foi possível abrir sua conta.')); setReady(true); return;
     }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
@@ -74,13 +75,13 @@ function useStoreAccessState() {
       .limit(1)
       .maybeSingle();
 
-    if (membershipError) { setError(membershipError.message); setReady(true); return; }
+    if (membershipError) { setError(clientMessage(membershipError, 'Não foi possível carregar sua conta.')); setReady(true); return; }
 
     if (!membership) {
       const business = typeof currentUser.user_metadata?.business === 'string' ? currentUser.user_metadata.business.trim() : '';
       if (business) {
         const { error: bootstrapError } = await supabase.rpc('create_account', { account_name: business });
-        if (bootstrapError) { setError(bootstrapError.message); setReady(true); return; }
+        if (bootstrapError) { setError(clientMessage(bootstrapError, 'Não foi possível concluir sua conta.')); setReady(true); return; }
         const membershipResult = await supabase
           .from('account_members')
           .select('account_id, user_id, role, status, created_at')
@@ -95,7 +96,7 @@ function useStoreAccessState() {
     }
 
     if (membershipError || !membership) {
-      setAccount(null); setMember(null); if (membershipError) setError(membershipError.message); setReady(true); return;
+      setAccount(null); setMember(null); if (membershipError) setError(clientMessage(membershipError, 'Não foi possível carregar sua conta.')); setReady(true); return;
     }
 
     const accountId = membership.account_id as string;
@@ -107,14 +108,14 @@ function useStoreAccessState() {
     ]);
 
     const firstError = accountResult.error || appsResult.error || membersResult.error || appAccessResult.error;
-    if (firstError || !accountResult.data) { setError(firstError?.message || 'Não foi possível carregar a conta.'); setReady(true); return; }
+    if (firstError || !accountResult.data) { setError(clientMessage(firstError, 'Não foi possível carregar sua conta.')); setReady(true); return; }
 
     const membersRaw = membersResult.data || [];
     const userIds = membersRaw.map(item => item.user_id as string);
     const profilesResult = userIds.length
       ? await supabase.from('profiles').select('user_id, display_name').in('user_id', userIds)
       : { data: [], error: null };
-    if (profilesResult.error) { setError(profilesResult.error.message); setReady(true); return; }
+    if (profilesResult.error) { setError(clientMessage(profilesResult.error, 'Não foi possível carregar os dados da equipe.')); setReady(true); return; }
 
     const profileNames = new Map((profilesResult.data || []).map(profile => [profile.user_id as string, profile.display_name as string | null]));
     const accessRows = appAccessResult.data || [];
@@ -235,6 +236,6 @@ export function StoreAccessProvider({ children }: { children: ReactNode }) {
 
 export function useStoreAccess() {
   const value = useContext(StoreAccessContext);
-  if (!value) throw new Error('useStoreAccess deve ser usado dentro de StoreAccessProvider.');
+  if (!value) throw new Error('Não foi possível abrir sua conta.');
   return value;
 }

@@ -10,6 +10,7 @@ import {
   UtensilsCrossed, Wallet, Wrench, X
 } from 'lucide-react';
 import { AppLoadingScreen } from '@/components/AppLoadingScreen';
+import { clientMessage } from '@/lib/clientMessage';
 import { AppId } from '@/lib/operations/model';
 import { corporateDeveloperLine, corporateUi } from '@/lib/operations/corporate';
 import { navigation } from '@/lib/operations/navigation';
@@ -70,6 +71,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   if (!w.ready) return <AppLoadingScreen label={`Carregando ${config.name}`} />;
 
+  const publicError = w.error ? clientMessage(w.error) : '';
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
@@ -111,7 +113,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     : <Budgets key={`${page}:${recordId}`} w={w} page={page} recordId={recordId} />;
 
   return <WorkspaceContext.Provider value={w}>
-    <ErrorContext.Provider value={w.error}>
+    <ErrorContext.Provider value={publicError}>
       <div className={`op-app app-${app} theme-${w.data.settings.theme} ${w.data.settings.collapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
         <a className="op-skip" href="#op-main">Pular para o conteúdo</a>
         {mobile && <button className="op-nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
@@ -160,7 +162,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <footer className="op-local-status"><span>{corporateDeveloperLine()}</span></footer>
         </div>
 
-        {w.error && <div className="op-alert" role="alert"><span>{w.error}</span><button className="op-icon" onClick={() => w.setError('')} aria-label="Fechar erro"><X size={18} /></button></div>}
+        {publicError && <div className="op-alert" role="alert"><span>{publicError}</span><button className="op-icon" onClick={() => w.setError('')} aria-label="Fechar erro"><X size={18} /></button></div>}
         {w.notice && <div className="op-toast" role="status">{w.notice}</div>}
 
         <style jsx global>{`

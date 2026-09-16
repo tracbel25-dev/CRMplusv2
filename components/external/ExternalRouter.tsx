@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Minus, Plus, Search, ShoppingBag, Store, Truck } from 'lucide-react';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { ExternalPublic } from './ExternalPublic';
 import './artemis-external-menu.css';
@@ -29,7 +30,7 @@ export function ExternalRouter({ token }: { token: string }) {
     let active = true;
     void invoke(token, 'read')
       .then(result => { if (active) setLink(result.link); })
-      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Link indisponível.'); });
+      .catch(reason => { if (active) setError(clientMessage(reason, 'Este link não está disponível no momento.')); });
     return () => { active = false; };
   }, [token]);
 
@@ -94,7 +95,7 @@ function ArtemisExternalMenu({ token, link }: { token: string; link: LinkData })
       setSent(true);
       setCheckout(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível enviar o pedido.');
+      setError(clientMessage(reason, 'Não foi possível enviar o pedido. Tente novamente.'));
     } finally { setBusy(false); }
   };
 

@@ -1,11 +1,12 @@
 'use client';
 
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { clientMessage } from '@/lib/clientMessage';
 import type { R2App } from './server';
 
 export class R2AuthRequiredError extends Error {
   code = 'R2_AUTH_REQUIRED' as const;
-  constructor() { super('Entre com sua conta para usar o armazenamento em nuvem.'); }
+  constructor() { super('Entre com sua conta para enviar arquivos.'); }
 }
 
 async function accessToken() {
@@ -18,7 +19,7 @@ async function accessToken() {
 
 async function readError(response: Response) {
   const payload = await response.json().catch(() => ({}));
-  return new Error(typeof payload?.error === 'string' ? payload.error : `Falha no armazenamento (${response.status}).`);
+  return new Error(clientMessage(payload?.error, 'Não foi possível concluir o envio do arquivo. Tente novamente.'));
 }
 
 export type R2UploadOptions = {

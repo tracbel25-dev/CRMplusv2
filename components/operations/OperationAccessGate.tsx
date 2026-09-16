@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { TrialProtection } from './TrialProtection';
 
@@ -29,7 +30,7 @@ export function OperationAccessGate({ app, children }: { app: AppId; children: R
 
   if (!access.ready) return <AppLoadingScreen label="Carregando acesso" />;
 
-  if (access.error) return <main className="op-access-gate"><section className="op-access-gate-card"><span>CRM PLUS</span><h1>Não foi possível validar seu acesso.</h1><p>{access.error}</p><div><button type="button" onClick={() => void access.refresh()}>Tentar novamente</button><Link href="/conta">Minha conta</Link></div></section></main>;
+  if (access.error) return <main className="op-access-gate"><section className="op-access-gate-card"><span>CRM PLUS</span><h1>Não foi possível abrir sua conta.</h1><p>{clientMessage(access.error, 'Tente novamente em alguns instantes.')}</p><div><button type="button" onClick={() => void access.refresh()}>Tentar novamente</button><Link href="/conta">Minha conta</Link></div></section></main>;
 
   if (!access.user || !allowed) return null;
 

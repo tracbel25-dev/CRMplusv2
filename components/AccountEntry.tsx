@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Building2, CreditCard, LogOut, Mail, ShieldCheck } from 'lucide-react';
 import { apps } from '@/lib/catalog';
+import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { AppArtwork } from './AppArtwork';
@@ -14,8 +15,8 @@ export function AccountEntry(){
   const access=useStoreAccess();
   if(!access.ready)return <div className="entry-loading">Carregando sua conta…</div>;
   if(!access.user)return <div className="entry-empty"><span className="eyebrow">Área do cliente</span><h1>Entre para acessar sua conta.</h1><p>Gerencie aplicativos, assinaturas e os dados da sua empresa em um único lugar.</p><div className="entry-empty-actions"><Link className="primary" href="/login?redirect=%2Fconta">Entrar</Link><Link className="ghost" href="/cadastro?redirect=%2Fconta">Criar conta</Link></div></div>;
-  if(access.error)return <div className="entry-empty"><span className="eyebrow">Área do cliente</span><h1>Não foi possível carregar a conta.</h1><p>{access.error}</p><button className="ghost" onClick={()=>void access.refresh()}>Tentar novamente</button></div>;
-  if(!access.account||!access.member)return <div className="entry-empty"><span className="eyebrow">Área do cliente</span><h1>Conclua os dados da sua conta.</h1><p>Seu usuário está autenticado, mas ainda não há uma empresa vinculada a ele.</p><Link className="primary" href="/cadastro?redirect=%2Fconta">Completar cadastro</Link></div>;
+  if(access.error)return <div className="entry-empty"><span className="eyebrow">Área do cliente</span><h1>Não foi possível carregar a conta.</h1><p>{clientMessage(access.error,'Tente novamente em alguns instantes.')}</p><button className="ghost" onClick={()=>void access.refresh()}>Tentar novamente</button></div>;
+  if(!access.account||!access.member)return <div className="entry-empty"><span className="eyebrow">Área do cliente</span><h1>Conclua os dados da sua conta.</h1><p>Seu cadastro existe, mas os dados da empresa ainda precisam ser concluídos.</p><Link className="primary" href="/cadastro?redirect=%2Fconta">Completar cadastro</Link></div>;
 
   const activeRows=access.account.apps.filter(item=>validAccess(item.status,item.currentPeriodEnd));
   const contractedIds=new Set(activeRows.map(item=>item.appId));
@@ -55,7 +56,7 @@ export function AccountEntry(){
           <div><dt><ShieldCheck size={15}/> Perfil</dt><dd>{access.isOwner?'Titular':'Usuário'}</dd></div>
         </dl>
         <Link className="account-profile-action" href="/assinaturas"><CreditCard size={16}/><span><strong>Assinaturas e cobrança</strong><small>Planos, renovações e pagamentos</small></span><ArrowRight size={16}/></Link>
-        <button className="account-profile-action is-button" onClick={()=>void access.logout()}><LogOut size={16}/><span><strong>Sair da conta</strong><small>Encerrar esta sessão</small></span></button>
+        <button className="account-profile-action is-button" onClick={()=>void access.logout()}><LogOut size={16}/><span><strong>Sair da conta</strong><small>Sair deste dispositivo</small></span></button>
       </aside>
     </div>
   </>;

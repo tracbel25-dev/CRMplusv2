@@ -6,6 +6,7 @@ import { CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { reserveTrialNetwork } from '@/lib/antifraud';
 import { billingRequest } from '@/lib/billing';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import './confirm.css';
 
@@ -45,7 +46,7 @@ export default function ConfirmPage() {
         let user = sessionData.session?.user || null;
         if (!user) {
           const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData.user) throw userError || new Error('Não foi possível validar a confirmação do e-mail. Abra novamente o link enviado para sua caixa de entrada.');
+          if (userError || !userData.user) throw userError || new Error('Não foi possível confirmar seu e-mail. Abra novamente o link recebido.');
           user = userData.user;
         }
 
@@ -67,7 +68,7 @@ export default function ConfirmPage() {
             reservation_token:identityReservation,
             target_account:accountId,
           });
-          if(identityError)throw new Error('Seu e-mail foi confirmado, mas não foi possível concluir a validação do CPF. Entre em contato com o suporte.');
+          if(identityError)throw new Error('Seu e-mail foi confirmado, mas não foi possível concluir a validação dos seus dados. Entre em contato com o suporte.');
         }
 
         if (planId && accountId) {
@@ -78,9 +79,9 @@ export default function ConfirmPage() {
           const useTrial=(billingState.trialEligibleApps||[]).includes(targetPlan.app_id);
           if(useTrial)await reserveTrialNetwork(accountId,targetPlan.app_id);
           const result = await billingRequest<{ url?: string }>({ action: 'checkout', accountId, planId, skipTrial: !useTrial });
-          if (!result.url) throw new Error('Sua conta foi confirmada, mas o Mercado Pago não retornou o link de pagamento.');
+          if (!result.url) throw new Error('Sua conta foi confirmada, mas não foi possível abrir o pagamento.');
           const paymentUrl = new URL(result.url);
-          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas o link de pagamento retornado é inválido.');
+          if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas não foi possível abrir o pagamento.');
           await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null } });
           window.location.replace(paymentUrl.href);
           return;
@@ -92,7 +93,7 @@ export default function ConfirmPage() {
         router.refresh();
       } catch (reason) {
         processing.current = false;
-        if (active) setError((reason as Error).message || 'Não foi possível concluir a confirmação da conta.');
+        if (active) setError(clientMessage(reason,'Não foi possível concluir a confirmação da conta.'));
       }
     };
 
@@ -116,7 +117,7 @@ export default function ConfirmPage() {
         <div className="confirm-icon is-loading"><LoaderCircle size={26}/></div>
         <span className="eyebrow">Confirmação de acesso</span>
         <h1>{phase==='payment'?'Conta confirmada. Preparando pagamento.':'Confirmando sua conta.'}</h1>
-        <p>{phase==='payment'?'Seu e-mail já foi confirmado. Estamos validando o teste e abrindo o Mercado Pago para o plano escolhido.':'Estamos validando seu e-mail e preparando a área da sua conta CRM PLUS.'}</p>
+        <p>{phase==='payment'?'Seu e-mail já foi confirmado. Estamos preparando o Mercado Pago para o plano escolhido.':'Estamos confirmando seu e-mail e preparando sua conta CRM PLUS.'}</p>
         <div className="confirm-progress"><span/></div>
       </> : <>
         <div className="confirm-icon"><CheckCircle2 size={26}/></div>

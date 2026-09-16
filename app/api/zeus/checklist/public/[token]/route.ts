@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Data } from '@/lib/operations/model';
+import { clientMessage } from '@/lib/clientMessage';
 import { ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/operations/checklistTemplates';
 import { isZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
@@ -74,7 +75,7 @@ async function validateOpenLink(link: PublicChecklistLink) {
   const state = zeusChecklistState(workspace, link.job_id);
   if (!state.enabled) return { ok: false as const, error: 'O checklist foi desabilitado nesta OS.' };
   if (!isZeusChecklistAssetFolder(link.asset_folder) || state.folder !== link.asset_folder) {
-    return { ok: false as const, error: 'O modelo deste link não corresponde mais ao checklist definido na OS. Abra o checklist novamente pelo Zeus.' };
+    return { ok: false as const, error: 'O tipo deste checklist foi alterado. Abra novamente pela OS.' };
   }
   return { ok: true as const, workspace, job, state };
 }
@@ -102,7 +103,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ token:
       response,
     });
   } catch (reason) {
-    return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Checklist indisponível.' }, { status: 503 });
+    return NextResponse.json({ error: clientMessage(reason, 'Não foi possível abrir o checklist agora. Tente novamente.') }, { status: 503 });
   }
 }
 
@@ -171,8 +172,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!result?.ok) return NextResponse.json({ error: 'Não foi possível concluir o checklist.' }, { status: 409 });
     return NextResponse.json({ ok: true, completed: true, jobId: result.jobId || '' });
   } catch (reason) {
-    const message = reason instanceof Error ? reason.message : 'Não foi possível enviar o checklist.';
-    const status = /not_found|não encontrado|not found/i.test(message) ? 404 : /completed|conclu/i.test(message) ? 409 : 503;
-    return NextResponse.json({ error: message }, { status });
+    const rawMessage = reason instanceof Error ? reason.message : '';
+    const status = /not_found|não encontrado|not found/i.test(rawMessage) ? 404 : /completed|conclu/i.test(rawMessage) ? 409 : 503;
+    const fallback = status === 404 ? 'Este checklist não está disponível.' : status === 409 ? 'Este checklist já foi concluído.' : 'Não foi possível enviar o checklist agora. Tente novamente.';
+    return NextResponse.json({ error: clientMessage(reason, fallback) }, { status });
   }
 }

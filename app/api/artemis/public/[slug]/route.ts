@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { artemisRest, artemisRpc } from '@/lib/artemis/cloudServer';
+import { clientMessage } from '@/lib/clientMessage';
 import { presignR2, readR2Config } from '@/lib/r2/server';
 
 export const runtime = 'nodejs';
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       products,
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível abrir o cardápio.' }, { status: 503 });
+    return NextResponse.json({ error: clientMessage(error, 'Não foi possível abrir o cardápio agora. Tente novamente.') }, { status: 503 });
   }
 }
 
@@ -132,6 +133,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível enviar o pedido.' }, { status: 400 });
+    return NextResponse.json({ error: clientMessage(error, 'Não foi possível enviar o pedido. Tente novamente.') }, { status: 400 });
   }
 }

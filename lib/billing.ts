@@ -1,5 +1,6 @@
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
+import { clientMessage } from '@/lib/clientMessage';
 
 export async function billingRequest<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await createStoreClient().auth.getSession();
@@ -8,7 +9,7 @@ export async function billingRequest<T>(body: Record<string, unknown>): Promise<
     method: 'POST', headers: { 'Content-Type': 'application/json', apikey: STORE_SUPABASE.publishableKey,
       Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify(body),
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Não foi possível concluir a solicitação.');
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(clientMessage(result?.error, 'Não foi possível concluir a solicitação. Tente novamente.'));
   return result as T;
 }

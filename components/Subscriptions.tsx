@@ -54,7 +54,7 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
   useEffect(()=>{
     if(!accountId)return;
     setLoading(true);
-    void load().catch(reason=>setError((reason as Error).message)).finally(()=>setLoading(false));
+    void load().catch(()=>setError('Não foi possível carregar os planos agora.')).finally(()=>setLoading(false));
   },[accountId,load]);
 
   useEffect(()=>{
@@ -85,18 +85,18 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
     setBusy(planId);
     setError('');
     setContinuationFailedPlan('');
-    setNotice(useTrial?'Validando identidade e rede do teste grátis…':automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
+    setNotice(useTrial?'Confirmando a disponibilidade do teste grátis…':automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
     try{
       if(useTrial)await reserveTrialNetwork(accountId,targetPlan.app_id);
       setNotice(automatic?'Conta confirmada. Abrindo o Mercado Pago…':'Abrindo o Mercado Pago…');
       const result=await billingRequest<{url?:string}>({action:'checkout',accountId,planId,skipTrial:!useTrial});
-      if(!result.url)throw new Error('O Mercado Pago não retornou o link para continuar.');
+      if(!result.url)throw new Error('Não foi possível abrir o Mercado Pago.');
       const url=new URL(result.url);
-      if(url.protocol!=='https:'||!['www.mercadopago.com.br','mercadopago.com.br'].includes(url.hostname))throw new Error('Link de pagamento inválido.');
+      if(url.protocol!=='https:'||!['www.mercadopago.com.br','mercadopago.com.br'].includes(url.hostname))throw new Error('Não foi possível abrir o Mercado Pago.');
       if(automatic)window.location.replace(url.href); else window.location.assign(url.href);
     }catch(reason){
       setNotice('');
-      setError((reason as Error).message||'Não foi possível abrir o Mercado Pago.');
+      setError(reason instanceof Error?reason.message:'Não foi possível abrir o Mercado Pago.');
       if(automatic)setContinuationFailedPlan(planId);
     }finally{setBusy('');}
   },[accountId,busy,plans,selected,skipTrial,trialEligibleApps]);
@@ -109,10 +109,10 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
       await billingRequest({action:'sync',accountId,subscriptionId:currentSubscription.id});
       await load();
       await access.refresh();
-      setNotice('Status conferido. Se a cobrança pós-teste foi aprovada, o acesso já foi liberado.');
+      setNotice('Status conferido. Se a cobrança foi aprovada, o acesso já foi liberado.');
     }catch(reason){
       setNotice('');
-      setError((reason as Error).message||'Não foi possível conferir a assinatura.');
+      setError(reason instanceof Error?reason.message:'Não foi possível conferir a assinatura.');
     }finally{setBusy('');}
   },[accountId,currentSubscription,busy,load,access.refresh]);
 
@@ -149,14 +149,14 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
       <div className="billing-access-summary" role="status">
         <span className="eyebrow">Seu acesso</span>
         <h2>{canOpen?entitlement?.status==='trialing'?'Teste grátis já ativo':'Aplicativo já liberado':entitlement?.status==='suspended'?'Acesso suspenso':currentSubscription?.status==='pending'?'Autorização pendente':currentSubscription?.status==='authorized'&&expiredAccess?'Teste encerrado — aguardando a primeira cobrança':currentSubscription?.status==='authorized'?'Cobrança em processamento':currentSubscription?.status==='paused'?'Assinatura pausada':flow==='trial'?'Você pode testar por 7 dias':flow==='reactivate'?'Seu acesso expirou — reative quando quiser':'Ative seu aplicativo'}</h2>
-        <p>{canOpen?'Você já possui acesso a este aplicativo.':currentSubscription?.status==='pending'?'Existe uma autorização pendente no Mercado Pago. Continue para concluir.':currentSubscription?.status==='authorized'?'A autorização já existe no Mercado Pago. Vamos conferir a cobrança antes de criar qualquer nova assinatura.':currentSubscription?.status==='paused'?'A assinatura existente está pausada. Gerencie essa assinatura antes de iniciar outra.':flow==='trial'?'Você pode autorizar 7 dias grátis no Mercado Pago ou optar por ativar com cobrança normal.':flow==='reactivate'?'Como este aplicativo já teve um período de acesso, a próxima contratação é uma reativação sem novo teste grátis.':'Escolha o ciclo e autorize a assinatura no Mercado Pago.'}</p>
+        <p>{canOpen?'Você já possui acesso a este aplicativo.':currentSubscription?.status==='pending'?'Existe uma autorização pendente no Mercado Pago. Continue para concluir.':currentSubscription?.status==='authorized'?'A autorização já existe no Mercado Pago. Vamos conferir a cobrança antes de criar uma nova assinatura.':currentSubscription?.status==='paused'?'A assinatura existente está pausada. Gerencie essa assinatura antes de iniciar outra.':flow==='trial'?'Você pode autorizar 7 dias grátis no Mercado Pago ou optar por ativar com cobrança normal.':flow==='reactivate'?'Como este aplicativo já teve um período de acesso, a próxima contratação é uma reativação sem novo teste grátis.':'Escolha o ciclo e autorize a assinatura no Mercado Pago.'}</p>
         {canOpen&&<Link className="primary" href={`/${selected}`}>Abrir aplicativo</Link>}
         {!canOpen&&currentSubscription?.status==='pending'&&currentSubscription.plan_id&&<button className="primary" disabled={!!busy||ready!==true} onClick={()=>void openCheckout(currentSubscription.plan_id!)}>Continuar no Mercado Pago</button>}
         {!canOpen&&currentSubscription?.status==='authorized'&&<button className="primary" disabled={!!busy||ready!==true} onClick={()=>void syncExisting()}>{busy===currentSubscription.id+'sync'?'Conferindo…':'Conferir cobrança'}</button>}
         {!canOpen&&currentSubscription?.status==='paused'&&<Link className="primary" href="/assinaturas">Gerenciar assinatura</Link>}
       </div>
 
-      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">O teste é limitado por conta, usuário, pagador, meio de pagamento e endereço de internet. Um IP usado para teste em uma conta não libera teste grátis em outra.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o ciclo escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
+      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">O teste grátis é individual por conta e dados de contratação e não pode ser repetido em outra empresa.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o ciclo escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
 
       {!trialEligible&&!canOpen&&!providerStillOpen&&<div className="billing-no-trial"><strong>{flow==='reactivate'?'Reativação':'Ativação'}</strong><p>{flow==='reactivate'?'Seu período anterior terminou. Escolha um plano para voltar a usar o aplicativo.':'O teste grátis não está disponível para esta conta. Escolha um plano para ativar o aplicativo.'}</p></div>}
 
@@ -164,7 +164,7 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
       <div className="billing-plans">{plans.filter(plan=>plan.app_id===selected).map(plan=><article key={plan.id} className={initialPlan===plan.id?'is-selected':undefined}>
         <h2>{cycles[plan.billing_interval]}{initialPlan===plan.id?' · Selecionado':''}</h2><strong>{money(plan.amount_cents)}</strong><p>{usingTrial?'7 dias grátis. Depois, ':''}{plan.billing_interval==='monthly'?'cobrança mensal':plan.billing_interval==='semiannual'?'cobrança a cada 6 meses':'cobrança a cada 12 meses'} com renovação automática.</p><button className="primary" disabled={!!busy||ready!==true||canOpen||entitlement?.status==='suspended'||providerStillOpen} onClick={()=>void openCheckout(plan.id)}>{busy===plan.id?'Abrindo Mercado Pago…':canOpen?'Acesso já liberado':providerStillOpen?'Assinatura já existente':actionLabel}</button>
       </article>)}</div>
-      <p className="billing-caption">Fluxo: escolher aplicativo → ver preços → testar, ativar ou reativar conforme o histórico real da conta → autorizar no Mercado Pago → liberar acesso.</p>
+      <p className="billing-caption">Escolha o aplicativo e o plano. Depois da confirmação no Mercado Pago, o acesso é liberado.</p>
     </section>}
   </>;
 }

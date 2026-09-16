@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { KeyRound, MailCheck, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
 type EnrollState={id:string;qrCode:string;secret:string};
@@ -30,7 +31,7 @@ export function SecurityCenter(){
     if(!access.user)return;
     const supabase=createStoreClient();
     const {data,error}=await supabase.auth.mfa.listFactors();
-    if(error){setMfaError(error.message);return;}
+    if(error){setMfaError(clientMessage(error,'Não foi possível carregar suas opções de segurança.'));return;}
     const verified=data.totp.find(item=>item.status==='verified');
     setFactor(verified?{id:verified.id,friendlyName:verified.friendly_name||'Aplicativo autenticador'}:null);
   },[access.user]);
@@ -64,7 +65,7 @@ export function SecurityCenter(){
       }
       setCurrentPassword('');setNewPassword('');setConfirmPassword('');setNonce('');setNeedsNonce(false);
       setPasswordMessage('Senha alterada com sucesso.');
-    }catch(reason){setPasswordError((reason as Error).message||'Não foi possível alterar a senha.');}
+    }catch(reason){setPasswordError(clientMessage(reason,'Não foi possível alterar a senha.'));}
     finally{setPasswordLoading(false);}
   };
 
@@ -76,7 +77,7 @@ export function SecurityCenter(){
       if(error)throw error;
       setNeedsNonce(true);
       setPasswordMessage('Código de confirmação enviado para o seu e-mail.');
-    }catch(reason){setPasswordError((reason as Error).message||'Não foi possível enviar o código.');}
+    }catch(reason){setPasswordError(clientMessage(reason,'Não foi possível enviar o código.'));}
     finally{setPasswordLoading(false);}
   };
 
@@ -88,7 +89,7 @@ export function SecurityCenter(){
       if(error)throw error;
       setEnrollment({id:data.id,qrCode:data.totp.qr_code,secret:data.totp.secret});
       setMfaMessage('Escaneie o QR Code em um aplicativo autenticador e informe o código de 6 dígitos para concluir.');
-    }catch(reason){setMfaError((reason as Error).message||'Não foi possível iniciar a autenticação em dois fatores.');}
+    }catch(reason){setMfaError(clientMessage(reason,'Não foi possível iniciar a verificação em duas etapas.'));}
     finally{setMfaLoading(false);}
   };
 
@@ -104,8 +105,8 @@ export function SecurityCenter(){
       if(error)throw error;
       setEnrollment(null);setMfaCode('');
       await loadFactors();
-      setMfaMessage('Autenticação em dois fatores ativada. Você receberá também um aviso de segurança por e-mail quando a confirmação por e-mail estiver habilitada no projeto.');
-    }catch(reason){setMfaError((reason as Error).message||'Código inválido.');}
+      setMfaMessage('Verificação em duas etapas ativada.');
+    }catch(reason){setMfaError(clientMessage(reason,'Código inválido ou expirado.'));}
     finally{setMfaLoading(false);}
   };
 
@@ -117,17 +118,17 @@ export function SecurityCenter(){
       const {error}=await supabase.auth.mfa.unenroll({factorId:factor.id});
       if(error)throw error;
       setFactor(null);
-      setMfaMessage('Autenticação em dois fatores removida.');
-    }catch(reason){setMfaError((reason as Error).message||'Não foi possível remover a autenticação em dois fatores.');}
+      setMfaMessage('Verificação em duas etapas removida.');
+    }catch(reason){setMfaError(clientMessage(reason,'Não foi possível remover a verificação em duas etapas.'));}
     finally{setMfaLoading(false);}
   };
 
   return <>
-    <section className="account-details-intro"><div><span className="account-kicker">Segurança</span><h1>Senha e autenticação</h1><p>Gerencie sua senha e proteja sua conta com uma segunda etapa de verificação.</p></div></section>
+    <section className="account-details-intro"><div><span className="account-kicker">Segurança</span><h1>Senha e segurança</h1><p>Gerencie sua senha e proteja sua conta com uma segunda etapa de verificação.</p></div></section>
 
     <div className="security-grid">
       <section className="security-card">
-        <div className="account-details-heading"><KeyRound size={19}/><div><h2>Trocar senha</h2><p>Use sua senha atual. Quando o Supabase exigir confirmação adicional, o código será enviado por e-mail.</p></div></div>
+        <div className="account-details-heading"><KeyRound size={19}/><div><h2>Trocar senha</h2><p>Se for necessária uma confirmação adicional, enviaremos um código ao seu e-mail.</p></div></div>
         <form className="security-form" onSubmit={changePassword}>
           <label><span>Senha atual</span><input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" required/></label>
           <label><span>Nova senha</span><input type="password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" required/></label>
@@ -140,8 +141,8 @@ export function SecurityCenter(){
       </section>
 
       <section className="security-card">
-        <div className="account-details-heading"><ShieldCheck size={19}/><div><h2>Autenticação em dois fatores</h2><p>O segundo fator usa um aplicativo autenticador. O e-mail serve para avisos e confirmações de segurança.</p></div></div>
-        {factor?<div className="security-enabled"><div><Smartphone size={18}/><span><strong>2FA ativa</strong><small>{factor.friendlyName}</small></span></div><button className="ghost" type="button" onClick={()=>void removeMfa()} disabled={mfaLoading}><Trash2 size={15}/> Remover</button></div>:!enrollment?<button className="primary" type="button" onClick={()=>void startMfa()} disabled={mfaLoading}>{mfaLoading?'Preparando…':'Ativar autenticação em dois fatores'}</button>:<form className="mfa-enroll" onSubmit={verifyMfa}><div className="mfa-qr"><img src={enrollment.qrCode} alt="QR Code para configurar autenticação em dois fatores"/></div><div className="mfa-secret"><span>Chave manual</span><code>{enrollment.secret}</code></div><label><span>Código de 6 dígitos</span><input inputMode="numeric" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,''))} placeholder="000000" autoComplete="one-time-code" required/></label><button className="primary" type="submit" disabled={mfaLoading}>{mfaLoading?'Confirmando…':'Confirmar e ativar'}</button></form>}
+        <div className="account-details-heading"><ShieldCheck size={19}/><div><h2>Verificação em duas etapas</h2><p>Use um aplicativo autenticador para adicionar uma confirmação extra ao entrar.</p></div></div>
+        {factor?<div className="security-enabled"><div><Smartphone size={18}/><span><strong>Verificação ativa</strong><small>{factor.friendlyName}</small></span></div><button className="ghost" type="button" onClick={()=>void removeMfa()} disabled={mfaLoading}><Trash2 size={15}/> Remover</button></div>:!enrollment?<button className="primary" type="button" onClick={()=>void startMfa()} disabled={mfaLoading}>{mfaLoading?'Preparando…':'Ativar verificação em duas etapas'}</button>:<form className="mfa-enroll" onSubmit={verifyMfa}><div className="mfa-qr"><img src={enrollment.qrCode} alt="QR Code para configurar a verificação em duas etapas"/></div><div className="mfa-secret"><span>Chave manual</span><code>{enrollment.secret}</code></div><label><span>Código de 6 dígitos</span><input inputMode="numeric" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,''))} placeholder="000000" autoComplete="one-time-code" required/></label><button className="primary" type="submit" disabled={mfaLoading}>{mfaLoading?'Confirmando…':'Confirmar e ativar'}</button></form>}
         {mfaError&&<div className="account-form-feedback is-error" role="alert">{mfaError}</div>}
         {mfaMessage&&<div className="account-form-feedback is-success" role="status">{mfaMessage}</div>}
       </section>

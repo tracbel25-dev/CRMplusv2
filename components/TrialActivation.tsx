@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { StoreAccount } from '@/lib/account/storeAccess';
 import { reserveTrialNetwork } from '@/lib/antifraud';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 
@@ -14,10 +15,10 @@ const errors: Record<string, string> = {
   trial_email_required: 'Confirme seu e-mail antes de iniciar o teste.',
   trial_document_invalid: 'Informe um CNPJ válido.',
   trial_cnpj_used: 'Este CNPJ já está vinculado a outra empresa.',
-  trial_identity_changed: 'A identidade deste teste não corresponde ao titular da empresa.',
-  trial_identity_required: 'Conclua a validação do CPF do titular antes de iniciar o teste.',
+  trial_identity_changed: 'Os dados deste teste não correspondem ao titular da empresa.',
+  trial_identity_required: 'Conclua a validação do titular antes de iniciar o teste.',
   trial_cnpj_required: 'Cadastre um CNPJ válido na empresa antes de iniciar o teste.',
-  trial_network_required: 'Não foi possível validar a rede usada para o teste grátis.',
+  trial_network_required: 'Não foi possível confirmar a elegibilidade para o teste grátis.',
   trial_owner_required: 'Somente o titular de uma empresa ativa pode iniciar o teste.',
   trial_already_active: 'Sua empresa já tem acesso ativo a este aplicativo.',
   trial_unavailable: 'O teste não está disponível para esta conta.',
@@ -102,8 +103,6 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
         const cleanCnpj = cnpj.replace(/\D/g, '');
         if (!validCnpj(cleanCnpj)) throw new Error('trial_document_invalid');
 
-        // Persist the company identity when the Store schema already supports it.
-        // 42703 is the legacy deployment where accounts.cnpj has not been migrated yet.
         const companyUpdate = await client.from('accounts').update({ cnpj: cleanCnpj, updated_at: new Date().toISOString() }).eq('id', account.id);
         if (companyUpdate.error && companyUpdate.error.code !== '42703') {
           if (companyUpdate.error.code === '23505') throw new Error('trial_cnpj_used');
@@ -111,21 +110,19 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
         }
 
         await reserveTrialNetwork(account.id, app);
-        // Compatible with the legacy RPC. After the hardening migration the backend
-        // ignores this browser value and derives CPF/CNPJ from trusted records.
         const result = await client.rpc('start_app_trial', { target_account: account.id, target_app: app, document: cleanCnpj });
         if (result.error) throw result.error;
         await refresh();
       }
     } catch (reason) {
       const raw = (reason as Error).message;
-      setMessage(errors[raw] || (action === 'start' ? raw || 'Não foi possível iniciar o teste. Tente novamente ou fale com o suporte.' : 'Não foi possível confirmar o telefone. Confira o número ou código e aguarde antes de tentar novamente.'));
+      setMessage(errors[raw] || clientMessage(reason, action === 'start' ? 'Não foi possível iniciar o teste. Tente novamente ou fale com o suporte.' : 'Não foi possível confirmar o telefone. Confira os dados e tente novamente.'));
     } finally { setBusy(false); }
   }
 
   const validCompanyDocument = validCnpj(cnpj);
   return <section className="billing-panel" id="teste-gratis"><h2>Experimente por 7 dias</h2>
-    <p>Sem cartão e sem cobrança automática. Um teste por CNPJ, titular e aplicativo. Ao vencer, seus dados ficam preservados.</p>
+    <p>Sem cartão e sem cobrança automática. Um teste por empresa e titular. Ao vencer, seus dados ficam preservados.</p>
     {message && <p role="status">{message}</p>}
     {!user.email_confirmed_at && <p>Confirme o e-mail recebido no cadastro para continuar.</p>}
     {!verified && <>
@@ -138,7 +135,7 @@ export function TrialActivation({ app, user, account, owner, refresh }: {
     </>}
     {verified && <><p>Telefone confirmado.</p><label htmlFor="trial-cnpj">CNPJ da empresa</label>
       <input id="trial-cnpj" inputMode="numeric" value={cnpj} maxLength={18} placeholder="00.000.000/0000-00" onChange={event => setCnpj(formatCnpj(event.target.value))} disabled={busy}/>
-      <p className="billing-caption">O CNPJ, o CPF validado do titular, o telefone e a rede são usados para impedir testes repetidos.</p>
+      <p className="billing-caption">Usamos os dados do titular e da empresa apenas para confirmar a elegibilidade do teste grátis.</p>
       <button className="primary" type="button" disabled={busy || !validCompanyDocument || !user.email_confirmed_at} onClick={() => void run('start')}>{busy ? 'Aguarde…' : 'Iniciar meus 7 dias grátis'}</button>
     </>}
   </section>;

@@ -1,5 +1,6 @@
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
+import { clientMessage } from '@/lib/clientMessage';
 
 export async function reserveTrialNetwork(accountId:string,appId:string){
   const {data,error}=await createStoreClient().auth.getSession();
@@ -10,7 +11,7 @@ export async function reserveTrialNetwork(accountId:string,appId:string){
     body:JSON.stringify({accountId,appId}),
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result.error||'Não foi possível validar o teste grátis.');
+  if(!response.ok)throw new Error(clientMessage(result.error,'Não foi possível validar o teste grátis. Tente novamente.'));
   return result as {ok:boolean};
 }
 
@@ -21,6 +22,6 @@ export async function precheckSignupIdentity(input:{cpf:string;name:string;birth
     body:JSON.stringify(input),
   });
   const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result.error||'Não foi possível validar os dados do cadastro.');
+  if(!response.ok)throw new Error(clientMessage(result.error,'Não foi possível validar os dados do cadastro. Tente novamente.'));
   return result as {ok:boolean;reservationToken:string;verification:'official'|'format'};
 }

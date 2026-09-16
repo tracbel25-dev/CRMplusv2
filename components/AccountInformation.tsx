@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Building2, IdCard, KeyRound, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
 type IdentitySummary={registered?:boolean;masked?:string|null;verified?:boolean};
@@ -67,12 +68,12 @@ export function AccountInformation(){
         if(accountResult.data&&'cnpj' in accountResult.data)setCnpj(formatCnpj(String(accountResult.data.cnpj||'')));
         const identity=(identityResult.data||null) as IdentitySummary|null;
         if(identity?.registered){
-          setCpfDisplay(identity.masked||`${identity.verified?'CPF validado':'CPF cadastrado'} (protegido)`);
+          setCpfDisplay(identity.masked||`${identity.verified?'CPF validado':'CPF cadastrado'}`);
         }else{
           setCpfDisplay('CPF não localizado');
         }
       }catch{
-        if(active)setCpfDisplay('CPF cadastrado (protegido)');
+        if(active)setCpfDisplay('CPF cadastrado');
       }finally{
         if(active)setLoadingProfile(false);
       }
@@ -82,8 +83,8 @@ export function AccountInformation(){
 
   if(!access.ready)return <div className="entry-loading">Carregando suas informações…</div>;
   if(!access.user)return <section className="account-details-empty"><h1>Entre para acessar suas informações.</h1><Link className="primary" href="/login?redirect=%2Fminhas-informacoes">Entrar</Link></section>;
-  if(access.error)return <section className="account-details-empty"><h1>Não foi possível carregar sua conta.</h1><p>{access.error}</p><button className="ghost" onClick={()=>void access.refresh()}>Tentar novamente</button></section>;
-  if(!access.account||!access.member)return <section className="account-details-empty"><h1>Conta incompleta.</h1><p>Finalize o vínculo da empresa antes de editar estas informações.</p></section>;
+  if(access.error)return <section className="account-details-empty"><h1>Não foi possível carregar sua conta.</h1><p>{clientMessage(access.error,'Tente novamente em alguns instantes.')}</p><button className="ghost" onClick={()=>void access.refresh()}>Tentar novamente</button></section>;
+  if(!access.account||!access.member)return <section className="account-details-empty"><h1>Conta incompleta.</h1><p>Finalize os dados da empresa antes de editar estas informações.</p></section>;
 
   const currentUser=access.user;
   const currentAccount=access.account;
@@ -126,7 +127,7 @@ export function AccountInformation(){
       setCnpj(formatCnpj(cleanCnpj));
       setMessage('Informações atualizadas.');
     }catch(reason){
-      setError((reason as {message?:string}).message||'Não foi possível salvar suas informações.');
+      setError(clientMessage(reason,'Não foi possível salvar suas informações.'));
     }finally{setSaving(false);}
   };
 
@@ -139,21 +140,21 @@ export function AccountInformation(){
       <section className="account-details-card">
         <div className="account-details-heading"><UserRound size={19}/><div><h2>Informações pessoais</h2><p>Dados usados para identificar você dentro da conta.</p></div></div>
         <label><span>Nome</span><input value={displayName} onChange={event=>setDisplayName(event.target.value)} autoComplete="name" required/></label>
-        <label><span>CPF</span><div className="account-input-icon is-readonly"><IdCard size={16}/><input value={cpfDisplay} readOnly aria-readonly="true"/></div><small>O CPF usado na validação fica protegido e não é armazenado em texto aberto.</small></label>
+        <label><span>CPF</span><div className="account-input-icon is-readonly"><IdCard size={16}/><input value={cpfDisplay} readOnly aria-readonly="true"/></div><small>Seu CPF é usado apenas para confirmar o titular da conta.</small></label>
         <label><span>Telefone</span><div className="account-input-icon"><Phone size={16}/><input value={phone} onChange={event=>setPhone(event.target.value)} placeholder="(00) 00000-0000" autoComplete="tel" disabled={loadingProfile}/></div></label>
-        <label><span>E-mail</span><div className="account-input-icon is-readonly"><Mail size={16}/><input value={currentUser.email||''} readOnly aria-readonly="true"/></div><small>O e-mail de acesso é controlado pela autenticação da conta.</small></label>
+        <label><span>E-mail</span><div className="account-input-icon is-readonly"><Mail size={16}/><input value={currentUser.email||''} readOnly aria-readonly="true"/></div><small>Este é o e-mail usado para entrar na sua conta.</small></label>
       </section>
 
       <section className="account-details-card">
-        <div className="account-details-heading"><Building2 size={19}/><div><h2>Empresa</h2><p>Identificação da empresa central desta conta.</p></div></div>
+        <div className="account-details-heading"><Building2 size={19}/><div><h2>Empresa</h2><p>Dados principais da empresa desta conta.</p></div></div>
         <label><span>Nome da empresa</span><input value={companyName} onChange={event=>setCompanyName(event.target.value)} disabled={!access.isOwner} required={access.isOwner}/>{!access.isOwner&&<small>Somente o titular pode alterar os dados da empresa.</small>}</label>
-        <label><span>CNPJ</span><div className={!access.isOwner?'account-input-icon is-readonly':'account-input-icon'}><Building2 size={16}/><input value={cnpj} onChange={event=>setCnpj(formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" inputMode="numeric" maxLength={18} disabled={!access.isOwner}/></div><small>{access.isOwner?'Informe o CNPJ da empresa. A validação também acontece no banco.':'Somente o titular pode alterar o CNPJ.'}</small></label>
+        <label><span>CNPJ</span><div className={!access.isOwner?'account-input-icon is-readonly':'account-input-icon'}><Building2 size={16}/><input value={cnpj} onChange={event=>setCnpj(formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" inputMode="numeric" maxLength={18} disabled={!access.isOwner}/></div><small>{access.isOwner?'Usaremos o CNPJ para identificar sua empresa.':'Somente o titular pode alterar o CNPJ.'}</small></label>
         <div className="account-readout"><ShieldCheck size={17}/><div><span>Seu perfil</span><strong>{access.isOwner?'Titular':'Usuário'}</strong></div></div>
         <div className="account-readout"><Building2 size={17}/><div><span>Status da empresa</span><strong>{currentAccount.status==='active'?'Ativa':currentAccount.status==='suspended'?'Suspensa':'Encerrada'}</strong></div></div>
       </section>
 
       <section className="account-security-card">
-        <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Troque sua senha, recupere acesso e gerencie a autenticação em dois fatores.</small></span></div>
+        <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Troque sua senha, recupere acesso e gerencie a verificação em duas etapas.</small></span></div>
         <Link className="ghost small" href="/seguranca">Gerenciar segurança</Link>
       </section>
 

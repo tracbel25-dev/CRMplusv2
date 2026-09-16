@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Minus, Plus } from 'lucide-react';
+import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
 const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((value || 0) / 100);
@@ -19,13 +20,13 @@ export function ExternalPublic({ token }: { token: string }) {
   const [link, setLink] = useState<LinkData | null>(null);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
-  useEffect(() => { void invoke(token, 'read').then(result => setLink(result.link)).catch(reason => setError(reason instanceof Error ? reason.message : 'Link indisponível.')); }, [token]);
+  useEffect(() => { void invoke(token, 'read').then(result => setLink(result.link)).catch(reason => setError(clientMessage(reason, 'Este link não está disponível no momento.'))); }, [token]);
 
   if (error) return <main className="external-shell"><section className="external-card external-state"><h1>Este link não está disponível</h1><p>{error}</p></section></main>;
   if (!link) return <main className="external-shell"><section className="external-card external-state"><p>Abrindo…</p></section></main>;
   if (sent) return <main className="external-shell"><section className="external-card external-state"><CheckCircle2 size={42} /><h1>Resposta enviada</h1><p>Você já pode fechar esta página.</p></section></main>;
 
-  const common = { token, link, done: () => setSent(true), fail: (message: string) => setError(message) };
+  const common = { token, link, done: () => setSent(true), fail: (message: string) => setError(clientMessage(message)) };
   return <main className={`external-shell external-${link.appId}`}>
     {link.kind === 'artemis-menu' ? <MenuPublic {...common} />
       : link.kind === 'athena-survey' ? <SurveyPublic {...common} />
@@ -46,7 +47,7 @@ function QuotePublic({ token, link, done, fail }: PublicProps) {
     try {
       await invoke(token, 'respond', { decision, name, note, version: Number(link.payload.version || quote.version || 0) });
       done();
-    } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar a resposta.'); }
+    } catch (e) { fail(clientMessage(e, 'Não foi possível enviar a resposta.')); }
     finally { setBusy(false); }
   };
   const total = (quote.lines || []).reduce((sum: number, line: any) => sum + Math.round((line.quantity || 0) * (line.price || 0)), 0) - (quote.discount || 0);
@@ -81,7 +82,7 @@ function MenuPublic({ token, link, done, fail }: PublicProps) {
     if (channel === 'Delivery' && subtotal < Number(link.payload.minimumOrder || 0)) { fail(`Pedido mínimo: ${money(Number(link.payload.minimumOrder || 0))}.`); return; }
     setBusy(true); try {
       await invoke(token, 'respond', { customer, phone, address, notes: general, channel, items: items.map((p: any) => ({ productId: p.id, quantity: cart[p.id], note: notes[p.id] || '' })) }); done();
-    } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar o pedido.'); } finally { setBusy(false); }
+    } catch (e) { fail(clientMessage(e, 'Não foi possível enviar o pedido.')); } finally { setBusy(false); }
   };
   return <section className="external-card external-menu">
     <header><span className="external-brand">{link.payload.business || 'Cardápio'}</span><h1>{link.title}</h1>{link.payload.hours && <p>{link.payload.hours}</p>}</header>
@@ -100,7 +101,7 @@ function SurveyPublic({ token, link, done, fail }: PublicProps) {
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     for (const q of survey.questions || []) if (q.required && !answers[q.id]) { fail(`Responda: ${q.title}`); return; }
-    setBusy(true); try { await invoke(token, 'respond', { respondent, answers: Object.entries(answers).map(([questionId, value]) => ({ questionId, value })) }); done(); } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar a pesquisa.'); } finally { setBusy(false); }
+    setBusy(true); try { await invoke(token, 'respond', { respondent, answers: Object.entries(answers).map(([questionId, value]) => ({ questionId, value })) }); done(); } catch (e) { fail(clientMessage(e, 'Não foi possível enviar a pesquisa.')); } finally { setBusy(false); }
   };
   return <section className="external-card"><header><span className="external-brand">{link.payload.business || 'Pesquisa'}</span><h1>{survey.title || link.title}</h1>{survey.description && <p>{survey.description}</p>}</header>
     {(survey.questions || []).map((q: any, index: number) => <fieldset key={q.id}><legend><span>{String(index + 1).padStart(2, '0')}</span>{q.title}{q.required ? ' *' : ''}</legend>{['NPS — recomendação', 'Escala de 0 a 10', 'Nota de 0 a 10'].includes(q.type) ? <div className="external-scale">{Array.from({ length: 11 }, (_, n) => String(n)).map(n => <button type="button" className={answers[q.id] === n ? 'active' : ''} key={n} onClick={() => setAnswers({ ...answers, [q.id]: n })}>{n}</button>)}</div> : q.type === 'Nota de 1 a 5' ? <div className="external-scale">{['1','2','3','4','5'].map(n => <button type="button" className={answers[q.id] === n ? 'active' : ''} key={n} onClick={() => setAnswers({ ...answers, [q.id]: n })}>{n}</button>)}</div> : q.type === 'Escolha única' ? <div className="external-options">{q.options.map((option: string) => <label key={option}><input type="radio" name={q.id} checked={answers[q.id] === option} onChange={() => setAnswers({ ...answers, [q.id]: option })} />{option}</label>)}</div> : <textarea value={answers[q.id] || ''} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })} />}</fieldset>)}
@@ -110,7 +111,7 @@ function SurveyPublic({ token, link, done, fail }: PublicProps) {
 
 function KronosPublic({ token, link, done, fail }: PublicProps) {
   const [intent, setIntent] = useState('advance'); const [name, setName] = useState(''); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false);
-  const submit = async () => { setBusy(true); try { await invoke(token, 'respond', { intent, name, note }); done(); } catch (e) { fail(e instanceof Error ? e.message : 'Não foi possível enviar a resposta.'); } finally { setBusy(false); } };
+  const submit = async () => { setBusy(true); try { await invoke(token, 'respond', { intent, name, note }); done(); } catch (e) { fail(clientMessage(e, 'Não foi possível enviar a resposta.')); } finally { setBusy(false); } };
   return <section className="external-card"><header><span className="external-brand">{link.payload.business || 'Contato comercial'}</span><h1>{link.title}</h1><p>{link.payload.customer || ''}</p></header>{link.payload.value > 0 && <div className="external-highlight"><span>Valor de referência</span><strong>{money(Number(link.payload.value))}</strong></div>}{link.payload.nextAction && <p className="external-note">Próximo passo sugerido: {link.payload.nextAction}</p>}
     <div className="external-choice"><button className={intent === 'advance' ? 'active' : ''} onClick={() => setIntent('advance')}>Quero avançar</button><button className={intent === 'later' ? 'active' : ''} onClick={() => setIntent('later')}>Falar depois</button><button className={intent === 'not-interested' ? 'active' : ''} onClick={() => setIntent('not-interested')}>Não tenho interesse</button></div>
     <label><span>Seu nome</span><input value={name} onChange={e => setName(e.target.value)} /></label><label><span>Mensagem</span><textarea value={note} onChange={e => setNote(e.target.value)} /></label><button disabled={busy} onClick={() => void submit()}>Enviar resposta</button>
