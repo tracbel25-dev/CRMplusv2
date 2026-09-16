@@ -1,4 +1,7 @@
-/* Zeus visual system — one rhythm, one surface language, one interaction model. */
+@import './zeus-enhancements.css';
+@import './zeus-modal-layout.css';
+
+/* Zeus visual system: one entry point, one rhythm, one interaction language. */
 .app-zeus{
   --zeus-radius:12px;
   --zeus-radius-lg:14px;
@@ -12,6 +15,12 @@
 .app-zeus .op-title h1{letter-spacing:-.045em;line-height:1.04;}
 .app-zeus .op-title p{max-width:760px;margin-top:7px;color:var(--op-muted);line-height:1.5;}
 .app-zeus .op-title>.op-actions{align-items:center;justify-content:flex-end;}
+
+/* Sidebar hierarchy. */
+.app-zeus .op-sidebar nav{gap:4px;}
+.app-zeus .zeus-nav-group{display:flex;flex-direction:column;gap:4px;margin-top:14px;}
+.app-zeus .zeus-nav-group-label{padding:0 13px 5px!important;font-size:10px!important;letter-spacing:.11em;opacity:.82;}
+.app-zeus.is-collapsed .zeus-nav-group{margin-top:8px;}
 
 /* Every expandable work surface follows the same header/body pattern. */
 .app-zeus .op-section{
@@ -81,6 +90,8 @@
 .app-zeus .zeus-context-stack{gap:10px;}
 .app-zeus .zeus-context-card{padding:13px 14px;}
 .app-zeus .zeus-primary-action{padding:13px 14px;}
+.app-zeus .zeus-dashboard-grid>div{min-width:0;padding:18px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);}
+.app-zeus .zeus-dashboard-grid{align-items:start;}
 
 /* Lists use the same container and row treatment across jobs, quotes, billing and checklist. */
 .app-zeus .op-job-list,
@@ -162,7 +173,7 @@
 .app-zeus .op-button{border-radius:10px!important;}
 .app-zeus .op-icon{border-radius:9px!important;}
 
-/* Checklist had its own blue visual language; inherit Zeus surfaces instead. */
+/* Checklist inherits the Zeus surface language. */
 .app-zeus .zeus-checkin-tabs{width:max-content!important;}
 .app-zeus .zeus-checklist-categories button,
 .app-zeus .zeus-checklist-model-grid button,
@@ -178,7 +189,7 @@
   border-color:var(--op-accent)!important;
 }
 
-/* Details used around a job follow the same expandable language. */
+/* Details around a job use the same expandable language. */
 .app-zeus .zeus-support details,
 .app-zeus .op-version-history,
 .app-zeus .zeus-quote-manual-decision{
@@ -212,7 +223,7 @@
 .app-zeus .zeus-quote-manual-decision>p,
 .app-zeus .zeus-quote-manual-decision>.op-actions{margin:0!important;padding:14px;}
 
-/* Sidebar transitions are visual only; state persistence must never block the click. */
+/* Sidebar movement is visual only; persistence never blocks the click. */
 .app-zeus .op-sidebar,
 .app-zeus .op-workspace{transition:width .16s ease,margin-left .16s ease,grid-template-columns .16s ease;}
 .app-zeus .op-sidebar-bottom button{touch-action:manipulation;}
@@ -220,6 +231,7 @@
 @media(max-width:900px){
   .app-zeus{--zeus-pad:15px;}
   .app-zeus .op-title{align-items:stretch;}
+  .app-zeus .zeus-dashboard-grid{grid-template-columns:1fr!important;}
   .app-zeus .zeus-dashboard-kpis,
   .app-zeus .zeus-billing-summary,
   .app-zeus .zeus-lead-summary{margin:14px 0 18px!important;}
@@ -227,7 +239,10 @@
 
 @media(max-width:720px){
   .app-zeus{--zeus-pad:14px;--zeus-gap:12px;}
-  .app-zeus .op-title{margin-bottom:15px;}
+  .app-zeus .op-main{padding-left:14px!important;padding-right:14px!important;}
+  .app-zeus .op-title{display:grid!important;gap:14px!important;margin-bottom:15px;}
+  .app-zeus .op-title>.op-actions{width:100%;display:grid!important;grid-template-columns:1fr!important;}
+  .app-zeus .op-title>.op-actions .op-button{width:100%;}
   .app-zeus .op-section-head{min-height:54px;padding:0 14px;}
   .app-zeus .op-section-body{padding:14px;}
   .app-zeus .op-section-head>.op-button,
@@ -238,4 +253,16 @@
   .app-zeus .zeus-checkin-row,
   .app-zeus .zeus-lead-list button,
   .app-zeus .zeus-attention-list button{padding:13px 14px!important;}
+  .app-zeus .zeus-stage-rail{display:flex!important;overflow-x:auto!important;flex-wrap:nowrap!important;scroll-snap-type:x proximity;padding-bottom:7px;}
+  .app-zeus .zeus-stage-rail>span{flex:0 0 auto;scroll-snap-align:start;}
+  .app-zeus .zeus-workbench{grid-template-columns:1fr!important;}
+  .app-zeus .zeus-context-stack{grid-template-columns:1fr 1fr!important;order:2;}
+  .app-zeus .zeus-now{min-width:0;}
+  .app-zeus .op-actions{flex-wrap:wrap;}
+  .app-zeus .op-dialog.wide{width:calc(100vw - 16px)!important;max-width:none!important;}
+  .app-zeus .zeus-nav-group{margin-top:12px;}
+}
+
+@media(max-width:430px){
+  .app-zeus .zeus-context-stack{grid-template-columns:1fr!important;}
 }
