@@ -102,7 +102,8 @@ export function zeusChecklistState(data: Data, jobId: string) {
   const values = data.customFieldValues?.[jobId] || {};
   const savedFolder = isZeusChecklistAssetFolder(String(values[ZEUS_CHECKLIST_FOLDER_KEY] || '')) ? values[ZEUS_CHECKLIST_FOLDER_KEY] as ZeusChecklistAssetFolder : '';
   const explicitDisabled = values[ZEUS_CHECKLIST_ENABLED_KEY] === 'false';
-  const folder = !config.enabled || explicitDisabled ? '' : savedFolder || config.defaultAssetFolder;
+  // A configuração global define o padrão para novas OS. Uma OS que já escolheu um checklist preserva essa escolha.
+  const folder = explicitDisabled ? '' : savedFolder || (config.enabled ? config.defaultAssetFolder : '');
   return {
     config,
     folder: folder as ZeusChecklistAssetFolder | '',
