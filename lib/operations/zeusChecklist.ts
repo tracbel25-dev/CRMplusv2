@@ -38,8 +38,8 @@ export type ZeusChecklistCategoryId = 'light' | 'heavy' | 'yellow' | 'industrial
 export type ZeusChecklistCategory = { id: ZeusChecklistCategoryId; label: string; description: string; folders: ZeusChecklistAssetFolder[] };
 
 export const ZEUS_CHECKLIST_CATEGORIES: ZeusChecklistCategory[] = [
-  { id: 'light', label: 'Veículos leves', description: 'Uso urbano e utilitário', folders: ['carro', 'van', 'micro_onibus', 'moto'] },
-  { id: 'heavy', label: 'Caminhões / ônibus', description: 'Transporte rodoviário e coletivo', folders: ['caminhao_pequeno', 'caminhao_medio', 'caminhao_cavalo_mecanico', 'onibus'] },
+  { id: 'light', label: 'Veículos leves', description: 'Uso urbano e utilitário', folders: ['carro', 'van', 'moto'] },
+  { id: 'heavy', label: 'Caminhões / ônibus', description: 'Transporte rodoviário e coletivo', folders: ['caminhao_pequeno', 'caminhao_medio', 'caminhao_cavalo_mecanico', 'micro_onibus', 'onibus'] },
   { id: 'yellow', label: 'Máquinas linha amarela', description: 'Construção e terraplenagem', folders: ['maquina_escavadeira', 'maquina_retroescavadeira', 'maquina_carregadeira', 'maquina_motoniveladora', 'maquina_rolo_compactador'] },
   { id: 'industrial', label: 'Equipamentos industriais', description: 'Movimentação e operação interna', folders: ['empilhadeira'] },
   { id: 'agricultural', label: 'Agrícola', description: 'Máquinas para operação no campo', folders: ['trator_agricola'] },
@@ -102,7 +102,7 @@ export function zeusChecklistState(data: Data, jobId: string) {
   const values = data.customFieldValues?.[jobId] || {};
   const savedFolder = isZeusChecklistAssetFolder(String(values[ZEUS_CHECKLIST_FOLDER_KEY] || '')) ? values[ZEUS_CHECKLIST_FOLDER_KEY] as ZeusChecklistAssetFolder : '';
   const explicitDisabled = values[ZEUS_CHECKLIST_ENABLED_KEY] === 'false';
-  const folder = explicitDisabled ? '' : savedFolder || (config.enabled ? config.defaultAssetFolder : '');
+  const folder = !config.enabled || explicitDisabled ? '' : savedFolder || config.defaultAssetFolder;
   return {
     config,
     folder: folder as ZeusChecklistAssetFolder | '',

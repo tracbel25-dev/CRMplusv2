@@ -3,6 +3,7 @@
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Workspace } from './storage';
 import { event, setCustomValues } from './model';
+import { initialJobStatus } from './zeus';
 import type { ZeusChecklistAssetFolder } from './checklistAssets';
 import type { ZeusChecklistSegment } from './checklistTemplates';
 import {
@@ -104,6 +105,10 @@ export async function syncZeusChecklistResponse(w: Workspace, jobId: string, kno
     if (asset && meter) asset.meter = meter;
     if (!job.events.some(item => item.text.includes('Checklist de entrada concluído'))) {
       job.events.push(event('Checklist de entrada concluído e vinculado à OS'));
+    }
+    if (job.stage === 'Identificação' && job.status === 'Aguardando checklist') {
+      job.status = initialJobStatus(data.settings);
+      job.events.push(event(`Situação: ${job.status}`));
     }
   }, 'Checklist sincronizado com a OS.');
 }

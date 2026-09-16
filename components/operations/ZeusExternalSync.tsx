@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import type { Workspace } from '@/lib/operations/storage';
-import { syncExternalResponses } from '@/lib/operations/externalLinks';
 import { migrateLegacyZeusChecklists, syncAllZeusChecklistResponses } from '@/lib/operations/zeusChecklistClient';
 import { syncZeusQuoteExternalResponses } from '@/lib/operations/zeusQuoteExternalSync';
 
@@ -26,7 +25,6 @@ export function ZeusExternalSync({ w }: { w: Workspace }) {
       }
       await syncAllZeusChecklistResponses(w);
       await syncZeusQuoteExternalResponses(w);
-      await syncExternalResponses(w, 'zeus');
     } catch (reason) {
       // A sincronização automática não deve interromper a operação. Ações explícitas continuam exibindo o erro.
       console.warn('Zeus external sync:', reason);

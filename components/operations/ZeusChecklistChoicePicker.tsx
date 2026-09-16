@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
+import { useCurrentWorkspace } from '@/lib/operations/storage';
 import {
   ZEUS_CHECKLIST_CATEGORIES,
   ZEUS_CHECKLIST_FOLDER_LABELS,
+  readZeusChecklistConfig,
   zeusChecklistCategoryForFolder,
   type ZeusChecklistCategoryId,
 } from '@/lib/operations/zeusChecklist';
@@ -16,8 +18,10 @@ export function ZeusChecklistChoicePicker({ value, onChange, defaultFolder, disa
   disabled?: boolean;
   allowNone?: boolean;
 }) {
+  const workspace = useCurrentWorkspace();
   const [category, setCategory] = useState<ZeusChecklistCategoryId>(() => value ? zeusChecklistCategoryForFolder(value) : defaultFolder ? zeusChecklistCategoryForFolder(defaultFolder) : 'light');
   useEffect(() => { if (value) setCategory(zeusChecklistCategoryForFolder(value)); }, [value]);
+  if (workspace?.app === 'zeus' && !readZeusChecklistConfig(workspace.data).enabled) return null;
   const current = ZEUS_CHECKLIST_CATEGORIES.find(item => item.id === category) || ZEUS_CHECKLIST_CATEGORIES[0];
   return <div className="zeus-choice-picker">
     <div className="zeus-choice-head"><div><strong>Checklist de entrada</strong><small>Escolha o segmento e depois o modelo específico.</small></div>{allowNone && <button type="button" disabled={disabled} className={!value ? 'active' : ''} onClick={() => onChange('')}>Não usar checklist</button>}</div>
