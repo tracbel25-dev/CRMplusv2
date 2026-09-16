@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
@@ -13,11 +14,12 @@ export function MfaGate({children}:{children:ReactNode}){
   const router=useRouter();
   const checkedUser=useRef('');
   const [checking,setChecking]=useState(false);
+  const protectedRoute=protectedPrefixes.some(prefix=>pathname===prefix||pathname.startsWith(`${prefix}/`));
 
   useEffect(()=>{
     if(!access.ready)return;
     if(!access.user){checkedUser.current='';setChecking(false);return;}
-    if(!protectedPrefixes.some(prefix=>pathname===prefix||pathname.startsWith(`${prefix}/`))){setChecking(false);return;}
+    if(!protectedRoute){setChecking(false);return;}
     if(checkedUser.current===access.user.id){setChecking(false);return;}
     let active=true;
     setChecking(true);
@@ -38,8 +40,8 @@ export function MfaGate({children}:{children:ReactNode}){
       setChecking(false);
     })();
     return()=>{active=false;};
-  },[access.ready,access.user,pathname,router]);
+  },[access.ready,access.user,pathname,protectedRoute,router]);
 
-  if(checking)return null;
+  if((protectedRoute&&!access.ready)||checking)return <AppLoadingScreen label="Carregando" />;
   return <>{children}</>;
 }

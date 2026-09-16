@@ -9,6 +9,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Settings2, ShoppingBag, Sun, Target, Users,
   UtensilsCrossed, Wallet, Wrench, X
 } from 'lucide-react';
+import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { AppId } from '@/lib/operations/model';
 import { corporateDeveloperLine, corporateUi } from '@/lib/operations/corporate';
 import { navigation } from '@/lib/operations/navigation';
@@ -67,6 +68,8 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
     || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
 
+  if (!w.ready) return <AppLoadingScreen label={`Carregando ${config.name}`} />;
+
   const nav = config.sections.filter(section => {
     if (app === 'zeus' && section.path === 'agendamentos' && !w.data.settings.scheduleEnabled) return false;
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
@@ -92,8 +95,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   const restricted = <section className="op-section"><div className="op-section-head"><h2>Acesso não liberado</h2></div><p className="op-muted">Seu perfil não possui permissão para abrir esta área. O titular da conta pode alterar isso em Configurações → Acessos.</p><div className="op-actions"><Link className="op-button secondary" href={`/${app}/inicio`}>Voltar ao início</Link></div></section>;
 
-  const body = !w.ready ? <div className="op-loading" role="status">Abrindo {config.name}…</div>
-    : page === 'configuracoes' ? (!access.ready ? <div className="op-loading" role="status">Validando permissão…</div> : canConfigure ? settingsBody : restricted)
+  const body = page === 'configuracoes' ? (canConfigure ? settingsBody : restricted)
     : !canUsePage ? restricted
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
     : app === 'zeus' && page === 'faturamento' ? <ZeusBilling w={w} />
