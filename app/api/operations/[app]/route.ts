@@ -9,6 +9,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_WORKSPACE_BYTES = 8 * 1024 * 1024;
+const ZEUS_TERMINAL_STATUSES = new Set(['Encerrado', 'Cancelado', 'Reprovado']);
 
 function cloudApp(value: string): CloudOperationalApp | null {
   return value === 'zeus' || value === 'artemis' ? value : null;
@@ -53,6 +54,11 @@ function validateZeusTransition(current: Data | null, next: Data) {
   const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
   for (const job of next.jobs) {
     const previous = currentJobs.get(job.id);
+
+    if (previous && ZEUS_TERMINAL_STATUSES.has(previous.status) && JSON.stringify(previous) !== JSON.stringify(job)) {
+      throw new Error('TERMINAL_JOB_IMMUTABLE: atendimentos encerrados, cancelados ou reprovados são somente leitura.');
+    }
+
     if (previous?.stage === 'Identificação' && job.stage !== 'Identificação') {
       const nextChecklist = zeusChecklistState(next, job.id);
       const currentChecklist = current ? zeusChecklistState(current, job.id) : null;
@@ -135,6 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.';
     if (message.startsWith('CHECKLIST_REQUIRED:')) return NextResponse.json({ error: message.replace('CHECKLIST_REQUIRED: ', '') }, { status: 409 });
+    if (message.startsWith('TERMINAL_JOB_IMMUTABLE:')) return NextResponse.json({ error: message.replace('TERMINAL_JOB_IMMUTABLE: ', '') }, { status: 409 });
     if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
     return NextResponse.json({ error: message }, { status: 503 });
   }
