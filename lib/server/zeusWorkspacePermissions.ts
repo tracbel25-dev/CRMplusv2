@@ -1,8 +1,8 @@
 import type { Data, Job, Quote } from '../operations/model';
 import { initialData } from '../operations/model';
-import { serverPermissionGranted, type ServerPermissionMap } from './appAccess';
 import { ZEUS_ATTACHMENT_META_KEY, ZEUS_CHECKLIST_CONFIG_KEY, ZEUS_SERVICE_TYPES_KEY } from '../operations/zeusChecklistKeys';
 
+type ServerPermissionMap = Record<string, boolean>;
 type Access = {
   role: string;
   permissions: ServerPermissionMap;
@@ -17,7 +17,10 @@ function deny(message: string): never {
 }
 
 function has(access: Access, permission: string) {
-  return serverPermissionGranted(access.role, access.permissions, permission);
+  if (access.role === 'owner') return true;
+  const keys = Object.keys(access.permissions || {});
+  if (!keys.length) return true;
+  return access.permissions[permission] === true;
 }
 
 function requirePermission(access: Access, permission: string, message: string) {
