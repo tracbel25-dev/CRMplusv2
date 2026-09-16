@@ -1,0 +1,24 @@
+.zeus-operator-feedback{display:contents}
+.app-zeus .op-button,.app-zeus .op-icon,.app-zeus button.op-row,.app-zeus .op-job,.app-zeus .zeus-billing-row,.app-zeus .op-check-row,.app-zeus .op-text-link{transition:transform .08s ease,background-color .14s ease,border-color .14s ease,box-shadow .14s ease,opacity .14s ease}
+.app-zeus button:not(:disabled):active,.app-zeus a.op-button:active,.app-zeus .op-text-link:active{transform:translateY(1px) scale(.985)}
+.app-zeus .op-job:active,.app-zeus button.op-row:active,.app-zeus .zeus-billing-row:active{background:var(--op-tint);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--op-accent) 24%,transparent)}
+.app-zeus .op-check-row[aria-pressed=true]{background:color-mix(in srgb,var(--op-tint) 72%,var(--op-paper));box-shadow:inset 3px 0 0 var(--op-accent)}
+.zeus-operator-feedback.is-advancing .zeus-primary-action .op-button{pointer-events:none;cursor:wait;opacity:.74;font-size:0!important;min-width:122px}
+.zeus-operator-feedback.is-advancing .zeus-primary-action .op-button svg{display:none}
+.zeus-operator-feedback.is-advancing .zeus-primary-action .op-button::after{content:'Avançando…';font-size:12px;letter-spacing:0}
+.zeus-operator-feedback.is-closing .op-dialog[open] .op-form-footer .op-button:not(.secondary){pointer-events:none;cursor:wait;opacity:.74;font-size:0!important;min-width:118px}
+.zeus-operator-feedback.is-closing .op-dialog[open] .op-form-footer .op-button:not(.secondary)::after{content:'Encerrando…';font-size:14px;letter-spacing:0}
+.zeus-operator-feedback.is-result .zeus-now{animation:zeus-operator-result .72s ease-out}
+.zeus-operator-feedback.is-result .zeus-stage-rail span.current{animation:zeus-operator-stage .72s ease-out}
+@keyframes zeus-operator-result{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--op-accent) 0%,transparent)}32%{box-shadow:0 0 0 4px color-mix(in srgb,var(--op-accent) 18%,transparent)}100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--op-accent) 0%,transparent)}}
+@keyframes zeus-operator-stage{0%{transform:scale(.97)}40%{transform:scale(1.035)}100%{transform:scale(1)}}
+.app-zeus .op-badge[data-operator-tone='info']{background:var(--op-tint);color:var(--op-accent);border:1px solid color-mix(in srgb,var(--op-accent) 26%,var(--op-line))}
+.app-zeus .op-badge[data-operator-tone='success']{background:#e9f6ed;color:#24663c;border:1px solid #b8ddc3}
+.app-zeus .op-badge[data-operator-tone='warning']{background:#fff0d0;color:#744900;border:1px solid #ead39e}
+.app-zeus .op-badge[data-operator-tone='danger']{background:#fff0ed;color:#9a3223;border:1px solid #e8b8ae}
+.app-zeus.theme-dark .op-badge[data-operator-tone='success']{background:#193b29;color:#b9edc8;border-color:#315b41}
+.app-zeus.theme-dark .op-badge[data-operator-tone='warning']{background:#55421c;color:#ffe0a0;border-color:#745d2b}
+.app-zeus.theme-dark .op-badge[data-operator-tone='danger']{background:#4d2722;color:#ffc2b7;border-color:#714039}
+.app-zeus:has(> .op-alert) > .op-toast{top:84px;bottom:auto}
+@media(max-width:720px){.app-zeus:has(> .op-alert) > .op-toast{top:70px;bottom:auto;left:15px;right:15px;transform:none}}
+@media(prefers-reduced-motion:reduce){.zeus-operator-feedback.is-result .zeus-now,.zeus-operator-feedback.is-result .zeus-stage-rail span.current{animation:none}}
