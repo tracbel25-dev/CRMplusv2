@@ -42,7 +42,7 @@ export function useZeusEntitlements(enabled = true) {
     plan: value?.plan || 'start' as ZeusPlanCode,
     planName: value?.planName || ZEUS_PLANS.start.name,
     seatLimit: value?.seatLimit || ZEUS_PLANS.start.seats,
-    aiEnabled: value?.aiEnabled !== false,
+    aiEnabled: true as const,
     aiMonthlyLimit: value?.aiMonthlyLimit ?? null,
     has: (feature: ZeusFeature) => features.has(feature),
   };
