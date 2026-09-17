@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { apps, featured } from '@/lib/catalog';
+import { landingAssetUrl } from '@/lib/landingAssets';
 import { AppArtwork } from './AppArtwork';
 import { AppAsset } from './AppAsset';
 
@@ -97,11 +98,12 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
   const isEditorialHero = hero === featured.length;
   const current = featured[hero];
   const currentImpact = impacts[impact];
+  const storeCover = landingAssetUrl('home/store-cover.png', '/images/store-cover.webp');
 
   return (
     <>
       <section className="store-cover" aria-labelledby="store-cover-title">
-        <Image className="store-cover-image" src="/images/store-cover.webp" alt="" fill sizes="100vw" preload />
+        <Image className="store-cover-image" src={storeCover} alt="" fill sizes="100vw" preload />
         <div className="store-cover-inner">
           <div className="store-cover-copy">
             <span className="eyebrow">CRM PLUS Store</span>
