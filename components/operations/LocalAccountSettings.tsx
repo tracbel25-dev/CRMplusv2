@@ -7,7 +7,8 @@ import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
-import { Badge, Button, Section } from './ui';
+import { Badge, Button } from './ui';
+import { SettingsSection } from './SettingsSection';
 
 const TEAM_LIMIT=4;
 
@@ -96,16 +97,14 @@ export function LocalAccountSettings(){
     if(!access.ready||!access.user||!access.account||!access.isOwner) return;
     try{
       const result=await detailRequest<{members:DetailMember[]}>({action:'list',appId});
-      const list=result.members||[];
-      setMembers(list);
-      if(!open){const first=list.find(item=>item.role!=='owner');if(first)setOpen(first.userId);}
+      setMembers(result.members||[]);
     }catch(reason){setError((reason as Error).message);}
   };
   useEffect(()=>{void load();},[access.ready,access.account?.id,appId]);
 
-  if(!access.ready)return <Section title="Acessos"><p className="op-muted">Carregando acessos…</p></Section>;
-  if(!access.user)return <Section title="Acessos"><p className="op-muted">Entre na sua conta para gerenciar acessos.</p></Section>;
-  if(access.error||!access.account||!access.member)return <Section title="Acessos"><p className="op-muted">{access.error||'Não foi possível carregar a conta.'}</p></Section>;
+  if(!access.ready)return <SettingsSection title="Equipe e acessos" description="Gerencie pessoas, cargos e permissões do aplicativo."><p className="op-muted">Carregando acessos…</p></SettingsSection>;
+  if(!access.user)return <SettingsSection title="Equipe e acessos" description="Gerencie pessoas, cargos e permissões do aplicativo."><p className="op-muted">Entre na sua conta para gerenciar acessos.</p></SettingsSection>;
+  if(access.error||!access.account||!access.member)return <SettingsSection title="Equipe e acessos" description="Gerencie pessoas, cargos e permissões do aplicativo."><p className="op-muted">{access.error||'Não foi possível carregar a conta.'}</p></SettingsSection>;
 
   const account=access.account;
   const appActive=account.apps.some(item=>item.appId===appId&&['trialing','active'].includes(item.status));
@@ -157,18 +156,13 @@ export function LocalAccountSettings(){
   const ownApp=access.member.apps.find(item=>item.appId===appId);
   const ownPermissions=(ownApp?.permissions||blankPermissions()) as Record<PermissionKey,boolean>;
 
-  return <Section title={`Equipe e acessos · ${appName}`}>
-    <div className="op-account-summary access-summary">
-      <div><span>Conta</span><strong>{account.name}</strong></div>
-      <div><span>Seu acesso</span><strong>{access.member.displayName}</strong><small>{access.isOwner?'Titular':access.member.jobTitle||'Usuário'}</small></div>
-      <div><span>Pessoas</span><strong>{account.members.length}/{TEAM_LIMIT}</strong></div>
-      <div><span>Aplicativo</span><strong>{appName}</strong><small>{appActive?'Ativo':'Inativo'}</small></div>
+  return <SettingsSection title={`Equipe e acessos · ${appName}`} description="Veja a equipe primeiro; abra somente a pessoa que quiser configurar.">
+    <div className="access-overview">
+      <div><strong>{account.members.length}/{TEAM_LIMIT} pessoas</strong><span>{appActive?`${appName} ativo`:`${appName} inativo`}</span></div>
+      {access.isOwner&&<Button variant="secondary" disabled={teamFull||!appActive} onClick={()=>{clear();setInviteOpen(value=>!value);}}><UserPlus size={16}/>{inviteOpen?'Fechar':'Adicionar pessoa'}</Button>}
     </div>
-    <p className="op-muted access-intro">Aqui você define <strong>cargo</strong> e <strong>o que cada pessoa realmente pode fazer</strong> dentro deste aplicativo. Use os filtros de permissões para consultar uma área por vez.</p>
 
-    {!access.isOwner&&<div className="access-self-card"><div><strong>Suas permissões no {appName}</strong><small>{permissionCount(ownPermissions)} permissões liberadas</small></div><PermissionGrid value={ownPermissions} disabled/></div>}
-
-    {access.isOwner&&<div className="access-toolbar"><Button variant="secondary" disabled={teamFull||!appActive} onClick={()=>{clear();setInviteOpen(value=>!value);}}><UserPlus size={16}/>{inviteOpen?'Fechar cadastro':'Adicionar pessoa'}</Button></div>}
+    {!access.isOwner&&<div className="access-self-card"><div><strong>Seu acesso</strong><small>{permissionCount(ownPermissions)} permissões liberadas</small></div><PermissionGrid value={ownPermissions} disabled/></div>}
 
     {access.isOwner&&inviteOpen&&!teamFull&&<div className="access-editor access-invite">
       <div className="access-editor-head"><div><span>Novo integrante</span><strong>Defina o acesso antes de enviar o convite</strong></div><Badge>{appName}</Badge></div>
@@ -187,46 +181,42 @@ export function LocalAccountSettings(){
 
     {access.isOwner&&<div className="access-member-list">{members.map(member=>{
       const owner=member.role==='owner';
-      const expanded=open===member.userId;
+      const expanded=!owner&&open===member.userId;
       const count=owner?ALL_KEYS.length:permissionCount(member.permissions);
       const profile=owner?'Titular':presetFor(member.permissions);
       return <article className={`access-member-card${expanded?' is-open':''}`} key={member.userId}>
         <div className="access-member-head">
-          <div className="access-person"><strong>{member.displayName}{owner&&<Badge>Titular</Badge>}</strong><span>{owner?'Acesso total':member.jobTitle||'Cargo não informado'}</span><small>{owner?'Todas as áreas e ações liberadas.':`${count} permissões · ${profile}`}</small></div>
-          <div className="access-member-actions">
-            {!owner&&<label className="access-switch"><input type="checkbox" checked={member.enabled} disabled={!!busy} onChange={e=>void toggleAccess(member,e.target.checked)}/><span>{member.enabled?'Acesso ativo':'Sem acesso'}</span></label>}
-            <button type="button" className="access-configure-button" onClick={()=>setOpen(expanded?'':member.userId)}>{expanded?'Fechar permissões':'Configurar permissões'}{expanded?<ChevronUp size={17}/>:<ChevronDown size={17}/>}</button>
-            {!owner&&<button className="op-icon" type="button" disabled={!!busy} aria-label={`Remover ${member.displayName}`} onClick={()=>void remove(member)}><Trash2 size={17}/></button>}
-          </div>
+          <div className="access-person"><strong>{member.displayName}{owner&&<Badge>Titular</Badge>}</strong><span>{owner?'Acesso total':member.jobTitle||'Cargo não informado'}</span><small>{owner?'Todas as áreas liberadas.':`${profile} · ${count} permissões`}</small></div>
+          {!owner&&<div className="access-member-actions">
+            <label className="access-switch"><input type="checkbox" checked={member.enabled} disabled={!!busy} onChange={e=>void toggleAccess(member,e.target.checked)}/><span>{member.enabled?'Ativo':'Sem acesso'}</span></label>
+            <button type="button" className="access-configure-button" onClick={()=>setOpen(expanded?'':member.userId)}>{expanded?'Fechar':'Configurar'}{expanded?<ChevronUp size={17}/>:<ChevronDown size={17}/>}</button>
+            <button className="op-icon" type="button" disabled={!!busy} aria-label={`Remover ${member.displayName}`} onClick={()=>void remove(member)}><Trash2 size={17}/></button>
+          </div>}
         </div>
         {expanded&&<div className="access-member-body">
-          {owner?<p className="op-muted">O titular possui todas as permissões e não pode ser limitado.</p>:<>
-            <div className="access-editor-top">
-              <label className="op-field"><span>Cargo / função</span><input value={member.jobTitle} onChange={e=>updateLocal(member.userId,{jobTitle:e.target.value})} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
-              <label className="op-field"><span>Perfil de acesso</span><select value={presetFor(member.permissions)} onChange={e=>{if(presets[e.target.value])updateLocal(member.userId,{permissions:{...presets[e.target.value]}});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
-            </div>
-            <div className="access-explainer"><strong>O que {member.displayName} pode fazer no {appName}</strong><span>Marque apenas o necessário. Escolha uma categoria para filtrar as permissões.</span></div>
-            <PermissionGrid value={member.permissions} disabled={!member.enabled} onChange={permissions=>updateLocal(member.userId,{permissions})}/>
-            <div className="op-form-footer"><Button disabled={!member.enabled||busy===`${member.userId}:save`} onClick={()=>void saveMember(member)}><Save size={16}/>{busy===`${member.userId}:save`?'Salvando…':'Salvar cargo e permissões'}</Button></div>
-          </>}
+          <div className="access-editor-top">
+            <label className="op-field"><span>Cargo / função</span><input value={member.jobTitle} onChange={e=>updateLocal(member.userId,{jobTitle:e.target.value})} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
+            <label className="op-field"><span>Perfil de acesso</span><select value={presetFor(member.permissions)} onChange={e=>{if(presets[e.target.value])updateLocal(member.userId,{permissions:{...presets[e.target.value]}});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
+          </div>
+          <PermissionGrid value={member.permissions} disabled={!member.enabled} onChange={permissions=>updateLocal(member.userId,{permissions})}/>
+          <div className="op-form-footer"><Button disabled={!member.enabled||busy===`${member.userId}:save`} onClick={()=>void saveMember(member)}><Save size={16}/>{busy===`${member.userId}:save`?'Salvando…':'Salvar alterações'}</Button></div>
         </div>}
       </article>;
     })}</div>}
 
     <style jsx global>{`
-      .access-summary{margin-bottom:10px}.access-intro{margin-bottom:14px}.access-toolbar{display:flex;justify-content:flex-end;margin-bottom:14px}
-      .access-editor{border:1px solid var(--op-line);border-radius:14px;background:var(--op-soft);padding:18px;margin-bottom:18px}
-      .access-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}.access-editor-head>div{display:grid;gap:3px}.access-editor-head span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--op-muted)}.access-editor-head strong{font-size:18px}
-      .access-fields{margin-bottom:4px}.access-member-list{display:grid;gap:10px;margin-top:12px}.access-member-card{border:1px solid var(--op-line);border-radius:14px;background:var(--op-paper);overflow:hidden}.access-member-card.is-open{border-color:color-mix(in srgb,var(--op-accent) 34%,var(--op-line));box-shadow:0 8px 28px rgba(10,20,35,.05)}
-      .access-member-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px}.access-person{display:grid;gap:3px;min-width:0}.access-person>strong{display:flex;align-items:center;gap:8px;font-size:16px}.access-person>span{font-size:13px}.access-person>small{color:var(--op-muted)}
-      .access-member-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.access-switch{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 11px;border:1px solid var(--op-line);border-radius:10px;font-size:13px;font-weight:700}.access-configure-button{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border:1px solid var(--op-line);border-radius:10px;background:var(--op-paper);color:var(--op-ink);font-weight:700}.access-configure-button:hover{border-color:var(--op-accent);background:var(--op-tint)}
-      .access-member-body{padding:18px;border-top:1px solid var(--op-line);background:color-mix(in srgb,var(--op-soft) 62%,var(--op-paper))}.access-editor-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:820px}.access-explainer{display:grid;gap:3px;margin:18px 0 10px}.access-explainer strong{font-size:16px}.access-explainer span{color:var(--op-muted);font-size:13px}
-      .access-permission-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:thin}.access-permission-tabs button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 11px;border:1px solid var(--op-line);border-radius:999px;background:var(--op-paper);color:var(--op-ink);font-weight:750;white-space:nowrap;cursor:pointer}.access-permission-tabs button small{color:var(--op-muted);font-size:11px}.access-permission-tabs button.is-active{border-color:var(--op-accent);background:var(--op-accent);color:#fff}.access-permission-tabs button.is-active small{color:rgba(255,255,255,.8)}
-      .access-permission-grid{display:grid;grid-template-columns:1fr;gap:12px}.access-permission-group{border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);padding:14px}.access-permission-group>strong{display:block;margin-bottom:10px;font-size:14px}.access-permission-items{display:grid;gap:7px}.access-permission-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;align-items:start;padding:9px 8px;border-radius:9px}.access-permission-item:hover{background:var(--op-soft)}.access-permission-item>span{display:grid;gap:2px}.access-permission-item>span>strong{font-size:13px}.access-permission-item small{color:var(--op-muted);line-height:1.35}.access-self-card{border:1px solid var(--op-line);border-radius:14px;padding:18px}.access-self-card>div{display:grid;gap:3px}.access-self-card>div small{color:var(--op-muted)}.op-success-text{padding:10px 12px;border:1px solid color-mix(in srgb,#198754 30%,var(--op-line));background:color-mix(in srgb,#198754 8%,var(--op-paper));border-radius:10px}
+      .access-overview{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:2px 0 14px;border-bottom:1px solid var(--op-line);margin-bottom:14px}.access-overview>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.access-overview span{color:var(--op-muted);font-size:13px}
+      .access-editor{border:1px solid var(--op-line);border-radius:12px;background:var(--op-soft);padding:16px;margin-bottom:16px}.access-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}.access-editor-head>div{display:grid;gap:3px}.access-editor-head span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--op-muted)}.access-editor-head strong{font-size:17px}
+      .access-fields{margin-bottom:4px}.access-member-list{display:grid;gap:8px}.access-member-card{border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);overflow:hidden}.access-member-card.is-open{border-color:color-mix(in srgb,var(--op-accent) 34%,var(--op-line))}
+      .access-member-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 16px}.access-person{display:grid;gap:2px;min-width:0}.access-person>strong{display:flex;align-items:center;gap:8px;font-size:15px}.access-person>span{font-size:13px}.access-person>small{color:var(--op-muted)}
+      .access-member-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.access-switch{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 10px;border:1px solid var(--op-line);border-radius:9px;font-size:12px;font-weight:700}.access-configure-button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 11px;border:1px solid var(--op-line);border-radius:9px;background:var(--op-paper);color:var(--op-ink);font-weight:700}.access-configure-button:hover{border-color:var(--op-accent);background:var(--op-tint)}
+      .access-member-body{padding:16px;border-top:1px solid var(--op-line);background:color-mix(in srgb,var(--op-soft) 52%,var(--op-paper))}.access-editor-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:820px;margin-bottom:14px}
+      .access-permission-tabs{display:flex;gap:7px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}.access-permission-tabs button{display:flex;align-items:center;gap:7px;min-height:36px;padding:0 10px;border:1px solid var(--op-line);border-radius:999px;background:var(--op-paper);color:var(--op-ink);font-weight:750;white-space:nowrap;cursor:pointer}.access-permission-tabs button small{color:var(--op-muted);font-size:11px}.access-permission-tabs button.is-active{border-color:var(--op-accent);background:var(--op-accent);color:#fff}.access-permission-tabs button.is-active small{color:rgba(255,255,255,.8)}
+      .access-permission-grid{display:grid;grid-template-columns:1fr;gap:10px}.access-permission-group{border:1px solid var(--op-line);border-radius:11px;background:var(--op-paper);padding:12px}.access-permission-group>strong{display:block;margin-bottom:8px;font-size:14px}.access-permission-items{display:grid;gap:5px}.access-permission-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;align-items:start;padding:8px;border-radius:8px}.access-permission-item:hover{background:var(--op-soft)}.access-permission-item>span{display:grid;gap:2px}.access-permission-item>span>strong{font-size:13px}.access-permission-item small{color:var(--op-muted);line-height:1.35}.access-self-card{border:1px solid var(--op-line);border-radius:12px;padding:16px}.access-self-card>div{display:grid;gap:3px}.access-self-card>div small{color:var(--op-muted)}.op-success-text{padding:10px 12px;border:1px solid color-mix(in srgb,#198754 30%,var(--op-line));background:color-mix(in srgb,#198754 8%,var(--op-paper));border-radius:10px}
       @media(max-width:900px){.access-editor-top{grid-template-columns:1fr}.access-member-head{align-items:flex-start;flex-direction:column}.access-member-actions{width:100%;justify-content:flex-start}}
-      @media(max-width:600px){.access-member-actions{display:grid;grid-template-columns:1fr auto;width:100%}.access-switch,.access-configure-button{justify-content:center}.access-configure-button{grid-column:1/-1}.access-member-body,.access-member-head,.access-editor{padding:14px}.access-permission-tabs{margin-right:-6px}}
+      @media(max-width:600px){.access-overview{align-items:flex-start;flex-direction:column}.access-overview>.op-button{width:100%}.access-member-actions{display:grid;grid-template-columns:1fr auto;width:100%}.access-switch,.access-configure-button{justify-content:center}.access-configure-button{grid-column:1/-1}.access-member-body,.access-member-head,.access-editor{padding:14px}.access-permission-tabs{margin-right:-6px}}
     `}</style>
-  </Section>;
+  </SettingsSection>;
 }
 
 function PermissionGrid({value,onChange,disabled=false}:{value:Record<PermissionKey,boolean>;onChange?:(value:Record<PermissionKey,boolean>)=>void;disabled?:boolean}){
