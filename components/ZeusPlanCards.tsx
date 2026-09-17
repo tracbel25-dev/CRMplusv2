@@ -12,7 +12,7 @@ const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style:'
 const mobileComparison = [
   { label:'Ordens de serviço', minRank:0 },
   { label:'Clientes, veículos e histórico', minRank:0 },
-  { label:'IA/Groq', minRank:0 },
+  { label:'Inteligência artificial', minRank:0 },
   { label:'Agenda e reagendamento', minRank:1 },
   { label:'Checklist e assinatura', minRank:1 },
   { label:'Diagnóstico', minRank:1 },
