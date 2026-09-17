@@ -15,29 +15,19 @@ export const ZEUS_DASHBOARD_FILTERS = ['Status', 'Etapa', 'Tipo', 'Responsável'
 
 export function readZeusPreferences(data: Data): ZeusPreferences {
   const raw = data.customFieldValues?.[ZEUS_PREFS_ID] || {};
-  const parseList = (value: string | undefined, fallback: string[]) => {
-    if (!value) return fallback;
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : fallback;
-    } catch { return fallback; }
-  };
   const days = Number(raw.budgetValidityDays || 7);
   return {
     budgetValidityDays: Number.isFinite(days) && days >= 1 && days <= 365 ? Math.round(days) : 7,
-    jobFilters: parseList(raw.jobFilters, ZEUS_JOB_FILTERS),
-    quoteFilters: parseList(raw.quoteFilters, ZEUS_QUOTE_FILTERS),
-    dashboardFilters: parseList(raw.dashboardFilters, ZEUS_DASHBOARD_FILTERS)
+    jobFilters: [...ZEUS_JOB_FILTERS],
+    quoteFilters: [...ZEUS_QUOTE_FILTERS],
+    dashboardFilters: [...ZEUS_DASHBOARD_FILTERS]
   };
 }
 
 export function writeZeusPreferences(data: Data, preferences: ZeusPreferences) {
   data.customFieldValues ??= {};
   data.customFieldValues[ZEUS_PREFS_ID] = {
-    budgetValidityDays: String(Math.max(1, Math.min(365, Math.round(preferences.budgetValidityDays || 7)))),
-    jobFilters: JSON.stringify(preferences.jobFilters),
-    quoteFilters: JSON.stringify(preferences.quoteFilters),
-    dashboardFilters: JSON.stringify(preferences.dashboardFilters)
+    budgetValidityDays: String(Math.max(1, Math.min(365, Math.round(preferences.budgetValidityDays || 7))))
   };
 }
 
