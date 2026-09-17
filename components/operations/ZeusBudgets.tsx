@@ -6,10 +6,12 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Workspace } from '@/lib/operations/storage';
 import { blankQuote, date, effectiveQuoteStatus, matches, nextNumber } from '@/lib/operations/model';
-import { budgetLabel, budgetValue, defaultQuoteValidity, findZeusBudget, readZeusPreferences, zeusBudgets } from '@/lib/operations/zeus';
+import { budgetLabel, budgetValue, defaultQuoteValidity, findZeusBudget, zeusBudgets } from '@/lib/operations/zeus';
 import { Badge, Button, Empty, Modal, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 import { ZeusQuotePanel } from './ZeusQuotePanel';
+
+const BUDGET_FILTER_KEYS = ['Número do orçamento', 'Número da OS', 'Origem', 'Status', 'Cliente', 'Validade'];
 
 export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: string }) {
   const router = useRouter();
@@ -22,7 +24,6 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
   const [descending, setDescending] = useState(true);
   const [create, setCreate] = useState(false);
   const [customerId, setCustomerId] = useState('');
-  const prefs = readZeusPreferences(w.data);
   const selected = recordId ? findZeusBudget(w.data, recordId) : undefined;
 
   if (recordId && !selected) return <><Button variant="text" onClick={() => router.push('/zeus/orcamentos')}><ArrowLeft size={16} />Voltar aos orçamentos</Button><Empty>Orçamento não encontrado.</Empty></>;
@@ -38,20 +39,29 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
 
   const all = zeusBudgets(w.data);
   const definitions = useMemo<FilterDefinition[]>(() => {
-    const values = {
+    const values: Record<string, string[]> = {
+      'Número do orçamento': Array.from(new Set(all.map(item => String(item.quote.number).padStart(4, '0')))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+      'Número da OS': Array.from(new Set(all.map(item => item.job ? String(item.job.number).padStart(4, '0') : 'Sem OS'))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
       Origem: ['OS', 'Balcão'],
-      Status: Array.from(new Set(all.map(item => effectiveQuoteStatus(item.quote)))),
+      Status: Array.from(new Set(all.map(item => effectiveQuoteStatus(item.quote)))).sort(),
       Cliente: Array.from(new Set(all.map(item => w.data.customers.find(customer => customer.id === item.quote.customerId)?.name || 'Cliente não encontrado'))).sort(),
       Validade: ['Válido', 'Vencido', 'Sem validade']
     };
-    return prefs.quoteFilters.map(label => ({ key: label, label, options: values[label as keyof typeof values] || [] })).filter(item => item.options.length);
-  }, [all, prefs.quoteFilters, w.data.customers]);
+    return BUDGET_FILTER_KEYS.map(key => ({ key, label: key, options: values[key] || [] })).filter(item => item.options.length);
+  }, [all, w.data.customers]);
 
   const filtered = all.filter(item => {
     const customer = w.data.customers.find(current => current.id === item.quote.customerId)?.name || 'Cliente não encontrado';
-    if (!matches(query, item.quote.number, customer, item.origin, item.quote.lines.map(line => line.description).join(' '))) return false;
+    if (!matches(query, item.quote.number, item.job?.number, customer, item.origin, item.quote.lines.map(line => line.description).join(' '))) return false;
     const validity = !item.quote.validUntil ? 'Sem validade' : item.quote.validUntil < new Date().toISOString().slice(0, 10) ? 'Vencido' : 'Válido';
-    const checks: Record<string, string> = { Origem: item.origin, Status: effectiveQuoteStatus(item.quote), Cliente: customer, Validade: validity };
+    const checks: Record<string, string> = {
+      'Número do orçamento': String(item.quote.number).padStart(4, '0'),
+      'Número da OS': item.job ? String(item.job.number).padStart(4, '0') : 'Sem OS',
+      Origem: item.origin,
+      Status: effectiveQuoteStatus(item.quote),
+      Cliente: customer,
+      Validade: validity
+    };
     return Object.entries(active).every(([key, values]) => !values.length || values.includes(checks[key]));
   }).sort((a, b) => {
     const value = (item: typeof a) => sort === 'number' ? item.quote.number : sort === 'value' ? budgetValue(item) : sort === 'validUntil' ? item.quote.validUntil : item.quote.createdAt;
@@ -76,7 +86,7 @@ export function ZeusBudgets({ w, recordId = '' }: { w: Workspace; recordId?: str
 
   return <>
     <Title eyebrow="Comercial da oficina" title="Orçamentos" action={canManage ? <Button onClick={() => setCreate(true)}><Plus size={17} />Novo orçamento balcão</Button> : undefined}>Orçamentos de OS e vendas de balcão aparecem juntos para operação, mas continuam identificados separadamente para análise.</Title>
-    <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de criação' }, { value: 'number', label: 'Número' }, { value: 'value', label: 'Valor' }, { value: 'validUntil', label: 'Validade' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder="Buscar cliente, item ou número" />
+    <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de criação' }, { value: 'number', label: 'Número' }, { value: 'value', label: 'Valor' }, { value: 'validUntil', label: 'Validade' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder="Buscar cliente, OS, item ou número do orçamento" />
     <div className="zeus-budget-list">{filtered.map(item => {
       const customer = w.data.customers.find(current => current.id === item.quote.customerId);
       return <button key={item.quote.id} className="zeus-budget-row" onClick={() => router.push(`/zeus/orcamentos/${item.quote.id}`)}>
