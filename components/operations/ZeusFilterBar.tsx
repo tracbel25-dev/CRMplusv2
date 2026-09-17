@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownAZ, ArrowUpAZ, Check, ChevronDown, Funnel, Search } from 'lucide-react';
+import { ArrowDownAZ, ArrowUpAZ, Check, Funnel, Search } from 'lucide-react';
 import { SearchBox } from './ui';
 
 export type FilterDefinition = { key: string; label: string; options: string[] };
 export type SortOption = { value: string; label: string };
 
-type OpenPanel = { type: 'filter'; key: string } | { type: 'sort' } | null;
+type OpenPanel = { type: 'filter'; key: string } | null;
 
 export function ZeusFilterBar({
-  query, onQuery, definitions, active, onActive, sort, sortOptions, descending, onSort, onDescending, placeholder = 'Buscar'
+  query, onQuery, definitions, active, onActive, placeholder = 'Buscar'
 }: {
   query: string;
   onQuery: (value: string) => void;
@@ -27,12 +27,10 @@ export function ZeusFilterBar({
   const rootRef = useRef<HTMLDivElement>(null);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [draftSelected, setDraftSelected] = useState<string[]>([]);
-  const [draftSort, setDraftSort] = useState(sort);
-  const [draftDescending, setDraftDescending] = useState(descending);
   const [optionSearch, setOptionSearch] = useState('');
   const [optionDescending, setOptionDescending] = useState(false);
 
-  const currentDefinition = openPanel?.type === 'filter'
+  const currentDefinition = openPanel
     ? definitions.find(item => item.key === openPanel.key)
     : undefined;
 
@@ -49,13 +47,7 @@ export function ZeusFilterBar({
     setDraftSelected(active[definition.key] || []);
     setOptionSearch('');
     setOptionDescending(false);
-    setOpenPanel(current => current?.type === 'filter' && current.key === definition.key ? null : { type: 'filter', key: definition.key });
-  };
-
-  const openSort = () => {
-    setDraftSort(sort);
-    setDraftDescending(descending);
-    setOpenPanel(current => current?.type === 'sort' ? null : { type: 'sort' });
+    setOpenPanel(current => current?.key === definition.key ? null : { type: 'filter', key: definition.key });
   };
 
   const visibleOptions = useMemo(() => {
@@ -83,37 +75,15 @@ export function ZeusFilterBar({
     setOpenPanel(null);
   };
 
-  const confirmSort = () => {
-    onSort(draftSort);
-    onDescending(draftDescending);
-    setOpenPanel(null);
-  };
-
   return <div className="zeus-filter-shell" ref={rootRef}>
     <div className="zeus-filter-search-main">
       <SearchBox value={query} onChange={onQuery} placeholder={placeholder}/>
     </div>
 
-    <div className="zeus-filter-column-bar" aria-label="Filtros dos atendimentos">
-      <div className="zeus-filter-chip-wrap">
-        <button type="button" className={`zeus-filter-chip zeus-filter-sort-chip${openPanel?.type === 'sort' ? ' open' : ''}`} onClick={openSort}>
-          <span>Classificar</span><ArrowDownAZ size={15}/><ChevronDown size={14}/>
-        </button>
-        {openPanel?.type === 'sort' && <section className="zeus-column-popover zeus-sort-popover">
-          <div className="zeus-sort-options">{sortOptions.map(option => <button key={option.value} type="button" className={draftSort === option.value ? 'active' : ''} onClick={() => setDraftSort(option.value)}>
-            <span>{option.label}</span>{draftSort === option.value && <Check size={15}/>} 
-          </button>)}</div>
-          <div className="zeus-sort-direction-row">
-            <button type="button" className={!draftDescending ? 'active' : ''} onClick={() => setDraftDescending(false)}><ArrowUpAZ size={16}/> Crescente</button>
-            <button type="button" className={draftDescending ? 'active' : ''} onClick={() => setDraftDescending(true)}><ArrowDownAZ size={16}/> Decrescente</button>
-          </div>
-          <footer><button type="button" className="secondary" onClick={() => { setDraftSort(sortOptions[0]?.value || sort); setDraftDescending(true); }}>Limpar</button><button type="button" className="primary" onClick={confirmSort}>Confirmar</button></footer>
-        </section>}
-      </div>
-
+    <div className="zeus-filter-column-bar" aria-label="Filtros">
       {definitions.map(definition => {
         const selected = active[definition.key] || [];
-        const isOpen = openPanel?.type === 'filter' && openPanel.key === definition.key;
+        const isOpen = openPanel?.key === definition.key;
         return <div className="zeus-filter-chip-wrap" key={definition.key}>
           <button type="button" className={`zeus-filter-chip${selected.length ? ' active' : ''}${isOpen ? ' open' : ''}`} onClick={() => openFilter(definition)}>
             <span>{definition.label}</span><Funnel size={14}/>{selected.length > 0 && <b>{selected.length}</b>}
@@ -144,14 +114,13 @@ export function ZeusFilterBar({
       .zeus-filter-chip:hover,.zeus-filter-chip.open{background:var(--op-soft);color:var(--op-ink)}
       .zeus-filter-chip.active{color:var(--op-accent);background:color-mix(in srgb,var(--op-accent) 8%,var(--op-paper))}
       .zeus-filter-chip b{min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center;border-radius:999px;background:var(--op-accent);color:var(--op-on-accent);font-size:10px}
-      .zeus-filter-sort-chip{border-right:1px solid var(--op-line);border-radius:7px 0 0 7px;padding-right:12px;margin-right:2px}
 
       .zeus-column-popover{position:absolute;left:0;top:calc(100% + 7px);z-index:500;width:320px;display:grid;gap:10px;padding:12px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);color:var(--op-ink);box-shadow:0 18px 45px rgba(0,0,0,.2)}
       .zeus-column-popover>strong{font-size:13px}
       .zeus-column-popover>small{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--op-muted)}
-      .zeus-option-sort-row,.zeus-sort-direction-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-      .zeus-option-sort-row button,.zeus-sort-direction-row button{min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--op-line);border-radius:8px;background:var(--op-paper);color:var(--op-muted);font:inherit;font-size:12px;cursor:pointer}
-      .zeus-option-sort-row button.active,.zeus-sort-direction-row button.active{border-color:color-mix(in srgb,var(--op-accent) 45%,var(--op-line));color:var(--op-accent);background:color-mix(in srgb,var(--op-accent) 6%,var(--op-paper))}
+      .zeus-option-sort-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+      .zeus-option-sort-row button{min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--op-line);border-radius:8px;background:var(--op-paper);color:var(--op-muted);font:inherit;font-size:12px;cursor:pointer}
+      .zeus-option-sort-row button.active{border-color:color-mix(in srgb,var(--op-accent) 45%,var(--op-line));color:var(--op-accent);background:color-mix(in srgb,var(--op-accent) 6%,var(--op-paper))}
       .zeus-popover-search{display:grid;gap:5px}.zeus-popover-search>span{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--op-muted)}
       .zeus-popover-search>div{height:39px;display:flex;align-items:center;gap:7px;padding:0 9px;border:1px solid var(--op-line);border-radius:8px;color:var(--op-muted)}
       .zeus-popover-search input{width:100%;height:36px;border:0!important;outline:0!important;background:transparent!important;color:var(--op-ink)!important;padding:0!important;font:inherit;font-size:12px}
@@ -164,7 +133,6 @@ export function ZeusFilterBar({
       .zeus-column-popover footer button{min-height:38px;border-radius:8px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
       .zeus-column-popover footer .secondary{border:1px solid var(--op-line);background:var(--op-paper);color:var(--op-muted)}
       .zeus-column-popover footer .primary{border:1px solid var(--op-accent);background:var(--op-accent);color:var(--op-on-accent)}
-      .zeus-sort-popover{width:300px}.zeus-sort-options{display:grid;gap:3px}.zeus-sort-options button{min-height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 9px;border:0;border-radius:7px;background:transparent;color:var(--op-ink);font:inherit;font-size:12px;cursor:pointer}.zeus-sort-options button:hover,.zeus-sort-options button.active{background:var(--op-soft)}.zeus-sort-options button svg{color:var(--op-accent)}
 
       @media(max-width:720px){
         .app-zeus .op-title>.op-actions{width:100%!important;display:flex!important;flex-wrap:nowrap!important;gap:8px!important}
