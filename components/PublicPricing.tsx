@@ -31,7 +31,7 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
 
     {isZeus ? <>
       <ZeusPlanCards />
-      <p className="public-pricing-note">A IA/Groq está incluída em Start, Essencial, Plus e Premium. Valores e cobrança de cada nível serão vinculados à assinatura corporativa sem alterar os dados operacionais do cliente.</p>
+      <p className="public-pricing-note">IA/Groq incluída em todos os planos. Faça upgrade quando precisar liberar mais recursos e acessos.</p>
     </> : <>
       <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
       <div className="public-price-grid">{cycles.map(cycle => {
