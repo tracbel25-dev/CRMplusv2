@@ -8,12 +8,13 @@ import { useStoreAccess } from '@/lib/account/storeAccess';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { billingRequest } from '@/lib/billing';
 
-type Plan={id:string;app_id:string;billing_interval:string;amount_cents:number;currency:string};
+type Plan={id:string;app_id:string;plan_code:string|null;seats:number;billing_interval:string;amount_cents:number;currency:string};
 type Subscription={id:string;app_id:string;plan_id:string|null;status:string;amount_cents:number;frequency:number;current_period_end:string|null;trial_requested:boolean;trial_ends_at:string|null};
 type BillingList={subscriptions:Subscription[];checkoutSubscriptions?:Subscription[];ready:boolean;trialEligibleApps?:string[]};
 
 const money=(cents:number)=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const cycles:Record<string,string>={monthly:'Mensal',semiannual:'Semestral',annual:'Anual'};
+const zeusPlanNames:Record<string,string>={start:'Zeus Start',essencial:'Zeus Essencial',plus:'Zeus Plus',premium:'Zeus Premium'};
 
 export function Subscriptions({initialApp,initialPlan,returned=false}:{initialApp?:string;initialPlan?:string;returned?:boolean}){
   const access=useStoreAccess();
@@ -34,7 +35,7 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
   const load=useCallback(async()=>{
     if(!accountId)return;
     const [catalogResult,billingResult]=await Promise.allSettled([
-      createStoreClient().from('plans').select('id,app_id,billing_interval,amount_cents,currency').eq('active',true).order('amount_cents'),
+      createStoreClient().from('plans').select('id,app_id,plan_code,seats,billing_interval,amount_cents,currency').eq('active',true).order('amount_cents'),
       billingRequest<BillingList>({action:'list',accountId}),
     ]);
     const problems:string[]=[];
@@ -72,6 +73,7 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
   const flow:'trial'|'activate'|'reactivate'=usingTrial?'trial':expiredAccess&&entitlement?.status!=='trialing'?'reactivate':'activate';
   const selectedAppName=apps.find(item=>item.slug===selected)?.name||selected;
   const actionLabel=flow==='trial'?'Testar grátis por 7 dias':flow==='reactivate'?`Reativar ${selectedAppName}`:`Ativar ${selectedAppName}`;
+  const isZeus=selected==='zeus';
 
   const openCheckout=useCallback(async(planId:string,automatic=false)=>{
     if(!accountId||busy)return;
@@ -149,22 +151,31 @@ export function Subscriptions({initialApp,initialPlan,returned=false}:{initialAp
       <div className="billing-access-summary" role="status">
         <span className="eyebrow">Seu acesso</span>
         <h2>{canOpen?entitlement?.status==='trialing'?'Teste grátis já ativo':'Aplicativo já liberado':entitlement?.status==='suspended'?'Acesso suspenso':currentSubscription?.status==='pending'?'Autorização pendente':currentSubscription?.status==='authorized'&&expiredAccess?'Teste encerrado — aguardando a primeira cobrança':currentSubscription?.status==='authorized'?'Cobrança em processamento':currentSubscription?.status==='paused'?'Assinatura pausada':flow==='trial'?'Você pode testar por 7 dias':flow==='reactivate'?'Seu acesso expirou — reative quando quiser':'Ative seu aplicativo'}</h2>
-        <p>{canOpen?'Você já possui acesso a este aplicativo.':currentSubscription?.status==='pending'?'Existe uma autorização pendente no Mercado Pago. Continue para concluir.':currentSubscription?.status==='authorized'?'A autorização já existe no Mercado Pago. Vamos conferir a cobrança antes de criar uma nova assinatura.':currentSubscription?.status==='paused'?'A assinatura existente está pausada. Gerencie essa assinatura antes de iniciar outra.':flow==='trial'?'Você pode autorizar 7 dias grátis no Mercado Pago ou optar por ativar com cobrança normal.':flow==='reactivate'?'Como este aplicativo já teve um período de acesso, a próxima contratação é uma reativação sem novo teste grátis.':'Escolha o ciclo e autorize a assinatura no Mercado Pago.'}</p>
+        <p>{canOpen?'Você já possui acesso a este aplicativo.':currentSubscription?.status==='pending'?'Existe uma autorização pendente no Mercado Pago. Continue para concluir.':currentSubscription?.status==='authorized'?'A autorização já existe no Mercado Pago. Vamos conferir a cobrança antes de criar uma nova assinatura.':currentSubscription?.status==='paused'?'A assinatura existente está pausada. Gerencie essa assinatura antes de iniciar outra.':flow==='trial'?'Você pode autorizar 7 dias grátis no Mercado Pago ou optar por ativar com cobrança normal.':flow==='reactivate'?'Como este aplicativo já teve um período de acesso, a próxima contratação é uma reativação sem novo teste grátis.':isZeus?'Escolha o plano Zeus e autorize a assinatura no Mercado Pago.':'Escolha o ciclo e autorize a assinatura no Mercado Pago.'}</p>
         {canOpen&&<Link className="primary" href={`/${selected}`}>Abrir aplicativo</Link>}
         {!canOpen&&currentSubscription?.status==='pending'&&currentSubscription.plan_id&&<button className="primary" disabled={!!busy||ready!==true} onClick={()=>void openCheckout(currentSubscription.plan_id!)}>Continuar no Mercado Pago</button>}
         {!canOpen&&currentSubscription?.status==='authorized'&&<button className="primary" disabled={!!busy||ready!==true} onClick={()=>void syncExisting()}>{busy===currentSubscription.id+'sync'?'Conferindo…':'Conferir cobrança'}</button>}
         {!canOpen&&currentSubscription?.status==='paused'&&<Link className="primary" href="/assinaturas">Gerenciar assinatura</Link>}
       </div>
 
-      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">O teste grátis é individual por conta e dados de contratação e não pode ser repetido em outra empresa.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o ciclo escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
+      {trialEligible&&<div className="billing-trial-identity" id="teste-gratis"><div className="billing-trial-heading"><span>7 DIAS GRÁTIS</span><h3>Teste autorizado pelo Mercado Pago</h3><p>O período grátis começa somente depois que você autorizar a assinatura no Mercado Pago. A primeira cobrança acontece após os 7 dias.</p></div>{!skipTrial?<><p className="billing-trial-status">O teste grátis é individual por conta e dados de contratação e não pode ser repetido em outra empresa.</p><button className="text-action billing-skip-trial" type="button" onClick={()=>setSkipTrial(true)}>Ativar agora sem teste grátis</button></>:<div className="billing-no-trial"><strong>Ativação imediata</strong><p>A cobrança começa conforme o plano escolhido.</p><button className="ghost" type="button" onClick={()=>setSkipTrial(false)}>Usar 7 dias grátis</button></div>}</div>}
 
       {!trialEligible&&!canOpen&&!providerStillOpen&&<div className="billing-no-trial"><strong>{flow==='reactivate'?'Reativação':'Ativação'}</strong><p>{flow==='reactivate'?'Seu período anterior terminou. Escolha um plano para voltar a usar o aplicativo.':'O teste grátis não está disponível para esta conta. Escolha um plano para ativar o aplicativo.'}</p></div>}
 
-      <div className="checkout-step checkout-step-plan"><span>2</span><div><small>Plano</small><strong>Escolha o ciclo de cobrança</strong></div></div>
-      <div className="billing-plans">{plans.filter(plan=>plan.app_id===selected).map(plan=><article key={plan.id} className={initialPlan===plan.id?'is-selected':undefined}>
-        <h2>{cycles[plan.billing_interval]}{initialPlan===plan.id?' · Selecionado':''}</h2><strong>{money(plan.amount_cents)}</strong><p>{usingTrial?'7 dias grátis. Depois, ':''}{plan.billing_interval==='monthly'?'cobrança mensal':plan.billing_interval==='semiannual'?'cobrança a cada 6 meses':'cobrança a cada 12 meses'} com renovação automática.</p><button className="primary" disabled={!!busy||ready!==true||canOpen||entitlement?.status==='suspended'||providerStillOpen} onClick={()=>void openCheckout(plan.id)}>{busy===plan.id?'Abrindo Mercado Pago…':canOpen?'Acesso já liberado':providerStillOpen?'Assinatura já existente':actionLabel}</button>
-      </article>)}</div>
+      <div className="checkout-step checkout-step-plan"><span>2</span><div><small>Plano</small><strong>{isZeus?'Escolha seu plano Zeus':'Escolha o ciclo de cobrança'}</strong></div></div>
+      <div className="billing-plans">{plans.filter(plan=>plan.app_id===selected).map(plan=>{
+        const isZeusPlan=plan.app_id==='zeus'&&!!plan.plan_code;
+        const title=isZeusPlan?(zeusPlanNames[plan.plan_code!]||'Zeus'):cycles[plan.billing_interval];
+        return <article key={plan.id} className={initialPlan===plan.id?'is-selected':undefined}>
+          <h2>{title}{initialPlan===plan.id?' · Selecionado':''}</h2>
+          <strong>{money(plan.amount_cents)}</strong>
+          {isZeusPlan&&<span className="billing-plan-seats">{plan.seats} {plan.seats===1?'acesso':'acessos'}</span>}
+          <p>{usingTrial?'7 dias grátis. Depois, ':''}{isZeusPlan?'cobrança mensal':plan.billing_interval==='monthly'?'cobrança mensal':plan.billing_interval==='semiannual'?'cobrança a cada 6 meses':'cobrança a cada 12 meses'} com renovação automática.</p>
+          <button className="primary" disabled={!!busy||ready!==true||canOpen||entitlement?.status==='suspended'||providerStillOpen} onClick={()=>void openCheckout(plan.id)}>{busy===plan.id?'Abrindo Mercado Pago…':canOpen?'Acesso já liberado':providerStillOpen?'Assinatura já existente':actionLabel}</button>
+        </article>;
+      })}</div>
       <p className="billing-caption">Escolha o aplicativo e o plano. Depois da confirmação no Mercado Pago, o acesso é liberado.</p>
+      <style jsx>{`.billing-plan-seats{display:block;margin:-8px 0 12px;color:#777;font-size:12px;font-weight:700}`}</style>
     </section>}
   </>;
 }
