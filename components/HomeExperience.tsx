@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import Image from 'next/image';
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -54,7 +53,7 @@ const impacts: Impact[] = [
   },
 ];
 
-export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
+export function HomeExperience() {
   const [hero, setHero] = useState(0);
   const [impact, setImpact] = useState(0);
   const [query, setQuery] = useState('');
@@ -198,8 +197,6 @@ export function HomeExperience({ pricing }: { pricing?: ReactNode }) {
           ))}
         </div>
       </section>
-
-      {pricing}
 
       <section className="store-story" id="sobre">
         <div className="story-number">01</div>
