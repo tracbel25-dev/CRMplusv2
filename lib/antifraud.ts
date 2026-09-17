@@ -25,3 +25,15 @@ export async function precheckSignupIdentity(input:{cpf:string;name:string;birth
   if(!response.ok)throw new Error(clientMessage(result.error,'Não foi possível validar os dados do cadastro. Tente novamente.'));
   return result as {ok:boolean;reservationToken:string;verification:'official'|'format'};
 }
+
+export async function releaseSignupIdentity(reservationToken:string){
+  if(!reservationToken)return false;
+  const response=await fetch(`${STORE_SUPABASE.url}/functions/v1/identity-precheck`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',apikey:STORE_SUPABASE.publishableKey},
+    body:JSON.stringify({action:'release',reservationToken}),
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok)return false;
+  return Boolean(result.released);
+}
