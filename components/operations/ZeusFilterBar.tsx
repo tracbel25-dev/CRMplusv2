@@ -100,7 +100,6 @@ export function ZeusFilterBar({
           <span>Classificar</span><ArrowDownAZ size={15}/><ChevronDown size={14}/>
         </button>
         {openPanel?.type === 'sort' && <section className="zeus-column-popover zeus-sort-popover">
-          <strong>Classificar por</strong>
           <div className="zeus-sort-options">{sortOptions.map(option => <button key={option.value} type="button" className={draftSort === option.value ? 'active' : ''} onClick={() => setDraftSort(option.value)}>
             <span>{option.label}</span>{draftSort === option.value && <Check size={15}/>} 
           </button>)}</div>
