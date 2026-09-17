@@ -11,6 +11,7 @@ import { OperationalAIAssist } from './OperationalAIAssist';
 import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
 import { ProfileMenu } from './ProfileMenu';
 import { ZeusHomeSectionCounters } from './ZeusHomeSectionCounters';
+import { ZeusNativeDatalistPolicy } from './ZeusNativeDatalistPolicy';
 import { Modal } from './ui';
 
 const labels: Record<AppId, string> = {
@@ -60,7 +61,7 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
         : <button data-trial-restricted="Copiar links ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
       {app !== 'zeus' && <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title="Receber atualizações externas" aria-label="Receber atualizações externas"><RefreshCw size={18} /></button>}
     </div>
-    {app === 'zeus' && <ZeusHomeSectionCounters w={w} page={page}/>} 
+    {app === 'zeus' && <><ZeusNativeDatalistPolicy/><ZeusHomeSectionCounters w={w} page={page}/></>} 
     <ProfileMenu app={app} canConfigure={!access.account || access.canConfigureApp(app)} fallbackName={w.data.settings.operator}/>
     {menuReview && <Modal title="Revisão inteligente do cardápio" wide onClose={() => setMenuReview(false)}><ArtemisMenuIntelligence w={w} /></Modal>}
     <style jsx global>{`.op-header-tools>.op-user{display:none!important}.op-header-tools>.op-profile-menu{order:99}`}</style>
