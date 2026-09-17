@@ -12,6 +12,11 @@ const ZEUS_PERMISSION_FEATURE: Record<string, ZeusFeature> = {
   billing_view:'billing', billing_manage:'billing',
   dashboard_view:'dashboard', reports_export:'export',
 };
+const ZEUS_PATH_FEATURE: Array<[string, ZeusFeature]> = [
+  ['/api/zeus/checklist', 'checklist'],
+  ['/api/zeus/diagnostico', 'diagnosis'],
+  ['/api/zeus/faturamento', 'billing'],
+];
 
 async function storeFetch(path: string, token: string) {
   try {
@@ -69,7 +74,8 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
       const entitlements = await readZeusEntitlements(membership.account_id);
       plan = entitlements.plan;
       seatLimit = entitlements.seatLimit;
-      const feature = requiredPermission ? ZEUS_PERMISSION_FEATURE[requiredPermission] : undefined;
+      const pathFeature = ZEUS_PATH_FEATURE.find(([prefix]) => request.nextUrl.pathname.startsWith(prefix))?.[1];
+      const feature = pathFeature || (requiredPermission ? ZEUS_PERMISSION_FEATURE[requiredPermission] : undefined);
       if (feature && !zeusHasFeature(entitlements.plan, feature)) return null;
     } catch { return null; }
   }
