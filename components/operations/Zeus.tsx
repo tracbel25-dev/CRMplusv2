@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, FileDown, Plus, Wrench } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
-import { Appointment, Asset, Job, activeJob, date, event, localDay, matches, newJob, setCustomValues, stages, uid } from '@/lib/operations/model';
+import { Appointment, Asset, Job, activeJob, date, effectiveQuoteStatus, event, localDay, matches, newJob, setCustomValues, stages, uid } from '@/lib/operations/model';
 import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
 import { Workspace, csv } from '@/lib/operations/storage';
-import { defaultQuoteValidity, initialJobStatus, readZeusPreferences } from '@/lib/operations/zeus';
+import { defaultQuoteValidity, initialJobStatus } from '@/lib/operations/zeus';
 import { readZeusChecklistConfig, setZeusChecklistChoice } from '@/lib/operations/zeusChecklist';
 import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_RELATED_JOB_KEY, ZEUS_WARRANTY_REASON_KEY } from '@/lib/operations/zeusChecklistKeys';
@@ -20,6 +20,22 @@ import { ZeusChecklistChoicePicker } from './ZeusChecklistChoicePicker';
 import { useRecordRoute } from './useRecordRoute';
 
 const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
+const JOB_FILTER_KEYS = ['Número da OS', 'Identificação', 'Cliente', 'Veículo', 'Tipo', 'Etapa', 'Responsável', 'Status', 'Orçamento', 'Prazo'];
+
+function jobBudgetState(job: Job) {
+  const hasBudget = job.quote.lines.length > 0 || job.stage === 'Orçamento' || job.quote.status !== 'Rascunho';
+  return hasBudget ? effectiveQuoteStatus(job.quote) : 'Sem orçamento';
+}
+
+function jobDeadlineBucket(due: string) {
+  if (!due) return 'Sem prazo';
+  const key = due.slice(0, 10);
+  const today = localDay();
+  if (!key) return 'Sem prazo';
+  if (key < today) return 'Atrasado';
+  if (key === today) return 'Vence hoje';
+  return 'No prazo';
+}
 
 export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; recordId?: string }) {
   const router = useRouter();
@@ -27,7 +43,6 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const d = w.data;
   const s = d.settings;
   const operation = useOperationPreferences('zeus');
-  const prefs = readZeusPreferences(d);
   const canViewJobs = access.hasPermission('zeus', 'jobs_view');
   const canCreateJobs = access.hasPermission('zeus', 'jobs_create');
   const canViewAppointments = access.hasPermission('zeus', 'appointments_view');
@@ -50,19 +65,43 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const searchedJobs = d.jobs.filter(job => matches(query, job.number, findCustomer(job.customerId), findAsset(job.assetId)?.identifier, findAsset(job.assetId)?.model, job.type, job.technician));
 
   const definitions = useMemo<FilterDefinition[]>(() => {
-    const values = {
-      Status: Array.from(new Set(d.jobs.map(job => job.status))).sort(),
-      Etapa: Array.from(new Set(d.jobs.map(job => job.stage))).sort(),
+    const values: Record<string, string[]> = {
+      'Número da OS': Array.from(new Set(d.jobs.map(job => String(job.number).padStart(4, '0')))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
+      Identificação: Array.from(new Set(d.jobs.map(job => findAsset(job.assetId)?.identifier || 'Sem identificação'))).sort(),
+      Cliente: Array.from(new Set(d.jobs.map(job => findCustomer(job.customerId)))).sort(),
+      Veículo: Array.from(new Set(d.jobs.map(job => findAsset(job.assetId)?.model || 'Sem modelo'))).sort(),
       Tipo: Array.from(new Set(d.jobs.map(job => job.type))).sort(),
+      Etapa: Array.from(new Set(d.jobs.map(job => job.stage))).sort(),
       Responsável: Array.from(new Set(d.jobs.map(job => job.technician || 'Sem responsável'))).sort(),
-      Cliente: Array.from(new Set(d.jobs.map(job => findCustomer(job.customerId)))).sort()
+      Status: Array.from(new Set(d.jobs.map(job => job.status))).sort(),
+      Orçamento: Array.from(new Set(d.jobs.map(jobBudgetState))).sort(),
+      Prazo: ['Atrasado', 'Vence hoje', 'No prazo', 'Sem prazo']
     };
-    const display: Record<string, string> = { Tipo: operation.label('type', 'Tipo'), Responsável: operation.label('technician', 'Responsável'), Cliente: operation.label('customer', 'Cliente') };
-    return prefs.jobFilters.map(key => ({ key, label: display[key] || key, options: values[key as keyof typeof values] || [] })).filter(item => item.options.length);
-  }, [d.jobs, prefs.jobFilters, operation]);
+    const display: Record<string, string> = {
+      Identificação: s.identifierLabel,
+      Veículo: s.assetLabel,
+      Tipo: operation.label('type', 'Tipo de OS'),
+      Responsável: operation.label('technician', 'Técnico'),
+      Cliente: operation.label('customer', 'Cliente'),
+      Prazo: operation.label('due', 'Prazo previsto')
+    };
+    return JOB_FILTER_KEYS.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
+  }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel]);
 
   const filteredJobs = (list: Job[]) => list.filter(job => {
-    const values: Record<string, string> = { Status: job.status, Etapa: job.stage, Tipo: job.type, Responsável: job.technician || 'Sem responsável', Cliente: findCustomer(job.customerId) };
+    const asset = findAsset(job.assetId);
+    const values: Record<string, string> = {
+      'Número da OS': String(job.number).padStart(4, '0'),
+      Identificação: asset?.identifier || 'Sem identificação',
+      Cliente: findCustomer(job.customerId),
+      Veículo: asset?.model || 'Sem modelo',
+      Tipo: job.type,
+      Etapa: job.stage,
+      Responsável: job.technician || 'Sem responsável',
+      Status: job.status,
+      Orçamento: jobBudgetState(job),
+      Prazo: jobDeadlineBucket(job.due)
+    };
     return Object.entries(activeFilters).every(([key, selected]) => !selected.length || selected.includes(values[key]));
   }).sort((a, b) => {
     const value = (job: Job) => sort === 'number' ? job.number : sort === 'due' ? job.due : job.createdAt;
