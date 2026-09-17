@@ -48,6 +48,13 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     let autoCollapsing = false;
     const observers: MutationObserver[] = [];
 
+    const markRead = (id: string) => {
+      const signature = meta[id]?.signature || '';
+      if (!signature) return;
+      localStorage.setItem(`crmplus:zeus:home-read:${id}`, signature);
+      setRead(current => current[id] === signature ? current : { ...current, [id]: signature });
+    };
+
     const nextRead: Record<string, string> = {};
     Object.values(titleToId).forEach(id => {
       nextRead[id] = localStorage.getItem(`crmplus:zeus:home-read:${id}`) || '';
@@ -87,6 +94,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
       const observer = new MutationObserver(() => {
         const next = toggle.getAttribute('aria-expanded') === 'true';
         setOpenSections(current => current[id] === next ? current : { ...current, [id]: next });
+        if (next) markRead(id);
       });
       observer.observe(toggle, { attributes: true, attributeFilter: ['aria-expanded'] });
       observers.push(observer);
@@ -107,12 +115,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
 
       const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
       setOpenSections(current => ({ ...current, [id]: willOpen }));
-      if (!willOpen) return;
-
-      const signature = meta[id]?.signature || '';
-      if (!signature) return;
-      localStorage.setItem(`crmplus:zeus:home-read:${id}`, signature);
-      setRead(current => current[id] === signature ? current : { ...current, [id]: signature });
+      if (willOpen) markRead(id);
     };
 
     window.addEventListener('zeus-home-counters-change', onCounters as EventListener);
