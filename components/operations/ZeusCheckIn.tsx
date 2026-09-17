@@ -92,7 +92,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
     <Title eyebrow="Recepção" title="Checklist de entrada">A central mostra somente as inspeções ainda pendentes. Checklist concluído passa a fazer parte da própria OS.</Title>
     <div className="op-compact-tabs zeus-checkin-tabs" style={{ marginBottom: 18 }}><button aria-current={tab === 'checklists' ? 'page' : undefined} onClick={() => setTab('checklists')}>Pendentes</button>{canConfigure && <button aria-current={tab === 'config' ? 'page' : undefined} onClick={() => setTab('config')}>Configuração</button>}</div>
 
-    {tab === 'checklists' && <Section title="Inspeções pendentes">
+    {tab === 'checklists' && <Section title="Inspeções pendentes" collapsible={false}>
       <p className="op-muted">A execução do checklist acontece dentro da etapa Identificação da OS. Esta lista serve apenas para enxergar o que ainda precisa ser concluído.</p>
       {pendingJobs.length ? <div className="zeus-checkin-list">{pendingJobs.map(job => {
         const customer = w.data.customers.find(item => item.id === job.customerId);
@@ -103,7 +103,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
     </Section>}
 
     {tab === 'config' && canConfigure && <>
-      <Section title="Comportamento do checklist">
+      <Section title="Comportamento do checklist" collapsible={false}>
         <div className="op-module-choice"><input type="checkbox" checked={config.enabled} onChange={event => { void saveConfig({ ...config, enabled: event.target.checked }); }} /><span><strong>Usar checklist de entrada</strong><small>Quando ativo, o modelo padrão é sugerido nas novas OS. Uma OS que já iniciou checklist preserva sua escolha.</small></span><Badge>{config.enabled ? 'Ativo' : 'Desativado'}</Badge></div>
         <div className="op-module-choice"><input type="checkbox" checked={config.requireSignature} disabled={!config.enabled} onChange={event => { void saveConfig({ ...config, requireSignature: event.target.checked }); }} /><span><strong>Exigir assinatura</strong><small>Impede a conclusão do checklist sem assinatura do cliente/responsável.</small></span><Badge>{config.requireSignature ? 'Obrigatória' : 'Opcional'}</Badge></div>
         <div className="zeus-checklist-config-picker">
@@ -113,7 +113,7 @@ export function ZeusCheckIn({ w }: { w: Workspace }) {
         </div>
       </Section>
 
-      <Section title="Itens por segmento">
+      <Section title="Itens por segmento" collapsible={false}>
         <div className="zeus-template-tabs">{ZEUS_CHECKLIST_SEGMENTS.map(item => <button type="button" className={configSegment === item.id ? 'active' : ''} onClick={() => setConfigSegment(item.id)} key={item.id}><strong>{item.label}</strong><small>{item.description}</small></button>)}</div>
         <div className="zeus-template-head"><div><strong>{ZEUS_CHECKLIST_TEMPLATES[configSegment].label}</strong><p className="op-muted">Edite os itens deste segmento sem alterar os demais.</p></div><Button variant="secondary" onClick={() => { void setCurrentItems([...ZEUS_CHECKLIST_TEMPLATES[configSegment].items], 'Modelo padrão restaurado.'); }}><RotateCcw size={16} />Restaurar padrão</Button></div>
         <div className="zeus-checkin-config-list">{currentItems.map((item, index) => <div key={`${configSegment}-${index}-${item}`}><span>{String(index + 1).padStart(2, '0')}</span><input defaultValue={item} onBlur={event => { void renameItem(index, event.currentTarget.value); }} /><button className="op-icon" type="button" aria-label={`Remover ${item}`} onClick={() => { void removeItem(index); }}><Trash2 size={16} /></button></div>)}</div>
