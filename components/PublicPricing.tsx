@@ -31,7 +31,6 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
 
     {isZeus ? <>
       <ZeusPlanCards plans={appPlans}/>
-      <p className="public-pricing-note">Inteligência artificial incluída em todos os planos. Contratação mensal com renovação automática.</p>
     </> : <>
       <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
       <div className="public-price-grid">{cycles.map(cycle => {
