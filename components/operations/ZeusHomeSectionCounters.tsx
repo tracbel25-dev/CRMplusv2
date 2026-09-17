@@ -75,12 +75,13 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
         if (id === 'working') head.querySelector<HTMLElement>(':scope > .op-muted')?.classList.add('zeus-home-legacy-count');
         found.push({ id, node: toggle });
       });
-      setTargets(found);
+      setTargets(current => {
+        if (current.length === found.length && current.every((target, index) => target.id === found[index]?.id && target.node === found[index]?.node)) return current;
+        return found;
+      });
     };
 
     discover();
-    const observer = new MutationObserver(discover);
-    observer.observe(document.getElementById('op-main') || document.body, { childList: true, subtree: true });
 
     const onCounters = (event: Event) => setEnabled((event as CustomEvent<boolean>).detail !== false);
     const onClick = (event: MouseEvent) => {
@@ -99,7 +100,6 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     window.addEventListener('zeus-home-counters-change', onCounters as EventListener);
     document.addEventListener('click', onClick);
     return () => {
-      observer.disconnect();
       window.removeEventListener('zeus-home-counters-change', onCounters as EventListener);
       document.removeEventListener('click', onClick);
     };
