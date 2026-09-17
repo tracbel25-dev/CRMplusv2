@@ -15,7 +15,7 @@ export async function reserveTrialNetwork(accountId:string,appId:string){
   return result as {ok:boolean};
 }
 
-export async function precheckSignupIdentity(input:{cpf:string;name:string;birthDate:string;email:string}){
+export async function precheckSignupIdentity(input:{cpf:string;name:string;birthDate:string;email:string;personType:'pf'|'pj';cnpj?:string}){
   const response=await fetch(`${STORE_SUPABASE.url}/functions/v1/identity-precheck`,{
     method:'POST',
     headers:{'Content-Type':'application/json',apikey:STORE_SUPABASE.publishableKey},
