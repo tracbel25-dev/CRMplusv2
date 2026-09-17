@@ -42,10 +42,10 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
   useEffect(() => {
     if (page !== 'inicio') return;
     let autoCollapsing = false;
+
     const loadRead = () => {
       const next: Record<string, string> = {};
-      Object.keys(titleToId).forEach(title => {
-        const id = titleToId[title];
+      Object.values(titleToId).forEach(id => {
         next[id] = localStorage.getItem(`crmplus:zeus:home-read:${id}`) || '';
       });
       setRead(next);
@@ -53,55 +53,56 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     };
     loadRead();
 
-    const discover = () => {
-      const found: Target[] = [];
-      document.querySelectorAll<HTMLElement>('.op-section').forEach(section => {
-        const title = section.querySelector<HTMLElement>('.op-section-head h2')?.textContent?.trim() || '';
-        const id = titleToId[title];
-        const head = section.querySelector<HTMLElement>('.op-section-head');
-        const toggle = section.querySelector<HTMLButtonElement>('.op-section-toggle');
-        if (!id || !head || !toggle) return;
+    const found: Target[] = [];
+    document.querySelectorAll<HTMLElement>('.op-section').forEach(section => {
+      const titleNode = section.querySelector<HTMLElement>('.op-section-head h2 .op-section-toggle > span:first-child');
+      const title = titleNode?.textContent?.trim() || section.querySelector<HTMLElement>('.op-section-head h2')?.textContent?.trim() || '';
+      const id = titleToId[title];
+      const head = section.querySelector<HTMLElement>('.op-section-head');
+      const toggle = section.querySelector<HTMLButtonElement>('.op-section-toggle');
+      if (!id || !head || !toggle) return;
 
-        section.classList.add('zeus-home-section');
-        if (!section.dataset.zeusHomeInitialized) {
-          section.dataset.zeusHomeInitialized = '1';
-          if (section.classList.contains('is-open')) {
-            autoCollapsing = true;
-            toggle.click();
-            autoCollapsing = false;
-          }
+      section.classList.add('zeus-home-section');
+      section.dataset.zeusHomeSectionId = id;
+
+      if (!section.dataset.zeusHomeInitialized) {
+        section.dataset.zeusHomeInitialized = '1';
+        if (section.classList.contains('is-open')) {
+          autoCollapsing = true;
+          toggle.click();
+          autoCollapsing = false;
         }
+      }
 
-        if (id === 'working') head.querySelector<HTMLElement>(':scope > .op-muted')?.classList.add('zeus-home-legacy-count');
-        found.push({ id, node: toggle });
-      });
-      setTargets(current => {
-        if (current.length === found.length && current.every((target, index) => target.id === found[index]?.id && target.node === found[index]?.node)) return current;
-        return found;
-      });
-    };
-
-    discover();
+      if (id === 'working') head.querySelector<HTMLElement>(':scope > .op-muted')?.classList.add('zeus-home-legacy-count');
+      found.push({ id, node: toggle });
+    });
+    setTargets(found);
 
     const onCounters = (event: Event) => setEnabled((event as CustomEvent<boolean>).detail !== false);
-    const onClick = (event: MouseEvent) => {
+    const onClickCapture = (event: MouseEvent) => {
       if (autoCollapsing) return;
-      const toggle = (event.target as Element | null)?.closest('.op-section-toggle');
-      const section = toggle?.closest<HTMLElement>('.op-section');
-      if (!section?.classList.contains('is-closed')) return;
-      const title = section.querySelector<HTMLElement>('.op-section-head h2')?.textContent?.trim() || '';
-      const id = titleToId[title];
+      const toggle = (event.target as Element | null)?.closest<HTMLButtonElement>('.op-section-toggle');
+      const section = toggle?.closest<HTMLElement>('.zeus-home-section');
+      if (!toggle || !section) return;
+
+      // Só marca como lido quando o usuário está ABRINDO a seção.
+      // O listener roda em capture, antes do React trocar aria-expanded/is-open.
+      if (toggle.getAttribute('aria-expanded') !== 'false') return;
+
+      const id = section.dataset.zeusHomeSectionId || '';
       const signature = id ? meta[id]?.signature : '';
       if (!id || !signature) return;
+
       localStorage.setItem(`crmplus:zeus:home-read:${id}`, signature);
-      setRead(current => ({ ...current, [id]: signature }));
+      setRead(current => current[id] === signature ? current : { ...current, [id]: signature });
     };
 
     window.addEventListener('zeus-home-counters-change', onCounters as EventListener);
-    document.addEventListener('click', onClick);
+    document.addEventListener('click', onClickCapture, true);
     return () => {
       window.removeEventListener('zeus-home-counters-change', onCounters as EventListener);
-      document.removeEventListener('click', onClick);
+      document.removeEventListener('click', onClickCapture, true);
     };
   }, [page, meta]);
 
