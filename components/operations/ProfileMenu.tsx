@@ -9,6 +9,8 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import { clientMessage } from '@/lib/clientMessage';
 
 export const ZEUS_HOME_COUNTERS_KEY = 'crmplus:zeus:home-section-counters';
+const PROFILE_PHOTO_PREFIX = 'crmplus:profile-photo:v1';
+const profilePhotoKey = (userId: string) => `${PROFILE_PHOTO_PREFIX}:${userId}`;
 
 async function resizeProfilePhoto(file: File) {
   const url = URL.createObjectURL(file);
@@ -28,7 +30,7 @@ async function resizeProfilePhoto(file: File) {
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
     context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
-    return canvas.toDataURL('image/jpeg', .82);
+    return canvas.toDataURL('image/jpeg', .78);
   } finally { URL.revokeObjectURL(url); }
 }
 
@@ -36,15 +38,48 @@ export function ProfileMenu({ app, canConfigure, fallbackName }: { app: AppId; c
   const access = useStoreAccess();
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const migratedLegacyPhoto = useRef(false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [showCounters, setShowCounters] = useState(true);
-  const photo = typeof access.user?.user_metadata?.avatar_data_url === 'string' ? access.user.user_metadata.avatar_data_url : '';
+  const [photo, setPhoto] = useState('');
+  const userId = access.user?.id || '';
+  const legacyPhoto = typeof access.user?.user_metadata?.avatar_data_url === 'string' ? access.user.user_metadata.avatar_data_url : '';
   const name = access.member?.displayName || access.user?.user_metadata?.name || fallbackName || access.user?.email || 'Usuário';
   const initials = name.slice(0, 2).toUpperCase();
 
   useEffect(() => { if (app === 'zeus') setShowCounters(localStorage.getItem(ZEUS_HOME_COUNTERS_KEY) !== '0'); }, [app]);
+
+  useEffect(() => {
+    if (!userId) { setPhoto(''); return; }
+    const key = profilePhotoKey(userId);
+    const stored = localStorage.getItem(key) || '';
+    const legacyBase64 = legacyPhoto.startsWith('data:image/') ? legacyPhoto : '';
+    const nextPhoto = stored || legacyBase64;
+    setPhoto(nextPhoto);
+    if (legacyBase64 && !stored) localStorage.setItem(key, legacyBase64);
+
+    if (!legacyBase64 || migratedLegacyPhoto.current) return;
+    migratedLegacyPhoto.current = true;
+    void (async () => {
+      try {
+        const client = createStoreClient();
+        const { error: updateError } = await client.auth.updateUser({ data: { avatar_data_url: null } });
+        if (updateError) throw updateError;
+        const { error: refreshError } = await client.auth.refreshSession();
+        if (refreshError) throw refreshError;
+        await access.refresh();
+        // O token antigo continha a imagem em base64 e podia ultrapassar o limite de cabeçalho.
+        // Recarrega uma única vez já com o JWT enxuto para liberar as APIs do Zeus.
+        window.location.reload();
+      } catch (reason) {
+        migratedLegacyPhoto.current = false;
+        setError(clientMessage(reason, 'Não foi possível concluir a atualização segura da foto de perfil.'));
+      }
+    })();
+  }, [userId, legacyPhoto]);
+
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) setOpen(false); };
@@ -53,11 +88,23 @@ export function ProfileMenu({ app, canConfigure, fallbackName }: { app: AppId; c
   }, [open]);
 
   const savePhoto = async (value: string) => {
+    if (!userId) { setError('Entre novamente para atualizar sua foto.'); return; }
     setBusy(true); setError('');
     try {
-      const { error: updateError } = await createStoreClient().auth.updateUser({ data: { avatar_data_url: value } });
-      if (updateError) throw updateError;
-      await access.refresh();
+      const key = profilePhotoKey(userId);
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+      setPhoto(value);
+
+      // Nunca salve a imagem em user_metadata: esse campo entra no JWT do Supabase.
+      // Mantemos apenas a preferência visual local até existir um storage dedicado a perfil.
+      if (typeof access.user?.user_metadata?.avatar_data_url === 'string') {
+        const client = createStoreClient();
+        const { error: updateError } = await client.auth.updateUser({ data: { avatar_data_url: null } });
+        if (updateError) throw updateError;
+        await client.auth.refreshSession();
+        await access.refresh();
+      }
     } catch (reason) { setError(clientMessage(reason, 'Não foi possível atualizar sua foto.')); }
     finally { setBusy(false); }
   };
