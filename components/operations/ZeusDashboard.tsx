@@ -7,8 +7,8 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { clientMessage } from '@/lib/clientMessage';
 import type { Workspace } from '@/lib/operations/storage';
-import { activeJob, matches, money } from '@/lib/operations/model';
-import { formatLeadTime, jobLeadTime, readZeusPreferences } from '@/lib/operations/zeus';
+import { activeJob, effectiveQuoteStatus, matches, money } from '@/lib/operations/model';
+import { formatLeadTime, jobLeadTime } from '@/lib/operations/zeus';
 import { Badge, Button, Empty, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 
@@ -22,6 +22,8 @@ type BillingRecord = {
   created_at: string;
   paid_at: string | null;
 };
+
+const DASHBOARD_FILTER_KEYS = ['Número da OS', 'Status', 'Etapa', 'Tipo', 'Responsável', 'Cliente', 'Veículo', 'Orçamento', 'Prazo'];
 
 async function accessToken() {
   const { data } = await createStoreClient().auth.getSession();
@@ -49,6 +51,11 @@ function billingBucket(jobId: string, billing: BillingRecord[]) {
   return 'Recebido / baixado';
 }
 
+function budgetBucket(job: Workspace['data']['jobs'][number]) {
+  const hasBudget = job.quote.lines.length > 0 || job.stage === 'Orçamento' || job.quote.status !== 'Rascunho';
+  return hasBudget ? effectiveQuoteStatus(job.quote) : 'Sem orçamento';
+}
+
 export function ZeusDashboard({ w }: { w: Workspace }) {
   const router = useRouter();
   const access = useStoreAccess();
@@ -62,7 +69,6 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
   const [descending, setDescending] = useState(true);
   const [billing, setBilling] = useState<BillingRecord[]>([]);
   const [billingBusy, setBillingBusy] = useState(canViewBilling);
-  const prefs = readZeusPreferences(w.data);
   const leads = w.data.jobs.map(job => jobLeadTime(job));
 
   const loadBilling = useCallback(async () => {
@@ -93,19 +99,20 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
       return asset ? [asset.identifier, asset.model].filter(Boolean).join(' · ') || 'Sem identificação' : 'Sem identificação';
     });
     const values: Record<string, string[]> = {
+      'Número da OS': Array.from(new Set(w.data.jobs.map(job => String(job.number).padStart(4, '0')))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })),
       Status: Array.from(new Set(w.data.jobs.map(job => job.status))).sort(),
       Etapa: Array.from(new Set(w.data.jobs.map(job => job.stage))).sort(),
       Tipo: Array.from(new Set(w.data.jobs.map(job => job.type))).sort(),
       Responsável: Array.from(new Set(w.data.jobs.map(job => job.technician || 'Sem responsável'))).sort(),
       Cliente: Array.from(new Set(customerNames)).sort(),
       Veículo: Array.from(new Set(assetNames)).sort(),
+      Orçamento: Array.from(new Set(w.data.jobs.map(budgetBucket))).sort(),
       Prazo: ['Atrasado', 'Vence hoje', 'No prazo', 'Sem prazo'],
       Cobrança: ['Pendente', 'Recebido / baixado', 'Sem cobrança', 'Cancelada']
     };
-    const baseKeys = [...prefs.dashboardFilters, 'Cliente', 'Veículo', 'Prazo'];
-    const keys = Array.from(new Set(canViewBilling ? [...baseKeys, 'Cobrança'] : baseKeys));
-    return keys.map(key => ({ key, label: key === 'Veículo' ? w.data.settings.assetLabel : key, options: values[key] || [] })).filter(item => item.options.length && (item.key !== 'Cobrança' || (canViewBilling && !billingBusy)));
-  }, [prefs.dashboardFilters, w.data.jobs, w.data.customers, w.data.assets, w.data.settings.assetLabel, canViewBilling, billingBusy]);
+    const keys = canViewBilling ? [...DASHBOARD_FILTER_KEYS, 'Cobrança'] : DASHBOARD_FILTER_KEYS;
+    return keys.map(key => ({ key, label: key === 'Veículo' ? w.data.settings.assetLabel : key, options: values[key] || [] })).filter(item => item.options.length && (item.key !== 'Cobrança' || !billingBusy));
+  }, [w.data.jobs, w.data.customers, w.data.assets, w.data.settings.assetLabel, canViewBilling, billingBusy]);
 
   const filtered = leads.filter(item => {
     const job = item.job;
@@ -114,12 +121,14 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
     const assetLabel = asset ? [asset.identifier, asset.model].filter(Boolean).join(' · ') || 'Sem identificação' : 'Sem identificação';
     if (!matches(query, job.number, customer, asset?.identifier, asset?.model, job.type, job.technician, job.stage, job.status)) return false;
     const checks: Record<string, string> = {
+      'Número da OS': String(job.number).padStart(4, '0'),
       Status: job.status,
       Etapa: job.stage,
       Tipo: job.type,
       Responsável: job.technician || 'Sem responsável',
       Cliente: customer,
       Veículo: assetLabel,
+      Orçamento: budgetBucket(job),
       Prazo: deadlineBucket(job.due),
       Cobrança: billingBucket(job.id, billing)
     };
