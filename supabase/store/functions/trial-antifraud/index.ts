@@ -34,23 +34,42 @@ Deno.serve(async (request: Request) => {
     const body = await request.json().catch(() => null);
     const accountId = String(body?.accountId || '');
     const appId = String(body?.appId || '');
+    const planId = String(body?.planId || '');
     if (!/^[0-9a-f-]{36}$/i.test(accountId) || !/^[a-z0-9_-]{2,40}$/i.test(appId)) return reply({ error: 'Solicitação inválida.' }, 400);
-
-    const ip = clientIp(request);
-    if (!ip || ip.length > 128) return reply({ error: 'Não foi possível validar a rede usada para o teste grátis.' }, 403);
+    if (planId && !/^[0-9a-f-]{36}$/i.test(planId)) return reply({ error: 'Plano inválido.' }, 400);
 
     const { data: member, error: memberError } = await db.from('account_members').select('role,status').eq('account_id', accountId).eq('user_id', auth.user.id).maybeSingle();
     if (memberError) throw memberError;
-    if (!member || member.status !== 'active') return reply({ error: 'Conta sem permissão para iniciar teste grátis.' }, 403);
+    if (!member || member.status !== 'active' || member.role !== 'owner') return reply({ error: 'Somente o titular pode iniciar o teste grátis.' }, 403);
 
-    const { data: eligible, error: eligibleError } = await db.rpc('mp_trial_eligible_ip', {
+    if (planId) {
+      const { data: plan, error: planError } = await db.from('plans').select('id,app_id,active').eq('id', planId).maybeSingle();
+      if (planError) throw planError;
+      if (!plan || plan.active !== true || plan.app_id !== appId) return reply({ error: 'Plano inválido.' }, 400);
+    }
+
+    const ip = clientIp(request);
+    const { data: reasonData, error: reasonError } = await db.rpc('trial_block_reason', {
       target_account: accountId,
       target_app: appId,
       target_user: auth.user.id,
       client_ip: ip,
     });
-    if (eligibleError) throw eligibleError;
-    if (eligible !== true) return reply({ error: 'Teste grátis indisponível. Esta conta, usuário ou rede já utilizou o benefício.' }, 409);
+    if (reasonError) throw reasonError;
+    const reason = String(reasonData || 'other');
+
+    if (reason !== 'eligible') {
+      const { error: logError } = await db.rpc('record_trial_blocked_attempt', {
+        target_account: accountId,
+        target_app: appId,
+        target_user: auth.user.id,
+        target_plan: planId || null,
+        client_ip: ip,
+        block_reason: reason,
+      });
+      if (logError) console.error('Could not record blocked trial attempt:', logError.message);
+      return reply({ ok: false, eligible: false, paidCheckoutAllowed: true }, 200);
+    }
 
     const { data: reserved, error: reserveError } = await db.rpc('mp_reserve_trial_ip', {
       target_account: accountId,
@@ -59,9 +78,52 @@ Deno.serve(async (request: Request) => {
       client_ip: ip,
     });
     if (reserveError) throw reserveError;
-    if (reserved !== true) return reply({ error: 'Este endereço de internet já foi usado para teste grátis em outra conta.' }, 409);
+    if (reserved !== true) {
+      const { error: logError } = await db.rpc('record_trial_blocked_attempt', {
+        target_account: accountId,
+        target_app: appId,
+        target_user: auth.user.id,
+        target_plan: planId || null,
+        client_ip: ip,
+        block_reason: 'ip',
+      });
+      if (logError) console.error('Could not record blocked trial attempt:', logError.message);
+      return reply({ ok: false, eligible: false, paidCheckoutAllowed: true }, 200);
+    }
 
-    return reply({ ok: true });
+    if (!planId) return reply({ ok: true, eligible: true, activated: false });
+
+    const { data: trialEndsAt, error: activateError } = await db.rpc('activate_verified_app_trial', {
+      target_account: accountId,
+      target_app: appId,
+      target_user: auth.user.id,
+      target_plan: planId,
+    });
+    if (activateError) {
+      const message = String(activateError.message || '');
+      if (message.includes('trial_already_used') || message.includes('trial_unavailable')) {
+        const { data: retryReason } = await db.rpc('trial_block_reason', {
+          target_account: accountId,
+          target_app: appId,
+          target_user: auth.user.id,
+          client_ip: ip,
+        });
+        const blockedReason = String(retryReason || 'other') === 'eligible' ? 'other' : String(retryReason || 'other');
+        const { error: logError } = await db.rpc('record_trial_blocked_attempt', {
+          target_account: accountId,
+          target_app: appId,
+          target_user: auth.user.id,
+          target_plan: planId,
+          client_ip: ip,
+          block_reason: blockedReason,
+        });
+        if (logError) console.error('Could not record blocked trial attempt:', logError.message);
+        return reply({ ok: false, eligible: false, paidCheckoutAllowed: true }, 200);
+      }
+      throw activateError;
+    }
+
+    return reply({ ok: true, eligible: true, activated: true, trialEndsAt });
   } catch (error) {
     console.error('Trial antifraud failed:', error instanceof Error ? error.message : 'unknown');
     return reply({ error: 'Não foi possível validar a elegibilidade do teste grátis.' }, 500);
