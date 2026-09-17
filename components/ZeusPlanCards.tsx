@@ -79,8 +79,6 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
             })}
           </div>)}
         </div>
-
-        <p className="zeus-mobile-note">Comparação resumida para celular. Os cards acima continuam sendo os quatro planos disponíveis.</p>
       </div>
 
       <div className="zeus-plan-table-wrap">
@@ -152,7 +150,6 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
         .zeus-mobile-feature>span.is-available{color:#e3b964}.zeus-mobile-feature>span.is-unavailable{color:#8b4d4d}
         .zeus-mobile-feature>span :global(svg){stroke-width:2.5}
         .zeus-mobile-feature em{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
-        .zeus-mobile-note{margin:0;color:#777772;font-size:10px;line-height:1.45}
       }
     `}</style>
   </div>;
