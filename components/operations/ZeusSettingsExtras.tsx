@@ -4,7 +4,6 @@ import type { Workspace } from '@/lib/operations/storage';
 import { ZEUS_DASHBOARD_FILTERS, ZEUS_JOB_FILTERS, ZEUS_QUOTE_FILTERS, type ZeusPreferences } from '@/lib/operations/zeus';
 import { Button } from './ui';
 import { SettingsSection } from './SettingsSection';
-import { PaymentIntegrationSetting } from './PaymentIntegrationSetting';
 import { ZeusServiceTypeSettings } from './ZeusServiceTypesCloud';
 
 function FilterChoices({ title, options, selected, onChange }: { title: string; options: string[]; selected: string[]; onChange: (value: string[]) => void }) {
@@ -25,6 +24,5 @@ export function ZeusSettingsExtras({ w, budgetEnabled = true, value, onChange, d
     </SettingsSection>
 
     <ZeusServiceTypeSettings w={w} />
-    <PaymentIntegrationSetting app="zeus" />
   </>;
 }
