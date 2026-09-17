@@ -4,6 +4,9 @@ import { operationalRest, operationalRpc, type CloudOperationalApp } from '@/lib
 import type { Data } from '@/lib/operations/model';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
+import { readZeusEntitlements } from '@/lib/server/zeusPlanAccess';
+import { validateZeusPlanTransition } from '@/lib/server/zeusPlanTransition';
+import { zeusHasFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +49,26 @@ async function hydrateArtemisProductImages(data: Record<string, unknown>, accoun
     const key = validArtemisImageKey(imageByProduct.get(productId), accountId, productId);
     if (key) product.imageObjectKey = key;
   }
+  return hydrated;
+}
+
+function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
+  const hydrated = structuredClone(data) as Record<string, unknown>;
+  const settings = (hydrated.settings || {}) as Record<string, unknown>;
+  const visibility = { ...((settings.actionVisibility || {}) as Record<string, boolean>) };
+  const allowed = {
+    agendamentos: zeusHasFeature(plan, 'scheduling'),
+    checklist: zeusHasFeature(plan, 'checklist'),
+    orcamentos: zeusHasFeature(plan, 'budgets'),
+    faturamento: zeusHasFeature(plan, 'billing'),
+    dashboard: zeusHasFeature(plan, 'dashboard'),
+  };
+  for (const [module, enabled] of Object.entries(allowed)) visibility[`module:${module}`] = enabled;
+  settings.actionVisibility = visibility;
+  settings.scheduleEnabled = zeusHasFeature(plan, 'scheduling') && settings.scheduleEnabled !== false;
+  settings.budgetEnabled = zeusHasFeature(plan, 'budgets') && settings.budgetEnabled !== false;
+  settings.diagnosisEnabled = zeusHasFeature(plan, 'diagnosis') && settings.diagnosisEnabled !== false;
+  hydrated.settings = settings;
   return hydrated;
 }
 
@@ -93,6 +116,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     let data = row.data;
     if (app === 'artemis' && validWorkspace(data)) data = await hydrateArtemisProductImages(data, access.accountId);
+    if (app === 'zeus' && validWorkspace(data)) {
+      const entitlements = await readZeusEntitlements(access.accountId);
+      data = applyZeusPlanView(data, entitlements.plan);
+    }
     return NextResponse.json({ data, revision: Number(row.revision || 0), updatedAt: row.updated_at });
   } catch (reason) {
     return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível carregar os dados.' }, { status: 503 });
@@ -118,6 +145,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (app === 'zeus') {
       const rows = await operationalRest('zeus', `workspace_state?${query({ select: 'data', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ data: unknown }>;
       const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
+      const entitlements = await readZeusEntitlements(access.accountId);
+      validateZeusPlanTransition(current, body.data as unknown as Data, entitlements.plan);
       validateZeusTransition(current, body.data as unknown as Data);
     }
 
@@ -139,6 +168,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ ok: true, revision: Number(result.revision || 0), data: result.data });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.';
+    if (message.startsWith('PLAN_FEATURE_REQUIRED:')) return NextResponse.json({ error: 'Este recurso não está disponível no plano atual do Zeus.' }, { status: 403 });
     if (message.startsWith('CHECKLIST_REQUIRED:')) return NextResponse.json({ error: message.replace('CHECKLIST_REQUIRED: ', '') }, { status: 409 });
     if (message.startsWith('TERMINAL_JOB_IMMUTABLE:')) return NextResponse.json({ error: message.replace('TERMINAL_JOB_IMMUTABLE: ', '') }, { status: 409 });
     if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
