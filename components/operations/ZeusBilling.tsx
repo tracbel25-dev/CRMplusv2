@@ -5,10 +5,11 @@ import { CheckCircle2, CircleDollarSign } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { clientMessage } from '@/lib/clientMessage';
-import { money } from '@/lib/operations/model';
+import { matches, money } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Empty, Modal, RecordForm, Section, Title } from './ui';
 import { PostCompletionPayments } from './PostCompletionPayments';
+import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 
 type BillingRecord = {
   id: string;
@@ -43,7 +44,10 @@ export function ZeusBilling({ w }: { w: Workspace }) {
   const [busy, setBusy] = useState(true);
   const [selectedJob, setSelectedJob] = useState('');
   const [manualJob, setManualJob] = useState('');
-  const [filter, setFilter] = useState<'Todos' | BillingRecord['status']>('Pendente');
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState<Record<string, string[]>>({ Situação: ['Pendente'] });
+  const [sort, setSort] = useState('updatedAt');
+  const [descending, setDescending] = useState(true);
 
   const patch = useCallback(async (jobId: string, body: Record<string, unknown>) => {
     const response = await fetch('/api/zeus/faturamento', {
@@ -84,7 +88,35 @@ export function ZeusBilling({ w }: { w: Workspace }) {
     return () => window.removeEventListener('focus', onFocus);
   }, [load]);
 
-  const visible = useMemo(() => filter === 'Todos' ? records : records.filter(row => row.status === filter), [filter, records]);
+  const customerName = (row: BillingRecord) => w.data.customers.find(item => item.id === row.customer_id)?.name || 'Cliente';
+  const definitions = useMemo<FilterDefinition[]>(() => {
+    const methods = Array.from(new Set(records.map(row => row.payment_method || 'Não informado'))).sort();
+    const customers = Array.from(new Set(records.map(row => customerName(row)))).sort();
+    return [
+      { key: 'Situação', label: 'Situação', options: ['Pendente', 'Pago', 'Baixado', 'Cancelado'] },
+      { key: 'Forma de pagamento', label: 'Forma de pagamento', options: methods },
+      { key: 'Cliente', label: 'Cliente', options: customers },
+    ].filter(item => item.options.length);
+  }, [records, w.data.customers]);
+
+  const visible = useMemo(() => records.filter(row => {
+    const customer = customerName(row);
+    const job = w.data.jobs.find(item => item.id === row.job_id);
+    const asset = job ? w.data.assets.find(item => item.id === job.assetId) : undefined;
+    if (!matches(query, row.job_number, customer, asset?.identifier, asset?.model, row.payment_method, row.status, row.notes)) return false;
+    const checks: Record<string, string> = {
+      Situação: row.status,
+      'Forma de pagamento': row.payment_method || 'Não informado',
+      Cliente: customer,
+    };
+    return Object.entries(active).every(([key, values]) => !values.length || values.includes(checks[key]));
+  }).sort((a, b) => {
+    const value = (row: BillingRecord) => sort === 'number' ? row.job_number : sort === 'amount' ? row.amount_cents : sort === 'status' ? row.status : sort === 'createdAt' ? row.created_at : row.updated_at;
+    const av = value(a); const bv = value(b);
+    const result = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv), 'pt-BR');
+    return descending ? -result : result;
+  }), [records, query, active, sort, descending, w.data.jobs, w.data.assets, w.data.customers]);
+
   const pendingTotal = records.filter(row => row.status === 'Pendente').reduce((sum, row) => sum + row.amount_cents, 0);
   const paidTotal = records.filter(row => row.status === 'Pago' || row.status === 'Baixado').reduce((sum, row) => sum + row.amount_cents, 0);
   const selected = canCollect ? records.find(row => row.job_id === selectedJob) : undefined;
@@ -98,8 +130,20 @@ export function ZeusBilling({ w }: { w: Workspace }) {
     </div>
 
     <Section title="Ordens encerradas">
-      <div className="op-filter-row"><label className="op-field"><span>Situação</span><select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option>Todos</option><option>Pendente</option><option>Pago</option><option>Baixado</option><option>Cancelado</option></select></label></div>
-      {busy ? <p className="op-muted">Carregando faturamento…</p> : visible.length === 0 ? <Empty>Nenhuma OS nesta situação.</Empty> : <div className="zeus-billing-list">{visible.map(row => {
+      <ZeusFilterBar
+        query={query}
+        onQuery={setQuery}
+        definitions={definitions}
+        active={active}
+        onActive={setActive}
+        sort={sort}
+        sortOptions={[{ value: 'updatedAt', label: 'Última atualização' }, { value: 'createdAt', label: 'Data de criação' }, { value: 'number', label: 'Número da OS' }, { value: 'amount', label: 'Valor' }, { value: 'status', label: 'Situação' }]}
+        descending={descending}
+        onSort={setSort}
+        onDescending={setDescending}
+        placeholder="Buscar OS, cliente, veículo ou pagamento"
+      />
+      {busy ? <p className="op-muted">Carregando faturamento…</p> : visible.length === 0 ? <Empty>Nenhuma OS corresponde aos filtros.</Empty> : <div className="zeus-billing-list">{visible.map(row => {
         const job = w.data.jobs.find(item => item.id === row.job_id);
         const customer = w.data.customers.find(item => item.id === row.customer_id);
         const asset = job ? w.data.assets.find(item => item.id === job.assetId) : undefined;
@@ -108,14 +152,14 @@ export function ZeusBilling({ w }: { w: Workspace }) {
           <div><span>Valor</span><strong>{money(row.amount_cents)}</strong></div>
           <Badge tone={row.status === 'Pendente' ? 'warning' : ''}>{row.status}</Badge>
           {(canCollect || canManage) && <div className="op-actions">
-            {row.status === 'Pendente' && canCollect && <Button variant="secondary" onClick={() => setSelectedJob(row.job_id)}><CircleDollarSign size={16} />Cobrar</Button>}
-            {row.status === 'Pendente' && canManage && <Button onClick={() => setManualJob(row.job_id)}><CheckCircle2 size={16} />Dar baixa</Button>}
+            {row.status === 'Pendente' && canCollect && <Button variant="secondary" onClick={() => setSelectedJob(row.job_id)}><CircleDollarSign size={16}/>Cobrar</Button>}
+            {row.status === 'Pendente' && canManage && <Button onClick={() => setManualJob(row.job_id)}><CheckCircle2 size={16}/>Dar baixa</Button>}
           </div>}
         </div>;
       })}</div>}
     </Section>
 
-    {selected && <Modal title={`Cobrança · OS ${String(selected.job_number).padStart(4, '0')}`} wide onClose={() => setSelectedJob('')}><PostCompletionPayments w={w} app="zeus" page="faturamento" recordId={selected.job_id} /></Modal>}
+    {selected && <Modal title={`Cobrança · OS ${String(selected.job_number).padStart(4, '0')}`} wide onClose={() => setSelectedJob('')}><PostCompletionPayments w={w} app="zeus" page="faturamento" recordId={selected.job_id}/></Modal>}
 
     {manualJob && canManage && <Modal title="Registrar recebimento" onClose={() => setManualJob('')}><RecordForm
       draftKey={`zeus-billing:${manualJob}`}
