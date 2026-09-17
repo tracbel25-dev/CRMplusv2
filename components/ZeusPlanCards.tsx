@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { ArrowRight, Check, X } from 'lucide-react';
 import type { PublicPlan } from '@/lib/publicPlans';
 import { ZEUS_PLANS, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
@@ -9,6 +12,34 @@ const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style:'
 
 export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
   const byCode = new Map(plans.filter(plan => plan.plan_code).map(plan => [plan.plan_code as ZeusPlanCode, plan]));
+  const [leftPlan,setLeftPlan]=useState<ZeusPlanCode>('start');
+  const [rightPlan,setRightPlan]=useState<ZeusPlanCode>('essencial');
+  const [showAll,setShowAll]=useState(false);
+
+  const mobileFeatures=useMemo(()=>{
+    if(showAll)return comparisonFeatures;
+    return comparisonFeatures.filter(feature=>{
+      const left=ZEUS_PLANS[leftPlan].commercialFeatures.includes(feature);
+      const right=ZEUS_PLANS[rightPlan].commercialFeatures.includes(feature);
+      return left!==right;
+    });
+  },[leftPlan,rightPlan,showAll]);
+
+  const changeLeft=(value:ZeusPlanCode)=>{
+    setLeftPlan(value);
+    if(value===rightPlan){
+      const fallback=order.find(code=>code!==value);
+      if(fallback)setRightPlan(fallback);
+    }
+  };
+
+  const changeRight=(value:ZeusPlanCode)=>{
+    setRightPlan(value);
+    if(value===leftPlan){
+      const fallback=order.find(code=>code!==value);
+      if(fallback)setLeftPlan(fallback);
+    }
+  };
 
   return <div className="zeus-commercial-plans">
     <div className="zeus-commercial-grid">{order.map(code=>{
@@ -29,6 +60,50 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
         <div><span>Compare lado a lado</span><h3 id="zeus-comparison-title">O que cada plano libera</h3></div>
         <p>✓ função incluída · X função não incluída. Os planos superiores mantêm os recursos dos níveis anteriores.</p>
       </div>
+
+      <div className="zeus-mobile-compare" aria-label="Comparador de planos no celular">
+        <div className="zeus-mobile-selectors">
+          <label>Plano 1
+            <select value={leftPlan} onChange={event=>changeLeft(event.target.value as ZeusPlanCode)}>
+              {order.map(code=><option value={code} key={code}>{ZEUS_PLANS[code].name.replace('Zeus ','')}</option>)}
+            </select>
+          </label>
+          <label>Plano 2
+            <select value={rightPlan} onChange={event=>changeRight(event.target.value as ZeusPlanCode)}>
+              {order.map(code=><option value={code} key={code}>{ZEUS_PLANS[code].name.replace('Zeus ','')}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="zeus-mobile-summary">
+          {[leftPlan,rightPlan].map(code=>{
+            const plan=ZEUS_PLANS[code];
+            const dbPlan=byCode.get(code);
+            return <div key={code} className={plan.recommended?'is-recommended':''}>
+              <strong>{plan.name.replace('Zeus ','')}</strong>
+              <b>{dbPlan?money(dbPlan.amount_cents):'—'}{dbPlan&&<small>/mês</small>}</b>
+              <span>{dbPlan?.seats ?? plan.seats} acesso{(dbPlan?.seats ?? plan.seats)>1?'s':''}</span>
+            </div>;
+          })}
+        </div>
+
+        <button type="button" className="zeus-mobile-toggle" onClick={()=>setShowAll(value=>!value)}>
+          {showAll?'Mostrar apenas diferenças':'Ver todas as funções'}
+        </button>
+
+        <div className="zeus-mobile-feature-list">
+          {mobileFeatures.length?mobileFeatures.map(feature=>{
+            const leftAvailable=ZEUS_PLANS[leftPlan].commercialFeatures.includes(feature);
+            const rightAvailable=ZEUS_PLANS[rightPlan].commercialFeatures.includes(feature);
+            return <div className="zeus-mobile-feature" key={feature}>
+              <strong>{feature}</strong>
+              <span className={leftAvailable?'is-available':'is-unavailable'}>{leftAvailable?<Check size={18}/>:<X size={18}/>}<em>{leftAvailable?'Incluído':'Não incluído'}</em></span>
+              <span className={rightAvailable?'is-available':'is-unavailable'}>{rightAvailable?<Check size={18}/>:<X size={18}/>}<em>{rightAvailable?'Incluído':'Não incluído'}</em></span>
+            </div>;
+          }):<p className="zeus-mobile-equal">Esses dois planos têm os mesmos recursos nesta comparação. Toque em “Ver todas as funções”.</p>}
+        </div>
+      </div>
+
       <div className="zeus-plan-table-wrap">
         <table>
           <thead><tr><th>Função</th>{order.map(code=>{const plan=ZEUS_PLANS[code];const dbPlan=byCode.get(code);return <th key={code} className={plan.recommended?'recommended-column':''}><strong>{plan.name.replace('Zeus ','')}</strong><b>{dbPlan?money(dbPlan.amount_cents):'—'}{dbPlan&&<em>/mês</em>}</b><small>{dbPlan?.seats ?? plan.seats} acesso{(dbPlan?.seats ?? plan.seats)>1?'s':''}</small></th>;})}</tr></thead>
@@ -70,9 +145,34 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
       .zeus-plan-table-wrap td.feature-name{color:#c8c8c2;font-size:12px;font-weight:600}
       .zeus-plan-table-wrap td.is-available{color:#e3b964}.zeus-plan-table-wrap td.is-unavailable{color:#8b4d4d}
       .zeus-plan-table-wrap td.is-available :global(svg),.zeus-plan-table-wrap td.is-unavailable :global(svg){display:block;margin:auto;stroke-width:2.4}
+      .zeus-mobile-compare{display:none}
       .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
       @media(max-width:1100px){.zeus-commercial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.zeus-commercial-card>p{min-height:0}}
-      @media(max-width:620px){.zeus-commercial-grid{grid-template-columns:1fr}.zeus-comparison-heading{align-items:start;flex-direction:column;gap:8px}.zeus-plan-comparison{margin-left:-4px;margin-right:-4px}.zeus-plan-table-wrap{border-radius:14px}}
+      @media(max-width:620px){
+        .zeus-commercial-grid{grid-template-columns:1fr}
+        .zeus-comparison-heading{align-items:start;flex-direction:column;gap:8px}
+        .zeus-plan-comparison{margin:0}
+        .zeus-plan-table-wrap{display:none}
+        .zeus-mobile-compare{display:grid;gap:12px}
+        .zeus-mobile-selectors{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .zeus-mobile-selectors label{display:grid;gap:6px;color:#777772;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+        .zeus-mobile-selectors select{width:100%;height:46px;border:1px solid #323232;border-radius:12px;background:#151515;color:#f5f5f0;padding:0 12px;font:700 14px var(--font,inherit);outline:none}
+        .zeus-mobile-summary{display:grid;grid-template-columns:1fr 1fr;border:1px solid #2a2a2a;border-radius:16px;overflow:hidden;background:#111}
+        .zeus-mobile-summary>div{display:grid;gap:4px;min-width:0;padding:14px 12px}
+        .zeus-mobile-summary>div+div{border-left:1px solid #2a2a2a}
+        .zeus-mobile-summary>div.is-recommended{background:#171b25;box-shadow:inset 0 2px 0 #2563eb}
+        .zeus-mobile-summary strong{font-size:13px}.zeus-mobile-summary b{font-size:17px}.zeus-mobile-summary b small{font-size:9px;color:#888}.zeus-mobile-summary span{font-size:10px;color:#8f8f8a}
+        .zeus-mobile-toggle{justify-self:start;border:0;background:transparent;color:#e3b964;padding:2px 0;font-size:12px;font-weight:800;cursor:pointer}
+        .zeus-mobile-feature-list{overflow:hidden;border:1px solid #2a2a2a;border-radius:16px;background:#111}
+        .zeus-mobile-feature{display:grid;grid-template-columns:minmax(0,1fr) 58px 58px;align-items:center;min-height:62px;border-bottom:1px solid #262626}
+        .zeus-mobile-feature:last-child{border-bottom:0}
+        .zeus-mobile-feature>strong{padding:12px;color:#d1d1cb;font-size:11px;line-height:1.35}
+        .zeus-mobile-feature>span{display:grid;place-items:center;align-self:stretch;border-left:1px solid #262626}
+        .zeus-mobile-feature>span.is-available{color:#e3b964}.zeus-mobile-feature>span.is-unavailable{color:#8b4d4d}
+        .zeus-mobile-feature>span :global(svg){stroke-width:2.5}
+        .zeus-mobile-feature em{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+        .zeus-mobile-equal{margin:0;padding:18px;color:#8f8f8a;font-size:12px;line-height:1.5}
+      }
     `}</style>
   </div>;
 }
