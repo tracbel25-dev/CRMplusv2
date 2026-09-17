@@ -104,8 +104,8 @@ Deno.serve(async (request: Request) => {
     if (error) throw error;
     const result = String(data || '');
     if (result === 'document_used') return reply({ error: 'Este CPF já está vinculado a uma conta.' }, 409);
-    if (result === 'signup_pending') return reply({ error: 'Este CPF já tem um cadastro aguardando confirmação por e-mail. Confirme o e-mail recebido ou entre na conta já criada.' }, 409);
-    if (result === 'document_reserved') return reply({ error: 'Existe outra tentativa de cadastro em andamento para este CPF. Aguarde um minuto e tente novamente.' }, 409);
+    if (result === 'signup_pending') return reply({ error: 'Este CPF já tem uma conta criada aguardando confirmação por e-mail. Confirme o e-mail recebido ou entre na conta.' }, 409);
+    if (result === 'document_reserved') return reply({ error: 'Não foi possível concluir a validação deste CPF agora. Aguarde alguns segundos e tente novamente.' }, 409);
     if (result === 'invalid_cpf') return reply({ error: 'CPF inválido.' }, 400);
     if (result !== 'reserved') return reply({ error: 'Não foi possível validar os dados do cadastro.' }, 400);
 
