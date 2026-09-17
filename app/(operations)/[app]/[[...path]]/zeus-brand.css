@@ -52,3 +52,136 @@
   padding-left:0;
   padding-right:0;
 }
+
+/* Home do Zeus: cards recolhidos precisam parecer linhas, não caixas vazias. */
+.app-zeus .zeus-home-section.is-closed{
+  min-height:0!important;
+  padding:0 16px!important;
+  margin-bottom:10px!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+}
+
+.app-zeus .zeus-home-section.is-closed>.op-section-head{
+  min-height:58px!important;
+  margin:0!important;
+  gap:0!important;
+  flex-wrap:nowrap!important;
+  align-items:center!important;
+}
+
+.app-zeus .zeus-home-section.is-closed>.op-section-head h2{
+  width:100%;
+  min-width:0;
+  margin:0!important;
+  font-size:16px!important;
+  line-height:1.2!important;
+}
+
+.app-zeus .zeus-home-section.is-closed .op-section-toggle{
+  width:100%;
+  min-height:58px!important;
+  padding:0!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+  border:0!important;
+  background:transparent!important;
+  color:var(--op-ink)!important;
+  text-align:left!important;
+  font:inherit!important;
+  font-weight:650!important;
+}
+
+.app-zeus .zeus-home-section.is-closed .op-section-toggle>span:first-child{
+  min-width:0;
+  flex:1;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.app-zeus .zeus-home-section.is-closed .op-section-toggle>svg{
+  order:3;
+  width:18px;
+  height:18px;
+  margin-left:2px;
+  color:var(--op-muted);
+  flex:0 0 auto;
+}
+
+.app-zeus .zeus-home-section.is-closed>.op-section-head>.op-text-link,
+.app-zeus .zeus-home-section.is-closed>.op-section-head>.op-muted,
+.app-zeus .zeus-home-legacy-count{
+  display:none!important;
+}
+
+.app-zeus .zeus-home-section-meta{
+  order:2;
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+}
+
+.app-zeus .zeus-home-section-meta b{
+  min-width:28px;
+  height:28px;
+  padding:0 8px;
+  display:grid;
+  place-items:center;
+  border-radius:999px;
+  background:color-mix(in srgb,var(--op-accent) 13%,var(--op-paper));
+  color:var(--op-accent);
+  font-size:12px;
+  font-weight:700;
+}
+
+.app-zeus .zeus-home-section-meta i{
+  padding:4px 7px;
+  border-radius:6px;
+  background:var(--op-accent);
+  color:var(--op-on-accent);
+  font-size:10px;
+  font-style:normal;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
+.app-zeus .zeus-home-section.is-open .zeus-home-section-meta{
+  display:none!important;
+}
+
+.app-zeus .zeus-home-section.is-open .op-section-toggle>svg{
+  transform:rotate(180deg);
+}
+
+@media(max-width:720px){
+  .app-zeus .zeus-home-section.is-closed{
+    padding:0 14px!important;
+    margin-bottom:8px!important;
+    border-radius:9px!important;
+  }
+
+  .app-zeus .zeus-home-section.is-closed>.op-section-head,
+  .app-zeus .zeus-home-section.is-closed .op-section-toggle{
+    min-height:54px!important;
+  }
+
+  .app-zeus .zeus-home-section.is-closed>.op-section-head h2{
+    font-size:15px!important;
+  }
+
+  .app-zeus .zeus-home-section-meta b{
+    min-width:26px;
+    height:26px;
+    padding:0 7px;
+  }
+
+  .app-zeus .zeus-home-section.is-closed .op-section-toggle>svg{
+    width:17px;
+    height:17px;
+  }
+}
