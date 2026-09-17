@@ -22,6 +22,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
   const [targets, setTargets] = useState<Target[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [read, setRead] = useState<Record<string, string>>({});
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const today = localDay();
 
   const meta = useMemo(() => {
@@ -36,24 +37,27 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
       working: w.data.jobs.filter(job => activeJob(job) && !['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status)),
       next: nextAppointments,
     } as Record<string, Array<{ id: string; createdAt?: string; at?: string }>>;
-    return Object.fromEntries(Object.entries(groups).map(([id, items]) => [id, { count: items.length, signature: items.map(item => `${item.id}:${item.createdAt || item.at || ''}`).sort().join('|') }])) as Record<string, { count: number; signature: string }>;
+    return Object.fromEntries(Object.entries(groups).map(([id, items]) => [id, {
+      count: items.length,
+      signature: items.map(item => `${item.id}:${item.createdAt || item.at || ''}`).sort().join('|')
+    }])) as Record<string, { count: number; signature: string }>;
   }, [w.data.appointments, w.data.jobs, today]);
 
   useEffect(() => {
     if (page !== 'inicio') return;
     let autoCollapsing = false;
+    const observers: MutationObserver[] = [];
 
-    const loadRead = () => {
-      const next: Record<string, string> = {};
-      Object.values(titleToId).forEach(id => {
-        next[id] = localStorage.getItem(`crmplus:zeus:home-read:${id}`) || '';
-      });
-      setRead(next);
-      setEnabled(localStorage.getItem(ZEUS_HOME_COUNTERS_KEY) !== '0');
-    };
-    loadRead();
+    const nextRead: Record<string, string> = {};
+    Object.values(titleToId).forEach(id => {
+      nextRead[id] = localStorage.getItem(`crmplus:zeus:home-read:${id}`) || '';
+    });
+    setRead(nextRead);
+    setEnabled(localStorage.getItem(ZEUS_HOME_COUNTERS_KEY) !== '0');
 
     const found: Target[] = [];
+    const initialOpen: Record<string, boolean> = {};
+
     document.querySelectorAll<HTMLElement>('.op-section').forEach(section => {
       const titleNode = section.querySelector<HTMLElement>('.op-section-head h2 .op-section-toggle > span:first-child');
       const title = titleNode?.textContent?.trim() || section.querySelector<HTMLElement>('.op-section-head h2')?.textContent?.trim() || '';
@@ -65,19 +69,31 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
       section.classList.add('zeus-home-section');
       section.dataset.zeusHomeSectionId = id;
 
+      let isOpen = toggle.getAttribute('aria-expanded') === 'true';
       if (!section.dataset.zeusHomeInitialized) {
         section.dataset.zeusHomeInitialized = '1';
-        if (section.classList.contains('is-open')) {
+        if (isOpen) {
           autoCollapsing = true;
           toggle.click();
           autoCollapsing = false;
+          isOpen = false;
         }
       }
 
+      initialOpen[id] = isOpen;
       if (id === 'working') head.querySelector<HTMLElement>(':scope > .op-muted')?.classList.add('zeus-home-legacy-count');
       found.push({ id, node: toggle });
+
+      const observer = new MutationObserver(() => {
+        const next = toggle.getAttribute('aria-expanded') === 'true';
+        setOpenSections(current => current[id] === next ? current : { ...current, [id]: next });
+      });
+      observer.observe(toggle, { attributes: true, attributeFilter: ['aria-expanded'] });
+      observers.push(observer);
     });
+
     setTargets(found);
+    setOpenSections(initialOpen);
 
     const onCounters = (event: Event) => setEnabled((event as CustomEvent<boolean>).detail !== false);
     const onClickCapture = (event: MouseEvent) => {
@@ -86,14 +102,15 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
       const section = toggle?.closest<HTMLElement>('.zeus-home-section');
       if (!toggle || !section) return;
 
-      // Só marca como lido quando o usuário está ABRINDO a seção.
-      // O listener roda em capture, antes do React trocar aria-expanded/is-open.
-      if (toggle.getAttribute('aria-expanded') !== 'false') return;
-
       const id = section.dataset.zeusHomeSectionId || '';
-      const signature = id ? meta[id]?.signature : '';
-      if (!id || !signature) return;
+      if (!id) return;
 
+      const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
+      setOpenSections(current => ({ ...current, [id]: willOpen }));
+      if (!willOpen) return;
+
+      const signature = meta[id]?.signature || '';
+      if (!signature) return;
       localStorage.setItem(`crmplus:zeus:home-read:${id}`, signature);
       setRead(current => current[id] === signature ? current : { ...current, [id]: signature });
     };
@@ -101,6 +118,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     window.addEventListener('zeus-home-counters-change', onCounters as EventListener);
     document.addEventListener('click', onClickCapture, true);
     return () => {
+      observers.forEach(observer => observer.disconnect());
       window.removeEventListener('zeus-home-counters-change', onCounters as EventListener);
       document.removeEventListener('click', onClickCapture, true);
     };
@@ -108,9 +126,10 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
 
   if (page !== 'inicio' || !enabled) return null;
   return <>{targets.map(target => {
+    if (openSections[target.id]) return null;
     const value = meta[target.id];
     if (!value) return null;
     const isNew = value.count > 0 && !!value.signature && read[target.id] !== value.signature;
-    return createPortal(<span className="zeus-home-section-meta" key={target.id}><b>{value.count}</b>{isNew && <i>Novo</i>}</span>, target.node);
+    return createPortal(<span className="zeus-home-section-meta"><b>{value.count}</b>{isNew && <i>Novo</i>}</span>, target.node, target.id);
   })}</>;
 }
