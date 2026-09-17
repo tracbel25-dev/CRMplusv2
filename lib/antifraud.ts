@@ -2,17 +2,17 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 import { clientMessage } from '@/lib/clientMessage';
 
-export async function reserveTrialNetwork(accountId:string,appId:string){
+export async function reserveTrialNetwork(accountId:string,appId:string,planId?:string){
   const {data,error}=await createStoreClient().auth.getSession();
   if(error||!data.session)throw new Error('Entre na sua conta para continuar.');
   const response=await fetch(`${STORE_SUPABASE.url}/functions/v1/trial-antifraud`,{
     method:'POST',
     headers:{'Content-Type':'application/json',apikey:STORE_SUPABASE.publishableKey,Authorization:`Bearer ${data.session.access_token}`},
-    body:JSON.stringify({accountId,appId}),
+    body:JSON.stringify({accountId,appId,planId}),
   });
   const result=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(clientMessage(result.error,'Não foi possível validar o teste grátis. Tente novamente.'));
-  return result as {ok:boolean};
+  return result as {ok:boolean;eligible:boolean;activated?:boolean;trialEndsAt?:string;paidCheckoutAllowed?:boolean};
 }
 
 export async function precheckSignupIdentity(input:{cpf:string;name:string;birthDate:string;email:string;personType:'pf'|'pj';cnpj?:string}){
