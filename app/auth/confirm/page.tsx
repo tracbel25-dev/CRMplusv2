@@ -54,12 +54,20 @@ export default function ConfirmPage() {
         if (active) setDestination(nextDestination);
         const planId = checkoutPlan(nextDestination);
         const business = typeof user.user_metadata?.business === 'string' ? user.user_metadata.business.trim() : '';
+        const personType = user.user_metadata?.account_person_type === 'pj' ? 'pj' : 'pf';
+        const accountCnpj = personType === 'pj' && typeof user.user_metadata?.account_cnpj === 'string'
+          ? user.user_metadata.account_cnpj.replace(/\D/g,'')
+          : null;
         const identityReservation = typeof user.user_metadata?.identity_reservation === 'string' ? user.user_metadata.identity_reservation.trim() : '';
         let accountId = '';
 
         if (business) {
-          const { data: createdAccount, error: accountError } = await supabase.rpc('create_account', { account_name: business });
-          if (accountError) throw accountError;
+          const { data: createdAccount, error: accountError } = await supabase.rpc('create_account', {
+            account_name: business,
+            account_person_type: personType,
+            account_cnpj: accountCnpj,
+          });
+          if (accountError) throw new Error(clientMessage(accountError.message,'Não foi possível concluir o cadastro da conta.'));
           accountId = typeof createdAccount === 'string' ? createdAccount : '';
         }
 
@@ -82,12 +90,12 @@ export default function ConfirmPage() {
           if (!result.url) throw new Error('Sua conta foi confirmada, mas não foi possível abrir o pagamento.');
           const paymentUrl = new URL(result.url);
           if (paymentUrl.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(paymentUrl.hostname)) throw new Error('Sua conta foi confirmada, mas não foi possível abrir o pagamento.');
-          await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null } });
+          await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null, account_person_type:null, account_cnpj:null } });
           window.location.replace(paymentUrl.href);
           return;
         }
 
-        await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null } });
+        await supabase.auth.updateUser({ data: { signup_redirect: null, identity_reservation: null, account_person_type:null, account_cnpj:null } });
         if (!active) return;
         router.replace(nextDestination);
         router.refresh();
