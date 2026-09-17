@@ -7,7 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { apps } from '@/lib/catalog';
 import { clientMessage } from '@/lib/clientMessage';
-import { precheckSignupIdentity } from '@/lib/antifraud';
+import { precheckSignupIdentity, releaseSignupIdentity } from '@/lib/antifraud';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 
@@ -105,7 +105,14 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
             emailRedirectTo:`${window.location.origin}/auth/confirm`
           }
         });
-        if(signUpError)throw signUpError;
+        if(signUpError){
+          await releaseSignupIdentity(identity.reservationToken).catch(()=>false);
+          throw signUpError;
+        }
+        if(!data.user&&!data.session){
+          await releaseSignupIdentity(identity.reservationToken).catch(()=>false);
+          throw new Error('Não foi possível criar a conta. Tente novamente.');
+        }
         if(data.session){
           const {data:createdAccount,error:accountError}=await supabase.rpc('create_account',{account_name:business.trim()});
           if(accountError)throw accountError;
@@ -130,7 +137,8 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
         await continueAfterAuth();
       }
     }catch(reason){
-      setError(clientMessage(reason,'Não foi possível concluir o acesso.'));
+      const friendly=clientMessage(reason,'Não foi possível concluir o acesso.');
+      setError(friendly==='Já existe uma conta com este e-mail.'?'Já existe uma conta com este e-mail. Entre na conta ou recupere sua senha.':friendly);
     }finally{setLoading(false);}
   };
 
