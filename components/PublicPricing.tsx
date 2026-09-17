@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { apps } from '@/lib/catalog';
 import type { PublicPlan } from '@/lib/publicPlans';
+import { ZeusPlanCards } from '@/components/ZeusPlanCards';
 import './public-pricing.css';
 
 const cycles = [
@@ -21,23 +22,31 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
   if (!app) return <section className="public-pricing" id="planos"><span className="eyebrow">Planos</span><h2>Consulte os planos dos aplicativos.</h2><p>Não foi possível carregar os valores agora. Atualize a página para tentar novamente.</p></section>;
   const appPlans = plans.filter(plan => plan.app_id === app.slug);
   const monthly = appPlans.find(plan => plan.billing_interval === 'monthly');
+  const isZeus = app.slug === 'zeus';
+
   return <section className={`public-pricing pricing-${app.tone}`} id="planos" aria-labelledby="public-pricing-title">
-    <div className="public-pricing-heading"><div><span className="eyebrow">Planos por aplicativo</span><h2 id="public-pricing-title">Seu aplicativo.<br/>Seu ritmo de pagamento.</h2></div><p>Escolha o aplicativo e veja os preços. Na próxima etapa, a CRM PLUS identifica se sua conta pode testar por 7 dias, precisa ativar ou pode reativar um acesso anterior.</p></div>
+    <div className="public-pricing-heading"><div><span className="eyebrow">Planos por aplicativo</span><h2 id="public-pricing-title">{isZeus ? 'Escolha o nível do Zeus.' : <>Seu aplicativo.<br/>Seu ritmo de pagamento.</>}</h2></div><p>{isZeus ? 'Os planos são cumulativos: o nível superior mantém tudo do anterior e amplia recursos e acessos.' : 'Escolha o aplicativo e veja os preços. Na próxima etapa, a CRM PLUS identifica se sua conta pode testar por 7 dias, precisa ativar ou pode reativar um acesso anterior.'}</p></div>
     {!fixedApp && <div className="pricing-app-options" aria-label="Escolha o aplicativo">{available.map(item => <button key={item.slug} type="button" aria-pressed={app.slug === item.slug} onClick={() => setSelected(item.slug)}><strong>{item.name}</strong><span>{item.category}</span></button>)}</div>}
     <div className="pricing-app-heading"><h3>{app.name} <span>· {app.category}</span></h3><Link href={`/aplicativos/${app.slug}`}>Conhecer o aplicativo <ArrowRight size={16}/></Link></div>
-    <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
-    <div className="public-price-grid">{cycles.map(cycle => {
-      const plan = appPlans.find(item => item.billing_interval === cycle.id);
-      if (!plan) return null;
-      const savings = monthly ? monthly.amount_cents * cycle.months - plan.amount_cents : 0;
-      return <article className="public-price-card" key={plan.id}>
-        <div className="price-card-heading"><h4>{cycle.label}</h4>{savings > 0 && <span>Economize {money(savings)}</span>}</div>
-        <strong className="public-price-value">{money(plan.amount_cents)}</strong><p className="price-cycle-detail">{cycle.detail}</p>
-        <p className="price-equivalent">{cycle.months > 1 ? `Equivale a ${money(plan.amount_cents / cycle.months)}/mês, cobrado por ciclo.` : 'Mais flexibilidade para começar.'}</p>
-        <ul>{app.features.map(feature => <li key={feature}><Check size={16}/>{feature}</li>)}</ul>
-        <Link className="primary" href={`/checkout?app=${app.slug}&plano=${plan.id}`}>Continuar com {cycle.label.toLowerCase()} <ArrowRight size={16}/></Link>
-      </article>;
-    })}</div>
-    <p className="public-pricing-note">Teste grátis quando elegível, ativação para novos acessos e reativação para períodos encerrados. Renovação automática pelo Mercado Pago; cancele as próximas cobranças quando precisar.</p>
+
+    {isZeus ? <>
+      <ZeusPlanCards />
+      <p className="public-pricing-note">A IA/Groq está incluída em Start, Essencial, Plus e Premium. Valores e cobrança de cada nível serão vinculados à assinatura corporativa sem alterar os dados operacionais do cliente.</p>
+    </> : <>
+      <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
+      <div className="public-price-grid">{cycles.map(cycle => {
+        const plan = appPlans.find(item => item.billing_interval === cycle.id);
+        if (!plan) return null;
+        const savings = monthly ? monthly.amount_cents * cycle.months - plan.amount_cents : 0;
+        return <article className="public-price-card" key={plan.id}>
+          <div className="price-card-heading"><h4>{cycle.label}</h4>{savings > 0 && <span>Economize {money(savings)}</span>}</div>
+          <strong className="public-price-value">{money(plan.amount_cents)}</strong><p className="price-cycle-detail">{cycle.detail}</p>
+          <p className="price-equivalent">{cycle.months > 1 ? `Equivale a ${money(plan.amount_cents / cycle.months)}/mês, cobrado por ciclo.` : 'Mais flexibilidade para começar.'}</p>
+          <ul>{app.features.map(feature => <li key={feature}><Check size={16}/>{feature}</li>)}</ul>
+          <Link className="primary" href={`/checkout?app=${app.slug}&plano=${plan.id}`}>Continuar com {cycle.label.toLowerCase()} <ArrowRight size={16}/></Link>
+        </article>;
+      })}</div>
+      <p className="public-pricing-note">Teste grátis quando elegível, ativação para novos acessos e reativação para períodos encerrados. Renovação automática pelo Mercado Pago; cancele as próximas cobranças quando precisar.</p>
+    </>}
   </section>;
 }
