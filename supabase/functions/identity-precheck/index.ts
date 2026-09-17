@@ -16,6 +16,22 @@ const validCpf = (value: string) => {
   };
   return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
 };
+const validCnpj = (value: string) => {
+  const d = digits(value);
+  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+  const calc = (length: number, firstWeight: number) => {
+    let sum = 0;
+    let weight = firstWeight;
+    for (let i = 0; i < length; i++) {
+      sum += Number(d[i]) * weight;
+      weight--;
+      if (weight === 1) weight = 9;
+    }
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(12, 5) === Number(d[12]) && calc(13, 6) === Number(d[13]);
+};
 const birthForSerpro = (value: string) => {
   const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}${m[2]}${m[1]}` : '';
@@ -79,14 +95,24 @@ Deno.serve(async (request: Request) => {
       return reply({ ok: true, released: Boolean(data) });
     }
 
+    const personType = body?.personType === 'pj' ? 'pj' : body?.personType === 'pf' ? 'pf' : '';
+    const cnpj = digits(body?.cnpj);
     const cpf = digits(body?.cpf);
     const name = cleanName(body?.name);
     const email = String(body?.email || '').trim().toLowerCase();
     const birth = birthForSerpro(String(body?.birthDate || ''));
+    if (!personType) return reply({ error: 'Selecione Pessoa física ou Pessoa jurídica.' }, 400);
+    if (personType === 'pj' && !validCnpj(cnpj)) return reply({ error: 'CNPJ inválido.' }, 400);
     if (!validCpf(cpf)) return reply({ error: 'CPF inválido.' }, 400);
     if (name.length < 5 || !name.includes(' ')) return reply({ error: 'Informe o nome completo.' }, 400);
     if (!birth) return reply({ error: 'Data de nascimento inválida.' }, 400);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply({ error: 'E-mail inválido.' }, 400);
+
+    if (personType === 'pj') {
+      const { data: existingCompany, error: companyError } = await admin().from('accounts').select('id').eq('cnpj', cnpj).maybeSingle();
+      if (companyError) throw companyError;
+      if (existingCompany) return reply({ error: 'Este CNPJ já está vinculado a uma conta.' }, 409);
+    }
 
     const verification = await verifyWithSerpro(cpf, birth, name);
     if (verification.mismatch) return reply({ error: 'CPF, nome ou data de nascimento não conferem.' }, 422);
