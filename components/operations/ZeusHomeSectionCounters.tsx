@@ -41,6 +41,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
 
   useEffect(() => {
     if (page !== 'inicio') return;
+    let autoCollapsing = false;
     const loadRead = () => {
       const next: Record<string, string> = {};
       Object.keys(titleToId).forEach(title => {
@@ -57,7 +58,20 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
         const title = section.querySelector<HTMLElement>('.op-section-head h2')?.textContent?.trim() || '';
         const id = titleToId[title];
         const head = section.querySelector<HTMLElement>('.op-section-head');
-        if (id && head) found.push({ id, node: head });
+        if (!id || !head) return;
+
+        if (!section.dataset.zeusHomeInitialized) {
+          section.dataset.zeusHomeInitialized = '1';
+          const toggle = section.querySelector<HTMLButtonElement>('.op-section-toggle');
+          if (toggle && section.classList.contains('is-open')) {
+            autoCollapsing = true;
+            toggle.click();
+            autoCollapsing = false;
+          }
+        }
+
+        if (id === 'working') head.querySelector<HTMLElement>(':scope > .op-muted')?.classList.add('zeus-home-legacy-count');
+        found.push({ id, node: head });
       });
       setTargets(found);
     };
@@ -66,6 +80,7 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     observer.observe(document.getElementById('op-main') || document.body, { childList: true, subtree: true });
     const onCounters = (event: Event) => setEnabled((event as CustomEvent<boolean>).detail !== false);
     const onClick = (event: MouseEvent) => {
+      if (autoCollapsing) return;
       const toggle = (event.target as Element | null)?.closest('.op-section-toggle');
       const section = toggle?.closest<HTMLElement>('.op-section');
       if (!section?.classList.contains('is-closed')) return;
@@ -87,5 +102,5 @@ export function ZeusHomeSectionCounters({ w, page }: { w: Workspace; page: strin
     if (!value) return null;
     const isNew = value.count > 0 && !!value.signature && read[target.id] !== value.signature;
     return createPortal(<span className="zeus-home-section-meta" key={target.id}><b>{value.count}</b>{isNew && <i>Novo</i>}</span>, target.node);
-  })}<style jsx global>{`.zeus-home-section-meta{margin-left:auto;display:flex;align-items:center;gap:7px}.zeus-home-section-meta b{min-width:25px;height:25px;padding:0 7px;display:grid;place-items:center;border-radius:999px;background:color-mix(in srgb,var(--op-accent) 14%,var(--op-paper));color:var(--op-accent);font-size:12px}.zeus-home-section-meta i{padding:4px 7px;border-radius:7px;background:var(--op-accent);color:white;font-size:10px;font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.op-section.is-open>.op-section-head>.zeus-home-section-meta{display:none}`}</style></>;
+  })}<style jsx global>{`.zeus-home-section-meta{margin-left:auto;display:flex;align-items:center;gap:7px}.zeus-home-section-meta b{min-width:25px;height:25px;padding:0 7px;display:grid;place-items:center;border-radius:999px;background:color-mix(in srgb,var(--op-accent) 14%,var(--op-paper));color:var(--op-accent);font-size:12px}.zeus-home-section-meta i{padding:4px 7px;border-radius:7px;background:var(--op-accent);color:white;font-size:10px;font-style:normal;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.op-section.is-open>.op-section-head>.zeus-home-section-meta,.zeus-home-legacy-count{display:none!important}`}</style></>;
 }
