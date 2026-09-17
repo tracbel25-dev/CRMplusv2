@@ -6,8 +6,10 @@ import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { createExternalLink, externalDraft, syncExternalResponses } from '@/lib/operations/externalLinks';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { OperationalAIAssist } from './OperationalAIAssist';
 import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
+import { ProfileMenu } from './ProfileMenu';
 import { Modal } from './ui';
 
 const labels: Record<AppId, string> = {
@@ -19,6 +21,7 @@ const labels: Record<AppId, string> = {
 };
 
 export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: AppId; page: string; recordId: string }) {
+  const access = useStoreAccess();
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState('');
   const [copied, setCopied] = useState(false);
@@ -56,6 +59,8 @@ export function ExternalShare({ w, app, page, recordId }: { w: Workspace; app: A
         : <button data-trial-restricted="Copiar links ficará disponível após a ativação da assinatura." className="op-icon" type="button" onClick={() => { void navigator.clipboard.writeText(url); setCopied(true); }} title="Copiar link" aria-label="Copiar link">{copied ? <Check size={19} /> : <Clipboard size={19} />}</button>)}
       {app !== 'zeus' && <button className="op-icon" type="button" onClick={() => { void sync(); }} disabled={busy} title="Receber atualizações externas" aria-label="Receber atualizações externas"><RefreshCw size={18} /></button>}
     </div>
+    <ProfileMenu app={app} canConfigure={!access.account || access.canConfigureApp(app)} fallbackName={w.data.settings.operator}/>
     {menuReview && <Modal title="Revisão inteligente do cardápio" wide onClose={() => setMenuReview(false)}><ArtemisMenuIntelligence w={w} /></Modal>}
+    <style jsx global>{`.op-header-tools>.op-user{display:none!important}.op-header-tools>.op-profile-menu{order:99}`}</style>
   </>;
 }
