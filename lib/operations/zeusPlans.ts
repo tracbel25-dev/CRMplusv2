@@ -39,7 +39,7 @@ const START_COMMERCIAL = [
   'Observações',
   'Retorno e garantia vinculados a OS anterior',
   'Busca e filtros básicos',
-  'IA/Groq nas funções disponíveis do plano',
+  'Inteligência artificial nas funções disponíveis do plano',
 ] as const;
 
 const ESSENCIAL_ADDITIONAL = [
@@ -110,7 +110,7 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     rank:0,
     seats:1,
     summary:'Controle essencial da oficina e das ordens de serviço.',
-    highlights:['Ordens de serviço','Clientes e veículos','IA/Groq'],
+    highlights:['Ordens de serviço','Clientes e veículos','Inteligência artificial'],
     commercialFeatures:START_COMMERCIAL_FULL,
     features:new Set(START),
   },
