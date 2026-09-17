@@ -25,13 +25,13 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
   const isZeus = app.slug === 'zeus';
 
   return <section className={`public-pricing pricing-${app.tone}`} id="planos" aria-labelledby="public-pricing-title">
-    <div className="public-pricing-heading"><div><span className="eyebrow">Planos por aplicativo</span><h2 id="public-pricing-title">{isZeus ? 'Escolha o nível do Zeus.' : <>Seu aplicativo.<br/>Seu ritmo de pagamento.</>}</h2></div><p>{isZeus ? 'Os planos são cumulativos: o nível superior mantém tudo do anterior e amplia recursos e acessos.' : 'Escolha o aplicativo e veja os preços. Na próxima etapa, a CRM PLUS identifica se sua conta pode testar por 7 dias, precisa ativar ou pode reativar um acesso anterior.'}</p></div>
+    <div className="public-pricing-heading"><div><span className="eyebrow">Planos por aplicativo</span><h2 id="public-pricing-title">{isZeus ? 'Escolha o nível do Zeus.' : <>Seu aplicativo.<br/>Seu ritmo de pagamento.</>}</h2></div><p>{isZeus ? 'Compare os quatro planos lado a lado. Cada nível mostra preço, acessos e exatamente quais funções estão liberadas.' : 'Escolha o aplicativo e veja os preços. Na próxima etapa, a CRM PLUS identifica se sua conta pode testar por 7 dias, precisa ativar ou pode reativar um acesso anterior.'}</p></div>
     {!fixedApp && <div className="pricing-app-options" aria-label="Escolha o aplicativo">{available.map(item => <button key={item.slug} type="button" aria-pressed={app.slug === item.slug} onClick={() => setSelected(item.slug)}><strong>{item.name}</strong><span>{item.category}</span></button>)}</div>}
     <div className="pricing-app-heading"><h3>{app.name} <span>· {app.category}</span></h3><Link href={`/aplicativos/${app.slug}`}>Conhecer o aplicativo <ArrowRight size={16}/></Link></div>
 
     {isZeus ? <>
-      <ZeusPlanCards />
-      <p className="public-pricing-note">IA/Groq incluída em todos os planos. Faça upgrade quando precisar liberar mais recursos e acessos.</p>
+      <ZeusPlanCards plans={appPlans}/>
+      <p className="public-pricing-note">IA/Groq incluída em todos os planos. Contratação mensal com renovação automática pelo Mercado Pago.</p>
     </> : <>
       <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
       <div className="public-price-grid">{cycles.map(cycle => {
