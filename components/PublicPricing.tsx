@@ -31,7 +31,7 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
 
     {isZeus ? <>
       <ZeusPlanCards plans={appPlans}/>
-      <p className="public-pricing-note">IA/Groq incluída em todos os planos. Contratação mensal com renovação automática pelo Mercado Pago.</p>
+      <p className="public-pricing-note">Inteligência artificial incluída em todos os planos. Contratação mensal com renovação automática.</p>
     </> : <>
       <p><Link className="ghost" href={`/checkout?app=${app.slug}#teste-gratis`}>Ver elegibilidade para 7 dias grátis</Link></p>
       <div className="public-price-grid">{cycles.map(cycle => {
@@ -46,7 +46,7 @@ export function PublicPricing({ plans, initialApp, fixedApp = false }: { plans: 
           <Link className="primary" href={`/checkout?app=${app.slug}&plano=${plan.id}`}>Continuar com {cycle.label.toLowerCase()} <ArrowRight size={16}/></Link>
         </article>;
       })}</div>
-      <p className="public-pricing-note">Teste grátis quando elegível, ativação para novos acessos e reativação para períodos encerrados. Renovação automática pelo Mercado Pago; cancele as próximas cobranças quando precisar.</p>
+      <p className="public-pricing-note">Teste grátis quando elegível. Depois, você pode ativar ou reativar o acesso pelo plano escolhido e cancelar futuras renovações quando precisar.</p>
     </>}
   </section>;
 }
