@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { landingR2AssetUrl } from '@/lib/landingAssets';
 import styles from './AppAsset.module.css';
 
 export type AppAssetKind = 'icon' | 'cover' | 'card';
@@ -16,9 +17,9 @@ type Props = {
 };
 
 const extensions: Record<AppAssetKind, string[]> = {
-  icon: ['svg', 'png', 'jpg', 'jpeg'],
-  cover: ['jpg', 'png', 'svg', 'jpeg'],
-  card: ['jpg', 'png', 'svg', 'jpeg'],
+  icon: ['png', 'svg', 'webp', 'jpg', 'jpeg'],
+  cover: ['png', 'webp', 'jpg', 'jpeg', 'svg'],
+  card: ['png', 'webp', 'jpg', 'jpeg', 'svg'],
 };
 
 const fixedAssets: Record<string, Partial<Record<AppAssetKind, string>>> = {
@@ -35,9 +36,12 @@ const fixedAssets: Record<string, Partial<Record<AppAssetKind, string>>> = {
 };
 
 function candidateSources(app: string, kind: AppAssetKind) {
+  const remote = extensions[kind]
+    .map((ext) => landingR2AssetUrl(`apps/${app}/${kind}.${ext}`))
+    .filter((source): source is string => Boolean(source));
   const fixed = fixedAssets[app]?.[kind];
-  if (fixed) return [fixed];
-  return extensions[kind].map((ext) => `/app-assets/${app}/${kind}.${ext}`);
+  const local = extensions[kind].map((ext) => `/app-assets/${app}/${kind}.${ext}`);
+  return [...remote, ...(fixed ? [fixed] : []), ...local.filter((source) => source !== fixed)];
 }
 
 export function AppAsset({ app, kind, alt = '', className, style, fallback }: Props) {
