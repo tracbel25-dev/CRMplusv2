@@ -43,8 +43,7 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
 
     <section className="zeus-plan-comparison" id="comparacao-zeus" aria-labelledby="zeus-comparison-title">
       <div className="zeus-comparison-heading">
-        <div><span>Compare lado a lado</span><h3 id="zeus-comparison-title">O que cada plano libera</h3></div>
-        <p>✓ função incluída · X função não incluída. Os planos superiores mantêm os recursos dos níveis anteriores.</p>
+        <h3 id="zeus-comparison-title">O que cada plano libera</h3>
       </div>
 
       <div className="zeus-mobile-compare" aria-label="Comparador de planos no celular">
@@ -107,9 +106,7 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
       .zeus-plan-cta{margin-top:auto!important}
       .zeus-plan-comparison{display:grid;gap:16px;padding-top:2px}
       .zeus-comparison-heading{display:flex;align-items:end;justify-content:space-between;gap:24px}
-      .zeus-comparison-heading span{display:block;margin-bottom:7px;color:#777772;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
       .zeus-comparison-heading h3{margin:0;color:#f5f5f0;font-size:24px}
-      .zeus-comparison-heading p{max-width:440px;margin:0;color:#8f8f8a;font-size:12px;line-height:1.55}
       .zeus-plan-table-wrap{overflow:auto;border:1px solid #2a2a2a;border-radius:18px;background:#111;box-shadow:0 18px 50px rgba(0,0,0,.18)}
       .zeus-plan-table-wrap table{width:100%;border-collapse:collapse;min-width:900px;color:#e9e9e3;background:#111}
       .zeus-plan-table-wrap th,.zeus-plan-table-wrap td{height:54px;padding:11px 14px;border-bottom:1px solid #262626;text-align:center;background:#111;color:#e9e9e3}
