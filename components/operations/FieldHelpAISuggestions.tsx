@@ -13,6 +13,8 @@ export function FieldHelpAISuggestions({ app, fieldKey, label, description, curr
   const [interactionId, setInteractionId] = useState('');
   const [error, setError] = useState('');
 
+  if (app !== 'zeus' && app !== 'artemis') return null;
+
   const authHeaders = async () => {
     const { data } = await createStoreClient().auth.getSession();
     if (!data.session) throw new Error('Sua sessão expirou. Entre novamente.');
