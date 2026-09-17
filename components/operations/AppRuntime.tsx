@@ -49,14 +49,8 @@ const icons = {
 };
 
 const zeusPagePermissions: Record<string,string> = {
-  dashboard:'dashboard_view',
-  agendamentos:'appointments_view',
-  checklist:'jobs_view',
-  atendimentos:'jobs_view',
-  historico:'jobs_view',
-  orcamentos:'quotes_view',
-  faturamento:'billing_view',
-  clientes:'customers_manage'
+  dashboard:'dashboard_view', agendamentos:'appointments_view', checklist:'jobs_view', atendimentos:'jobs_view',
+  historico:'jobs_view', orcamentos:'quotes_view', faturamento:'billing_view', clientes:'customers_manage'
 };
 
 const zeusNavigationGroups = [
@@ -76,17 +70,15 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
   const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
     || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
+  const planControlledPage = app === 'zeus' && ['agendamentos','checklist','orcamentos','faturamento','dashboard'].includes(page);
+  const canUsePlanPage = !planControlledPage || operation.actionVisible(`module:${page}`);
 
-  useEffect(() => {
-    setSidebarCollapsed(w.data.settings.collapsed);
-  }, [app, workspaceScope, w.data.settings.collapsed]);
+  useEffect(() => { setSidebarCollapsed(w.data.settings.collapsed); }, [app, workspaceScope, w.data.settings.collapsed]);
 
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;
     setSidebarCollapsed(next);
-    void w.mutate(data => { data.settings.collapsed = next; }, '').then(ok => {
-      if (!ok) setSidebarCollapsed(w.data.settings.collapsed);
-    });
+    void w.mutate(data => { data.settings.collapsed = next; }, '').then(ok => { if (!ok) setSidebarCollapsed(w.data.settings.collapsed); });
   };
 
   if (!w.ready) return <AppLoadingScreen label={`Carregando ${config.name}`} />;
@@ -103,21 +95,14 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'cozinha'].includes(page);
   const navigationPage = page === 'historico' ? (app === 'zeus' ? 'atendimentos' : app === 'kronos' ? 'oportunidades' : page) : page;
   const zeusClientsLabel = `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s`;
-  const pageLabel = page === 'configuracoes'
-    ? corporateUi.settingsLabel
-    : legacyArtemisOperation
-      ? 'Operação'
-      : app === 'zeus' && navigationPage === 'clientes'
-        ? zeusClientsLabel
-        : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
+  const pageLabel = page === 'configuracoes' ? corporateUi.settingsLabel : legacyArtemisOperation ? 'Operação' : app === 'zeus' && navigationPage === 'clientes' ? zeusClientsLabel : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
 
-  const settingsBody = app === 'artemis'
-    ? <ArtemisSettings w={w} />
-    : <AppSettings key={app} w={w} app={app} />;
-
+  const settingsBody = app === 'artemis' ? <ArtemisSettings w={w} /> : <AppSettings key={app} w={w} app={app} />;
   const restricted = <section className="op-section"><div className="op-section-head"><h2>Acesso não liberado</h2></div><p className="op-muted">Seu perfil não possui permissão para abrir esta área. O titular da conta pode alterar isso em Configurações → Acessos.</p><div className="op-actions"><Link className="op-button secondary" href={`/${app}/inicio`}>Voltar ao início</Link></div></section>;
+  const planRestricted = <section className="op-section"><div className="op-section-head"><h2>Recurso não incluído no plano</h2></div><p className="op-muted">Os dados existentes permanecem preservados. Faça upgrade do Zeus para voltar a usar este módulo.</p><div className="op-actions"><Link className="op-button secondary" href="/zeus/inicio">Voltar ao início</Link><Link className="op-button" href="/planos?app=zeus">Ver planos</Link></div></section>;
 
   const body = page === 'configuracoes' ? (canConfigure ? settingsBody : restricted)
+    : !canUsePlanPage ? planRestricted
     : !canUsePage ? restricted
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
     : app === 'zeus' && page === 'faturamento' ? <ZeusBilling w={w} />
@@ -141,28 +126,19 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={publicError}>
-      {app === 'zeus' && <><ZeusExternalSync w={w} /><ZeusServiceTypesCloudBridge w={w} /></>}
+      {app === 'zeus' && <>{operation.actionVisible('module:checklist') && <ZeusExternalSync w={w} />}<ZeusServiceTypesCloudBridge w={w} /></>}
       <div className={`op-app app-${app} theme-${w.data.settings.theme} ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
         <a className="op-skip" href="#op-main">Pular para o conteúdo</a>
         {mobile && <button className="op-nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
 
         <aside className="op-sidebar">
           <Link className="op-brand" href={`/${app}`} aria-label={`${config.name} — início`}>
-            <span className="op-brand-symbol" style={{background:'transparent',color:'var(--op-nav-ink)',overflow:'hidden'}}>
-              <AppAsset app={app} kind="icon" alt="" fallback={config.short} style={{width:'100%',height:'100%',display:'grid',placeItems:'center',objectFit:'contain'}} />
-            </span>
+            <span className="op-brand-symbol" style={{background:'transparent',color:'var(--op-nav-ink)',overflow:'hidden'}}><AppAsset app={app} kind="icon" alt="" fallback={config.short} style={{width:'100%',height:'100%',display:'grid',placeItems:'center',objectFit:'contain'}} /></span>
             <div><strong>{config.name}</strong><small>{config.subtitle}</small></div>
           </Link>
           {app !== 'zeus' && <span className="op-nav-label">Sua operação</span>}
           <nav aria-label={`Navegação ${config.name}`}>
-            {app === 'zeus' ? <>
-              {nav.filter(item => item.path === 'inicio').map(renderNavItem)}
-              {zeusNavigationGroups.map(group => {
-                const items = nav.filter(item => group.paths.includes(item.path));
-                if (!items.length) return null;
-                return <div className="zeus-nav-group" key={group.label}><span className="op-nav-label zeus-nav-group-label">{group.label}</span>{items.map(renderNavItem)}</div>;
-              })}
-            </> : nav.map(renderNavItem)}
+            {app === 'zeus' ? <>{nav.filter(item => item.path === 'inicio').map(renderNavItem)}{zeusNavigationGroups.map(group => { const items = nav.filter(item => group.paths.includes(item.path)); if (!items.length) return null; return <div className="zeus-nav-group" key={group.label}><span className="op-nav-label zeus-nav-group-label">{group.label}</span>{items.map(renderNavItem)}</div>; })}</> : nav.map(renderNavItem)}
           </nav>
 
           <div className="op-sidebar-bottom">
@@ -176,25 +152,18 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <header className="op-header">
             <button className="op-icon op-mobile-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir navegação"><Menu size={22} /></button>
             <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong></div>
-            <div className="op-header-tools">
-              <span className="op-business-name">{w.data.settings.business}</span>
-              <ExternalShare w={w} app={app} page={page} recordId={recordId} />
-              <button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>
-              {canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}
-            </div>
+            <div className="op-header-tools"><span className="op-business-name">{w.data.settings.business}</span><ExternalShare w={w} app={app} page={page} recordId={recordId} /><button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>{canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}</div>
           </header>
 
           <main id="op-main" className="op-main">
-            {!recordId && canUsePage && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
+            {!recordId && canUsePage && canUsePlanPage && ((app === 'zeus' && ['atendimentos','historico'].includes(page)) || (app === 'kronos' && ['oportunidades','historico'].includes(page))) && <nav className="op-compact-tabs" aria-label="Situação dos registros"><Link href={`/${app}/${app === 'zeus' ? 'atendimentos' : 'oportunidades'}`} aria-current={page !== 'historico' ? 'page' : undefined}>Em aberto <span>{app === 'zeus' ? w.data.jobs.filter(job => !['Encerrado','Cancelado','Reprovado'].includes(job.status)).length : w.data.deals.filter(deal => !['Ganha','Perdida'].includes(deal.stage)).length}</span></Link>{operation.actionVisible('module:historico') && <Link href={`/${app}/historico`} aria-current={page === 'historico' ? 'page' : undefined}>Histórico</Link>}</nav>}
             {body}
           </main>
-
           <footer className="op-local-status"><span>{corporateDeveloperLine()}</span></footer>
         </div>
 
         {publicError && <div className="op-alert" role="alert"><span>{publicError}</span><button className="op-icon" onClick={() => w.setError('')} aria-label="Fechar erro"><X size={18} /></button></div>}
         {w.notice && <div className="op-toast" role="status">{w.notice}</div>}
-
         <style jsx global>{`
           details.op-config-group{padding:0!important;overflow:hidden;border-radius:12px!important}
           details.op-config-group>summary{min-height:68px!important;padding:0 18px!important;margin:0!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;cursor:pointer}
