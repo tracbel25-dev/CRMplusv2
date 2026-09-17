@@ -106,16 +106,19 @@ export function ZeusFilterBar({
     </div>
 
     <style jsx global>{`
-      .zeus-filter-shell{position:relative;z-index:40;display:grid;gap:10px;margin:0 0 16px}
+      .zeus-filter-shell{position:relative;z-index:40;display:grid;gap:10px;margin:0 0 16px;min-width:0;max-width:100%}
       .zeus-filter-search-main>.op-search{width:100%!important;max-width:none!important;margin:0!important;height:42px}
-      .zeus-filter-column-bar{display:flex;align-items:center;gap:4px;min-width:0;overflow:visible;border:1px solid var(--op-line);border-radius:11px;background:var(--op-paper);padding:4px 6px}
-      .zeus-filter-chip-wrap{position:relative;flex:0 0 auto}
-      .zeus-filter-chip{min-height:34px;display:flex;align-items:center;gap:6px;padding:0 9px;border:0;border-radius:8px;background:transparent;color:var(--op-muted);font:inherit;font-size:12px;font-weight:750;cursor:pointer;white-space:nowrap}
+      .zeus-filter-column-bar{display:flex;align-items:center;gap:4px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow:visible;border:1px solid var(--op-line);border-radius:11px;background:var(--op-paper);padding:4px 6px}
+      .zeus-filter-chip-wrap{position:relative;flex:1 1 0;min-width:0}
+      .zeus-filter-chip{width:100%;min-width:0;min-height:34px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;border:0;border-radius:8px;background:transparent;color:var(--op-muted);font:inherit;font-size:12px;font-weight:750;cursor:pointer;white-space:nowrap}
+      .zeus-filter-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .zeus-filter-chip svg{flex:0 0 auto}
       .zeus-filter-chip:hover,.zeus-filter-chip.open{background:var(--op-soft);color:var(--op-ink)}
       .zeus-filter-chip.active{color:var(--op-accent);background:color-mix(in srgb,var(--op-accent) 8%,var(--op-paper))}
       .zeus-filter-chip b{min-width:18px;height:18px;padding:0 5px;display:grid;place-items:center;border-radius:999px;background:var(--op-accent);color:var(--op-on-accent);font-size:10px}
 
       .zeus-column-popover{position:absolute;left:0;top:calc(100% + 7px);z-index:500;width:320px;display:grid;gap:10px;padding:12px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-paper);color:var(--op-ink);box-shadow:0 18px 45px rgba(0,0,0,.2)}
+      .zeus-filter-chip-wrap:nth-last-child(-n+2) .zeus-column-popover{left:auto;right:0}
       .zeus-column-popover>strong{font-size:13px}
       .zeus-column-popover>small{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--op-muted)}
       .zeus-option-sort-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
@@ -140,7 +143,10 @@ export function ZeusFilterBar({
         .app-zeus .zeus-billing-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
         .app-zeus .zeus-billing-summary>div+div{border-left:1px solid var(--op-line)!important;border-top:0!important}
         .zeus-filter-column-bar{overflow-x:auto;overflow-y:hidden;scrollbar-width:none}.zeus-filter-column-bar::-webkit-scrollbar{display:none}
-        .zeus-column-popover{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:min(72dvh,560px)}
+        .zeus-filter-chip-wrap{flex:0 0 auto;min-width:auto}
+        .zeus-filter-chip{width:auto;justify-content:flex-start}
+        .zeus-filter-chip span{overflow:visible;text-overflow:clip}
+        .zeus-column-popover,.zeus-filter-chip-wrap:nth-last-child(-n+2) .zeus-column-popover{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:min(72dvh,560px)}
         .zeus-popover-options{max-height:36dvh}
       }
     `}</style>
