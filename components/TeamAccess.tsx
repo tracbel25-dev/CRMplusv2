@@ -30,6 +30,7 @@ export function TeamAccess(){
   const contractedRow=(appId:string)=>account.apps.find(row=>row.appId===appId&&isActive(row.status,row.currentPeriodEnd));
   const usage=(appId:string)=>1+account.members.filter(member=>member.role!=='owner'&&member.apps.some(item=>item.appId===appId)).length;
   const full=(appId:string)=>{const row=contractedRow(appId);return !!row&&usage(appId)>=Math.max(1,row.seats||1);};
+  const canAddPeople=access.isOwner&&contracted.some(app=>{const row=contractedRow(app.slug);return !!row&&Math.max(1,row.seats||1)>usage(app.slug);});
   const clearFeedback=()=>{setError('');setMessage('');};
 
   const changeAccess=async(userId:string,appId:AppId,enabled:boolean,canConfigure:boolean)=>{
@@ -57,11 +58,13 @@ export function TeamAccess(){
   const removeMember=async(userId:string,name:string)=>{if(!window.confirm(`Remover ${name} da equipe? O histórico já registrado será preservado.`))return;setPending(`${userId}:remove`);clearFeedback();try{await access.removeMember(userId);setMessage(`${name} foi removido da equipe.`);}catch(reason){setError((reason as {message?:string}).message||'Não foi possível remover essa pessoa.');}finally{setPending('');}};
 
   return <>
-    <section className="account-details-intro team-intro"><div><span className="account-kicker">Conta</span><h1>Equipe e acessos</h1><p>Adicione pessoas e escolha quais aplicativos cada uma pode abrir ou configurar.</p></div>{access.isOwner&&<div className="team-intro-actions"><button className="primary small" type="button" onClick={()=>{clearFeedback();setInviteOpen(value=>!value);}}>{inviteOpen?<><X size={15}/>Fechar</>:<><UserPlus size={15}/>Adicionar pessoa</>}</button></div>}</section>
+    <section className="account-details-intro team-intro"><div><span className="account-kicker">Conta</span><h1>Equipe e acessos</h1><p>Gerencie os acessos disponíveis nos seus planos ativos.</p></div>{canAddPeople&&<div className="team-intro-actions"><button className="primary small" type="button" onClick={()=>{clearFeedback();setInviteOpen(value=>!value);}}>{inviteOpen?<><X size={15}/>Fechar</>:<><UserPlus size={15}/>Adicionar pessoa</>}</button></div>}</section>
 
     {!access.isOwner&&<div className="account-permission-note"><ShieldCheck size={18}/><div><strong>Somente o titular altera permissões.</strong><p>Você pode consultar seus próprios acessos, mas as mudanças ficam restritas ao responsável pela conta.</p></div></div>}
 
+    {access.isOwner&&contracted.length===0&&<div className="account-permission-note"><UsersRound size={18}/><div><strong>Nenhum plano ativo com acessos.</strong><p>Ative um aplicativo antes de adicionar pessoas à equipe.</p></div></div>}
     {access.isOwner&&contracted.length>0&&<div className="account-permission-note"><UsersRound size={18}/><div><strong>Acessos contratados</strong><p>{contracted.map(app=>{const row=contractedRow(app.slug)!;return `${app.name}: ${usage(app.slug)} de ${Math.max(1,row.seats||1)} acessos utilizados`;}).join(' · ')}</p></div></div>}
+    {access.isOwner&&contracted.length>0&&!canAddPeople&&<div className="account-permission-note"><ShieldCheck size={18}/><div><strong>Sem acessos adicionais disponíveis.</strong><p>O botão para adicionar pessoas aparece quando algum plano tiver uma vaga livre.</p></div></div>}
 
     {access.isOwner&&inviteOpen&&<form className="team-invite-card" onSubmit={submitInvite}>
       <div className="team-invite-heading"><div><span className="account-kicker">Novo acesso</span><h2>Adicionar pessoa</h2><p>O titular conta como um acesso em cada aplicativo. O limite é controlado pelo plano contratado.</p></div></div>
