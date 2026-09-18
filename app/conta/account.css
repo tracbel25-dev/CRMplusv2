@@ -6,3 +6,17 @@
 .account-metrics{gap:10px;margin:12px 0 22px}.account-metrics article{padding:16px;border-radius:14px}.account-metrics strong{font-size:26px}.account-metrics p{font-size:10px}
 .account-products{padding:20px}.account-profile-card{padding:18px}.account-products,.account-profile-card{border-radius:18px}.account-empty-product{padding:20px}.account-profile-card dl>div{padding:11px 0}.account-profile-action{padding:12px}
 @media(max-width:680px){.account-data-alert{grid-template-columns:auto 1fr}.account-data-alert .ghost{grid-column:1/-1;width:100%;justify-content:center}.account-hero{padding:20px}.account-status{width:100%}}
+
+
+.account-flow-list{display:grid;gap:10px;margin:12px 0 18px}
+.account-flow-status{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:14px 16px;border:1px solid #2b2b28;border-radius:14px;background:#0c0c0c}
+.account-flow-status>svg{color:#aaa9a4}
+.account-flow-status>div{display:grid;gap:2px}
+.account-flow-status span{color:#8f8f89;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.account-flow-status strong{font-size:13px}
+.account-flow-status small{color:#777772;font-size:10px}
+.account-flow-status.is-success{border-color:#2f4b35;background:#0c140f}
+.account-flow-status.is-success>svg{color:#9bd2a5}
+.account-flow-status.is-pending{border-color:#51451f;background:#151208}
+.account-flow-status.is-pending>svg{color:#d7ba60}
+@media(max-width:680px){.account-flow-status{grid-template-columns:auto 1fr}.account-flow-status>a{grid-column:1/-1;justify-content:center}}
