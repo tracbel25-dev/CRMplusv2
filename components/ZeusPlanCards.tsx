@@ -3,26 +3,22 @@
 import Link from 'next/link';
 import { ArrowRight, Check, X } from 'lucide-react';
 import type { PublicPlan } from '@/lib/publicPlans';
-import { ZEUS_PLANS, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
+import { ZEUS_PLANS, type ZeusFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
 
 const order: ZeusPlanCode[] = ['start','essencial','plus','premium'];
-const comparisonFeatures = ZEUS_PLANS.premium.commercialFeatures.filter(feature => feature !== 'Até 10 acessos');
+const comparisonFeatures: { label:string; feature:ZeusFeature }[] = [
+  { label:'Abertura de OS', feature:'core_os' },
+  { label:'Histórico', feature:'history' },
+  { label:'Inteligência artificial', feature:'ai' },
+  { label:'Agendamentos', feature:'scheduling' },
+  { label:'Checklist de entrada', feature:'checklist' },
+  { label:'Diagnóstico', feature:'diagnosis' },
+  { label:'Orçamentos', feature:'budgets' },
+  { label:'Faturamento', feature:'billing' },
+  { label:'Dashboard gerencial', feature:'dashboard' },
+  { label:'Controle de permissões por usuário', feature:'granular_permissions' },
+];
 const money = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-
-const mobileComparison = [
-  { label:'Ordens de serviço', minRank:0 },
-  { label:'Clientes, veículos e histórico', minRank:0 },
-  { label:'Inteligência artificial', minRank:0 },
-  { label:'Agenda e reagendamento', minRank:1 },
-  { label:'Checklist e assinatura', minRank:1 },
-  { label:'Diagnóstico', minRank:1 },
-  { label:'Orçamentos e aprovação do cliente', minRank:1 },
-  { label:'Faturamento e recebimentos', minRank:2 },
-  { label:'Dashboard e indicadores', minRank:2 },
-  { label:'Filtros avançados e exportação', minRank:2 },
-  { label:'Equipe e permissões', minRank:2 },
-  { label:'Configurações operacionais completas', minRank:3 },
-] as const;
 
 export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
   const byCode = new Map(plans.filter(plan => plan.plan_code).map(plan => [plan.plan_code as ZeusPlanCode, plan]));
@@ -67,10 +63,10 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
             <span>Plus</span>
             <span>Premium</span>
           </div>
-          {mobileComparison.map(item=><div className="zeus-mobile-feature" key={item.label}>
+          {comparisonFeatures.map(item=><div className="zeus-mobile-feature" key={item.label}>
             <strong>{item.label}</strong>
             {order.map(code=>{
-              const available=ZEUS_PLANS[code].rank>=item.minRank;
+              const available=ZEUS_PLANS[code].features.has(item.feature);
               return <span key={code} className={available?'is-available':'is-unavailable'}>
                 {available?<Check size={17}/>:<X size={17}/>}
                 <em>{available?'Incluído':'Não incluído'}</em>
@@ -83,11 +79,11 @@ export function ZeusPlanCards({ plans }: { plans: PublicPlan[] }){
       <div className="zeus-plan-table-wrap">
         <table>
           <thead><tr><th>Função</th>{order.map(code=>{const plan=ZEUS_PLANS[code];const dbPlan=byCode.get(code);return <th key={code} className={plan.recommended?'recommended-column':''}><strong>{plan.name.replace('Zeus ','')}</strong><b>{dbPlan?money(dbPlan.amount_cents):'—'}{dbPlan&&<em>/mês</em>}</b><small>{dbPlan?.seats ?? plan.seats} acesso{(dbPlan?.seats ?? plan.seats)>1?'s':''}</small></th>;})}</tr></thead>
-          <tbody>{comparisonFeatures.map(feature=><tr key={feature}>
-            <td className="feature-name">{feature}</td>
+          <tbody>{comparisonFeatures.map(item=><tr key={item.label}>
+            <td className="feature-name">{item.label}</td>
             {order.map(code=>{
-              const available=ZEUS_PLANS[code].commercialFeatures.includes(feature);
-              return <td key={`${feature}-${code}`} className={available?'is-available':'is-unavailable'}>{available?<><Check size={18}/><span className="sr-only">Incluído</span></>:<><X size={18}/><span className="sr-only">Não incluído</span></>}</td>;
+              const available=ZEUS_PLANS[code].features.has(item.feature);
+              return <td key={`${item.feature}-${code}`} className={available?'is-available':'is-unavailable'}>{available?<><Check size={18}/><span className="sr-only">Incluído</span></>:<><X size={18}/><span className="sr-only">Não incluído</span></>}</td>;
             })}
           </tr>)}</tbody>
         </table>
