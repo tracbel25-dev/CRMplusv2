@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "test": "node --test tests/trial-antifraud.test.mjs tests/public-ui-rules.test.mjs",
+    "test": "node --test tests/trial-antifraud.test.mjs tests/public-ui-rules.test.mjs tests/ui-consistency.test.mjs",
     "build": "next build",
     "start": "next start"
   },
