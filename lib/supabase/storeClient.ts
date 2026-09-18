@@ -16,3 +16,14 @@ export function createStoreClient() {
   });
   return storeClient;
 }
+
+export function createRecoveryClient() {
+  return createClient(STORE_SUPABASE.url, STORE_SUPABASE.publishableKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: true,
+      flowType: 'implicit',
+    },
+  });
+}
