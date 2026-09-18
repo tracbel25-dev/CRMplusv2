@@ -50,7 +50,7 @@ export function AccountEntry(){
 
   const activeAppIds=new Set(activeRows.map(item=>item.appId));
   const pendingTrial=(billingState.trialRequests||[]).find(item=>['requested','validating','validation_pending'].includes(item.status)&&!activeAppIds.has(item.app_id as AppId));
-  const pendingSubscription=(billingState.attempts||[]).find(item=>['creating','pending'].includes(item.status)&&!activeAppIds.has(item.app_id));
+  const pendingSubscription=(billingState.attempts||[]).find(item=>['creating','pending'].includes(item.status)&&!activeAppIds.has(item.app_id as AppId));
   const activeTrialRows=activeRows.filter(item=>item.status==='trialing');
 
   return <>
