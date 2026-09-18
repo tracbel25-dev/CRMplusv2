@@ -17,10 +17,10 @@ export function PasswordRecoveryRequest(){
       const supabase=createStoreClient();
       const {error:resetError}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:`${window.location.origin}/nova-senha`});
       if(resetError)throw resetError;
-      setMessage('Se esse e-mail estiver cadastrado, você receberá um link para criar uma nova senha.');
+      setMessage('Se esse e-mail estiver cadastrado, enviamos um link para criar uma nova senha. Confira também Spam e Lixo eletrônico.');
     }catch(reason){setError(clientMessage(reason,'Não foi possível enviar o link agora. Tente novamente.'));}finally{setLoading(false)}
   };
-  return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Recuperar acesso</span><h1>Esqueceu a senha?</h1><p>Informe o e-mail da sua conta CRM PLUS. Enviaremos um link para criar uma nova senha.</p><form onSubmit={submit}><label>E-mail<input type="email" value={email} onChange={event=>setEmail(event.target.value)} autoComplete="email" required/></label>{error&&<p className="auth-error" role="alert">{error}</p>}{message&&<p className="auth-success" role="status">{message}</p>}<button className="primary" type="submit" disabled={loading}>{loading?'Enviando…':'Enviar link de recuperação'}</button></form><small><Link href="/login">Voltar para entrar</Link></small></section></main>;
+  return <main className="auth-shell"><Link className="brand auth-brand" href="/inicio"><span>CRM PLUS</span><small>Store</small></Link><section className="auth-card"><span className="eyebrow">Recuperar acesso</span><h1>Esqueceu a senha?</h1><p>Informe o e-mail da sua conta CRM PLUS. Enviaremos um link para criar uma nova senha. Se não aparecer na caixa de entrada, confira Spam ou Lixo eletrônico.</p><form onSubmit={submit}><label>E-mail<input type="email" value={email} onChange={event=>setEmail(event.target.value)} autoComplete="email" required/></label>{error&&<p className="auth-error" role="alert">{error}</p>}{message&&<p className="auth-success" role="status">{message}</p>}<button className="primary" type="submit" disabled={loading}>{loading?'Enviando…':'Enviar link de recuperação'}</button></form><small><Link href="/login">Voltar para entrar</Link></small></section></main>;
 }
 
 export function NewPasswordForm(){
