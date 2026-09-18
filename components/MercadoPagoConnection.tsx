@@ -12,6 +12,9 @@ const formatDateTime = (value: string | null | undefined) => value
 export function MercadoPagoConnection({ returned }: { returned?: string }) {
   const access = useStoreAccess();
   const accountId = access.account?.id;
+  const hasActiveProduct=!!access.account&&access.account.apps.some(item=>
+    ['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now())
+  );
   const [status, setStatus] = useState<MercadoPagoConnectStatus | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState('');
@@ -27,13 +30,13 @@ export function MercadoPagoConnection({ returned }: { returned?: string }) {
   );
 
   const load = useCallback(async () => {
-    if (!accountId) return;
+    if (!accountId || !hasActiveProduct) return;
     const result = await mercadoPagoConnectRequest<MercadoPagoConnectStatus>({ action: 'status', accountId });
     setStatus(result);
-  }, [accountId]);
+  }, [accountId, hasActiveProduct]);
 
   useEffect(() => {
-    if (!accountId) return;
+    if (!accountId || !hasActiveProduct) return;
     void load().catch(reason => setError((reason as Error).message || 'Não foi possível consultar a integração.'));
   }, [accountId, load]);
 
@@ -78,11 +81,7 @@ export function MercadoPagoConnection({ returned }: { returned?: string }) {
     }
   }
 
-  if (!access.ready || !access.user || !access.account) return null;
-  const hasActiveProduct=access.account.apps.some(item=>
-    ['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now())
-  );
-  if(!hasActiveProduct)return null;
+  if (!access.ready || !access.user || !access.account || !hasActiveProduct) return null;
 
   return <section className="mp-connect-card" aria-labelledby="mp-connect-title">
     <div className="mp-connect-heading">
