@@ -225,7 +225,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
           <div className="billing-product-main">
             <div className="billing-product-title">
               <div><span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}{directPlanName?` · Plano ${directPlanName}`:''}</p></div>
-              <div className="billing-price"><strong>{directPlanName?`Plano ${directPlanName}`:trialActive?'7 dias':'Ativo'}</strong><span>{directPlan?`${money(directPlan.amount_cents)}/mês · ${directPlan.seats} ${directPlan.seats===1?'acesso':'acessos'}`:trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
+              <div className="billing-price"><strong>{directPlanName?`Plano ${directPlanName}`:trialActive?'7 dias':'Ativo'}</strong><span>{directPlan?`${money(directPlan.amount_cents)}/mês após o teste · ${directPlan.seats} ${directPlan.seats===1?'acesso':'acessos'}`:trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
             </div>
             <div className="billing-product-meta">
               <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
