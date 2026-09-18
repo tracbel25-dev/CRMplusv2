@@ -75,3 +75,7 @@
   .auth-brand{margin-bottom:16px}
   .auth-card{padding:26px!important}
 }
+
+
+.auth-recovery-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}.auth-recovery-actions>*{flex:1 1 210px}.auth-recovery-actions .ghost{background:#111318}
+@media(max-width:620px){.auth-recovery-actions{flex-direction:column}.auth-recovery-actions>*{width:100%;flex-basis:auto}}
