@@ -30,11 +30,22 @@ type Payment = {
   period_end: string | null;
 };
 
+type TrialRequest = {
+  id: string;
+  app_id: string;
+  plan_id: string | null;
+  status: 'requested'|'validating'|'validation_pending'|'activated'|'blocked';
+  requested_at: string;
+  updated_at: string;
+  activated_at: string | null;
+};
+
 type BillingList = {
   subscriptions: Subscription[];
   attempts?: Subscription[];
   checkoutSubscriptions?: Subscription[];
   payments?: Payment[];
+  trialRequests?: TrialRequest[];
   ready: boolean;
 };
 
@@ -52,6 +63,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   const [subscriptions,setSubscriptions]=useState<Subscription[]>([]);
   const [attempts,setAttempts]=useState<Subscription[]>([]);
   const [payments,setPayments]=useState<Payment[]>([]);
+  const [trialRequests,setTrialRequests]=useState<TrialRequest[]>([]);
   const [loading,setLoading]=useState(true);
   const [ready,setReady]=useState<boolean|null>(null);
   const [busy,setBusy]=useState('');
@@ -64,6 +76,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     setSubscriptions(result.subscriptions||[]);
     setAttempts(result.attempts||result.checkoutSubscriptions||[]);
     setPayments(result.payments||[]);
+    setTrialRequests(result.trialRequests||[]);
     setReady(result.ready);
   },[accountId]);
 
@@ -97,6 +110,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   }),[activatedSubscriptions]);
   const openAttempts=useMemo(()=>attempts.filter(item=>['creating','pending'].includes(item.status)),[attempts]);
   const closedAttempts=useMemo(()=>attempts.filter(item=>['failed','cancelled'].includes(item.status)),[attempts]);
+  const pendingTrialRequests=useMemo(()=>trialRequests.filter(item=>['requested','validating','validation_pending'].includes(item.status)),[trialRequests]);
   const activeApps=access.account?.apps.filter(item=>['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now()))||[];
   const trialCount=activeApps.filter(item=>item.status==='trialing').length;
   const nextEvent=activeApps.map(item=>item.currentPeriodEnd).filter((value):value is string=>!!value&&Date.parse(value)>Date.now()).sort((a,b)=>Date.parse(a)-Date.parse(b))[0]||null;
@@ -125,10 +139,23 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     {error&&<div className="billing-portal-message is-error"><p>{error}</p><button className="ghost" onClick={()=>{setLoading(true);void load().finally(()=>setLoading(false));}}>Tentar novamente</button></div>}
     {notice&&<div className="billing-portal-message"><CheckCircle2 size={17}/><span>{notice}</span></div>}
 
-    {(current.length>0||openAttempts.length>0)&&<section className="billing-overview" aria-label="Resumo de cobrança">
+    {(current.length>0||openAttempts.length>0||pendingTrialRequests.length>0||activeApps.length>0)&&<section className="billing-overview" aria-label="Resumo de cobrança">
       <article><div className="billing-overview-icon"><ShieldCheck size={18}/></div><div><span>Aplicativos com acesso</span><strong>{activeApps.length}</strong><small>Assinatura ou teste vigente</small></div></article>
       <article><div className="billing-overview-icon"><Clock3 size={18}/></div><div><span>Testes ativos</span><strong>{trialCount}</strong><small>{trialCount?'Períodos gratuitos em andamento':'Nenhum teste em andamento'}</small></div></article>
-      <article><div className="billing-overview-icon"><CreditCard size={18}/></div><div><span>{openAttempts.length?'Contratação pendente':'Próximo evento'}</span><strong className="is-date">{openAttempts.length?`${openAttempts.length} pendente${openAttempts.length>1?'s':''}`:nextEvent?date(nextEvent):'Sem cobrança prevista'}</strong><small>{openAttempts.length?'Aguardando conclusão':'Renovação ou fim do período atual'}</small></div></article>
+      <article><div className="billing-overview-icon"><CreditCard size={18}/></div><div><span>{pendingTrialRequests.length?'Teste em validação':openAttempts.length?'Contratação pendente':'Próximo evento'}</span><strong className="is-date">{pendingTrialRequests.length?`${pendingTrialRequests.length} solicitação${pendingTrialRequests.length>1?'ões':''}`:openAttempts.length?`${openAttempts.length} pendente${openAttempts.length>1?'s':''}`:nextEvent?date(nextEvent):'Sem cobrança prevista'}</strong><small>{pendingTrialRequests.length?'Aguardando confirmação':openAttempts.length?'Aguardando conclusão':'Renovação ou fim do período atual'}</small></div></article>
+    </section>}
+
+    {pendingTrialRequests.length>0&&<section className="billing-management-card billing-pending-section">
+      <div className="account-section-heading"><div><span className="account-kicker">Testes</span><h2>Solicitações em validação</h2><p>Solicitações recebidas que ainda precisam ser confirmadas.</p></div></div>
+      <div className="billing-attempt-list">{pendingTrialRequests.map(item=>{
+        const app=apps.find(row=>row.slug===item.app_id);
+        const label=item.status==='validation_pending'?'Validação pendente':item.status==='validating'?'Validando solicitação':'Teste solicitado';
+        return <article className="billing-attempt" key={item.id}>
+          <Clock3 size={18}/>
+          <div><span className="billing-status is-waiting">{label}</span><h3>{app?.name||item.app_id}</h3><p>Solicitado em {dateTime(item.requested_at)}</p></div>
+          <div className="billing-attempt-actions">{item.plan_id&&<Link className="primary small" href={`/checkout?app=${encodeURIComponent(item.app_id)}&plano=${encodeURIComponent(item.plan_id)}`}>Confirmar teste <ArrowRight size={14}/></Link>}</div>
+        </article>;
+      })}</div>
     </section>}
 
     {openAttempts.length>0&&<section className="billing-management-card billing-pending-section">
@@ -149,7 +176,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     <section className="billing-management-card">
       <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Planos ativos</h2><p>Somente acessos efetivamente liberados aparecem como ativos.</p></div><Link className="primary small" href="/planos">Ver planos <ArrowRight size={15}/></Link></div>
       {ready===false&&<div className="billing-portal-message is-warning">A integração de cobrança está temporariamente indisponível.</div>}
-      {current.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhum plano ativo.</h3><p>{openAttempts.length?'Conclua a pendência acima para liberar o acesso.':'Escolha um plano ou teste disponível para começar.'}</p>{openAttempts.length===0&&<Link className="primary" href="/planos">Ver planos</Link>}</div>:<div className="billing-current-list">{current.map(subscription=>{
+      {current.length===0&&activeApps.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhum plano ativo.</h3><p>{pendingTrialRequests.length?'Seu teste foi solicitado e ainda está em validação.':openAttempts.length?'Conclua a pendência acima para liberar o acesso.':'Escolha um plano ou teste disponível para começar.'}</p>{pendingTrialRequests.length===0&&openAttempts.length===0&&<Link className="primary" href="/planos">Ver planos</Link>}</div>:<div className="billing-current-list">{current.map(subscription=>{
         const app=apps.find(item=>item.slug===subscription.app_id);
         const entitlement=appAccess.get(subscription.app_id as AppId);
         const hasAccess=access.hasApp(subscription.app_id as AppId);
