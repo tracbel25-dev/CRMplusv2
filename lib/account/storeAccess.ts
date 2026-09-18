@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
@@ -53,7 +54,7 @@ async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>
   return result;
 }
 
-function useStoreAccessState() {
+function useStoreAccessState(disabled=false) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<StoreAccount | null>(null);
@@ -62,6 +63,7 @@ function useStoreAccessState() {
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
+    if(disabled){setUser(null);setAccount(null);setMember(null);setIdentityStatus(null);setError('');setReady(true);return;}
     setError('');
     let supabase;
     try {
@@ -169,9 +171,10 @@ function useStoreAccessState() {
       provider: typeof identity.provider === 'string' ? identity.provider : null,
     } : null);
     setReady(true);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
+    if(disabled){setReady(true);return;}
     void refresh();
     let supabase;
     try { supabase = createStoreClient(); } catch { return; }
@@ -179,7 +182,7 @@ function useStoreAccessState() {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') void refresh();
     });
     return () => data.subscription.unsubscribe();
-  }, [refresh]);
+  }, [disabled, refresh]);
 
   const isOwner = member?.role === 'owner';
   useEffect(() => {
@@ -248,7 +251,9 @@ type StoreAccessContextValue = ReturnType<typeof useStoreAccessState>;
 const StoreAccessContext = createContext<StoreAccessContextValue | null>(null);
 
 export function StoreAccessProvider({ children }: { children: ReactNode }) {
-  const value = useStoreAccessState();
+  const pathname=usePathname();
+  const recoveryRoute=pathname==='/nova-senha';
+  const value = useStoreAccessState(recoveryRoute);
   return createElement(StoreAccessContext.Provider, { value }, children);
 }
 
