@@ -87,13 +87,14 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
       ...(result.subscriptions||[]).map(item=>item.plan_id),
       ...(result.attempts||result.checkoutSubscriptions||[]).map(item=>item.plan_id),
       ...nextTrials.map(item=>item.plan_id),
+      ...(access.account?.apps||[]).map(item=>item.planId),
     ].filter((value):value is string=>!!value)));
     if(planIds.length){
       const supabase=createStoreClient();
       const {data}=await supabase.from('plans').select('id,plan_code,amount_cents,seats').in('id',planIds);
       setPlans((data||[]) as PlanInfo[]);
     }else setPlans([]);
-  },[accountId]);
+  },[accountId,access.account?.apps]);
 
   useEffect(()=>{
     if(!accountId)return;
@@ -218,7 +219,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
         const app=apps.find(item=>item.slug===entitlement.appId);
         const trialActive=entitlement.status==='trialing';
         const trialRequest=trialRequests.find(item=>item.app_id===entitlement.appId&&item.status==='activated');
-        const directPlanId=trialRequest?.plan_id||null;
+        const directPlanId=entitlement.planId||trialRequest?.plan_id||null;
         const directPlan=directPlanId?planById.get(directPlanId):undefined;
         const directPlanName=planLabel(directPlanId);
         return <article className="billing-product" key={`direct-${entitlement.appId}`}>
