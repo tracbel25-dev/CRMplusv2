@@ -30,7 +30,7 @@ export type StoreAccount = {
   status: 'active' | 'suspended' | 'closed';
   personType: 'pf' | 'pj';
   cnpj: string | null;
-  apps: { appId: AppId; status: string; seats: number; currentPeriodEnd: string | null }[];
+  apps: { appId: AppId; planId: string | null; status: string; seats: number; currentPeriodEnd: string | null }[];
   members: StoreMember[];
 };
 
@@ -113,7 +113,7 @@ function useStoreAccessState(disabled=false) {
     const accountId = membership.account_id as string;
     const [accountResult, appsResult, membersResult, appAccessResult, identityResult] = await Promise.all([
       supabase.from('accounts').select('id, name, status, person_type, cnpj').eq('id', accountId).single(),
-      supabase.from('account_apps').select('app_id, status, seats, current_period_end').eq('account_id', accountId),
+      supabase.from('account_apps').select('app_id, plan_id, status, seats, current_period_end').eq('account_id', accountId),
       supabase.from('account_members').select('account_id, user_id, role, status, job_title').eq('account_id', accountId).eq('status', 'active'),
       supabase.from('member_app_access').select('user_id, app_id, can_configure, permissions').eq('account_id', accountId),
       supabase.rpc('current_identity_summary')
@@ -148,6 +148,7 @@ function useStoreAccessState(disabled=false) {
 
     const accountApps = (appsResult.data || []).map(row => ({
       appId: row.app_id as AppId,
+      planId: row.plan_id as string | null,
       status: row.status as string,
       seats: Number(row.seats || 0),
       currentPeriodEnd: row.current_period_end as string | null
