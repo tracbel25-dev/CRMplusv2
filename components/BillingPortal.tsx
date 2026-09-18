@@ -7,6 +7,7 @@ import { useStoreAccess } from '@/lib/account/storeAccess';
 import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
 import { billingRequest } from '@/lib/billing';
+import { createStoreClient } from '@/lib/supabase/storeClient';
 
 type Subscription = {
   id: string;
@@ -40,6 +41,8 @@ type TrialRequest = {
   activated_at: string | null;
 };
 
+type PlanInfo = { id:string; plan_code:string|null; amount_cents:number; seats:number };
+
 type BillingList = {
   subscriptions: Subscription[];
   attempts?: Subscription[];
@@ -64,6 +67,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   const [attempts,setAttempts]=useState<Subscription[]>([]);
   const [payments,setPayments]=useState<Payment[]>([]);
   const [trialRequests,setTrialRequests]=useState<TrialRequest[]>([]);
+  const [plans,setPlans]=useState<PlanInfo[]>([]);
   const [loading,setLoading]=useState(true);
   const [ready,setReady]=useState<boolean|null>(null);
   const [busy,setBusy]=useState('');
@@ -76,8 +80,19 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     setSubscriptions(result.subscriptions||[]);
     setAttempts(result.attempts||result.checkoutSubscriptions||[]);
     setPayments(result.payments||[]);
-    setTrialRequests(result.trialRequests||[]);
+    const nextTrials=result.trialRequests||[];
+    setTrialRequests(nextTrials);
     setReady(result.ready);
+    const planIds=Array.from(new Set([
+      ...(result.subscriptions||[]).map(item=>item.plan_id),
+      ...(result.attempts||result.checkoutSubscriptions||[]).map(item=>item.plan_id),
+      ...nextTrials.map(item=>item.plan_id),
+    ].filter((value):value is string=>!!value)));
+    if(planIds.length){
+      const supabase=createStoreClient();
+      const {data}=await supabase.from('plans').select('id,plan_code,amount_cents,seats').in('id',planIds);
+      setPlans((data||[]) as PlanInfo[]);
+    }else setPlans([]);
   },[accountId]);
 
   useEffect(()=>{
@@ -98,6 +113,8 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   },[returned,accountId,load,access.refresh]);
 
   const appAccess=useMemo(()=>new Map((access.account?.apps||[]).map(item=>[item.appId,item])),[access.account]);
+  const planById=useMemo(()=>new Map(plans.map(item=>[item.id,item])),[plans]);
+  const planLabel=(planId:string|null)=>{const code=planId?planById.get(planId)?.plan_code:null;return code?code.charAt(0).toUpperCase()+code.slice(1):null;};
   const paidSubscriptionIds=useMemo(()=>new Set(payments.filter(item=>item.status==='approved').map(item=>item.subscription_id)),[payments]);
   const activatedSubscriptions=useMemo(()=>subscriptions.filter(item=>!!item.trial_ends_at||!!item.current_period_end||paidSubscriptionIds.has(item.id)),[subscriptions,paidSubscriptionIds]);
   const current=useMemo(()=>activatedSubscriptions.filter(item=>{
@@ -188,7 +205,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
         const label=trialActive?'Teste grátis ativo':subscription.status==='authorized'?'Ativa':subscription.status==='paused'?'Pausada':remaining?'Renovação cancelada':'Ativa';
         const tone=trialActive||subscription.status==='authorized'?'is-good':subscription.status==='paused'||remaining?'is-neutral':'';
         return <article className="billing-product" key={subscription.id}>
-          <div className="billing-product-main"><div className="billing-product-title"><div><span className={`billing-status ${tone}`}>{label}</span><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div><div className="billing-price"><strong>{money(subscription.amount_cents)}</strong><span>{cycle(subscription.frequency)}</span></div></div>
+          <div className="billing-product-main"><div className="billing-product-title"><div><span className={`billing-status ${tone}`}>{label}</span><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}{planLabel(subscription.plan_id)?` · Plano ${planLabel(subscription.plan_id)}`:''}</p></div><div className="billing-price"><strong>{money(subscription.amount_cents)}</strong><span>{cycle(subscription.frequency)}</span></div></div>
           <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
           <div className="billing-product-actions">
             {subscription.status!=='creating'&&subscription.status!=='cancelled'&&<button className="ghost" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?<><RefreshCw size={14}/> Atualizando…</>:'Atualizar status'}</button>}
@@ -200,11 +217,15 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
       {directActiveApps.map(entitlement=>{
         const app=apps.find(item=>item.slug===entitlement.appId);
         const trialActive=entitlement.status==='trialing';
+        const trialRequest=trialRequests.find(item=>item.app_id===entitlement.appId&&item.status==='activated');
+        const directPlanId=trialRequest?.plan_id||null;
+        const directPlan=directPlanId?planById.get(directPlanId):undefined;
+        const directPlanName=planLabel(directPlanId);
         return <article className="billing-product" key={`direct-${entitlement.appId}`}>
           <div className="billing-product-main">
             <div className="billing-product-title">
-              <div><span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div>
-              <div className="billing-price"><strong>{trialActive?'7 dias':'Ativo'}</strong><span>{trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
+              <div><span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}{directPlanName?` · Plano ${directPlanName}`:''}</p></div>
+              <div className="billing-price"><strong>{directPlanName?`Plano ${directPlanName}`:trialActive?'7 dias':'Ativo'}</strong><span>{directPlan?`${money(directPlan.amount_cents)}/mês · ${directPlan.seats} ${directPlan.seats===1?'acesso':'acessos'}`:trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
             </div>
             <div className="billing-product-meta">
               <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
