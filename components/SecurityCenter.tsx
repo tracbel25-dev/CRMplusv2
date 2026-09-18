@@ -58,7 +58,7 @@ export function SecurityCenter(){
           const {error:reauthError}=await supabase.auth.reauthenticate();
           if(reauthError)throw reauthError;
           setNeedsNonce(true);
-          setPasswordMessage('Enviamos um código de confirmação para o seu e-mail. Informe o código abaixo para concluir a troca.');
+          setPasswordMessage('Enviamos um código para o seu e-mail. Informe-o na etapa 2. Se não encontrar, confira Spam ou Lixo eletrônico.');
           return;
         }
         throw error;
@@ -76,7 +76,7 @@ export function SecurityCenter(){
       const {error}=await supabase.auth.reauthenticate();
       if(error)throw error;
       setNeedsNonce(true);
-      setPasswordMessage('Código de confirmação enviado para o seu e-mail.');
+      setPasswordMessage('Código enviado para o seu e-mail. Se não aparecer na caixa de entrada, confira Spam ou Lixo eletrônico.');
     }catch(reason){setPasswordError(clientMessage(reason,'Não foi possível enviar o código.'));}
     finally{setPasswordLoading(false);}
   };
@@ -127,16 +127,32 @@ export function SecurityCenter(){
     <section className="account-details-intro"><div><span className="account-kicker">Segurança</span><h1>Senha e segurança</h1><p>Gerencie sua senha e proteja sua conta com uma segunda etapa de verificação.</p></div></section>
 
     <div className="security-grid">
-      <section className="security-card">
-        <div className="account-details-heading"><KeyRound size={19}/><div><h2>Trocar senha</h2><p>Se for necessária uma confirmação adicional, enviaremos um código ao seu e-mail.</p></div></div>
+      <section className="security-card security-password-card">
+        <div className="account-details-heading"><KeyRound size={19}/><div><h2>Trocar senha</h2><p>A senha e a confirmação por e-mail ficam separadas para deixar o processo mais claro.</p></div></div>
+
         <form className="security-form" onSubmit={changePassword}>
-          <label><span>Senha atual</span><input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" required/></label>
-          <label><span>Nova senha</span><input type="password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" required/></label>
-          <label><span>Confirmar nova senha</span><input type="password" minLength={8} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" required/></label>
-          {needsNonce&&<label><span>Código recebido por e-mail</span><input inputMode="numeric" maxLength={6} value={nonce} onChange={e=>setNonce(e.target.value.replace(/\D/g,''))} placeholder="000000" autoComplete="one-time-code" required/></label>}
+          <div className="security-section">
+            <div className="security-section-title"><span>1</span><div><strong>Defina a nova senha</strong><small>Informe sua senha atual e escolha uma nova senha.</small></div></div>
+            <div className="security-field-grid">
+              <label className="is-full"><span>Senha atual</span><input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" required/></label>
+              <label><span>Nova senha</span><input type="password" minLength={8} value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" required/></label>
+              <label><span>Confirmar nova senha</span><input type="password" minLength={8} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" required/></label>
+            </div>
+          </div>
+
+          <div className={`security-section security-code-section${needsNonce?' is-active':''}`}>
+            <div className="security-section-title"><span>2</span><div><strong>Código de segurança</strong><small>{needsNonce?'Digite o código enviado ao seu e-mail para concluir.':'Se a confirmação for solicitada, enviaremos um código ao seu e-mail.'}</small></div></div>
+            <div className="security-code-row">
+              {needsNonce&&<label><span>Código recebido por e-mail</span><input inputMode="numeric" maxLength={8} value={nonce} onChange={e=>setNonce(e.target.value.replace(/\D/g,''))} placeholder="00000000" autoComplete="one-time-code" required/></label>}
+              <button className="ghost" type="button" onClick={()=>void sendReauthentication()} disabled={passwordLoading}><MailCheck size={15}/>{needsNonce?'Reenviar código':'Enviar código por e-mail'}</button>
+            </div>
+            {needsNonce&&<p className="security-spam-note">Não encontrou o e-mail? Verifique também <strong>Spam</strong> e <strong>Lixo eletrônico</strong>.</p>}
+          </div>
+
           {passwordError&&<div className="account-form-feedback is-error" role="alert">{passwordError}</div>}
           {passwordMessage&&<div className="account-form-feedback is-success" role="status">{passwordMessage}</div>}
-          <div className="security-actions"><button className="primary" type="submit" disabled={passwordLoading}>{passwordLoading?'Aguarde…':'Alterar senha'}</button><button className="ghost" type="button" onClick={()=>void sendReauthentication()} disabled={passwordLoading}><MailCheck size={15}/> Enviar código por e-mail</button></div>
+
+          <div className="security-actions"><button className="primary" type="submit" disabled={passwordLoading}>{passwordLoading?'Aguarde…':'Salvar nova senha'}</button></div>
         </form>
       </section>
 
