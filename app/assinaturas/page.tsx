@@ -18,5 +18,5 @@ export default async function Page({searchParams}:{searchParams:Promise<{app?:st
     if(params.plano)query.set('plano',params.plano);
     redirect(`/checkout?${query.toString()}`);
   }
-  return <><Header/><main className="page-shell account-area-shell billing-portal-shell"><AccountNav/><section className="billing-portal-intro"><div><span className="account-kicker">Financeiro</span><h1>Assinaturas e cobrança</h1><p>Planos ativos, testes, renovações e pagamentos da sua empresa. A contratação de novos aplicativos acontece separadamente na Store.</p></div></section><BillingPortal returned={params.retorno==='1'}/><MercadoPagoConnection returned={params.mp}/></main><Footer/></>;
+  return <><Header/><main className="page-shell account-area-shell billing-portal-shell"><AccountNav/><section className="billing-portal-intro"><div><span className="account-kicker">Financeiro</span><h1>Assinaturas e cobrança</h1><p>Planos ativos, testes, renovações e pagamentos da sua conta. Novas contratações ficam na área de planos.</p></div></section><BillingPortal returned={params.retorno==='1'}/><MercadoPagoConnection returned={params.mp}/></main><Footer/></>;
 }
