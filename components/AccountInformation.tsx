@@ -52,10 +52,16 @@ export function AccountInformation(){
     let active=true;
     const supabase=createStoreClient();
     setLoadingProfile(true);
-    void supabase.from('profiles').select('phone').eq('user_id',access.user.id).maybeSingle()
-      .then(result=>{if(active)setPhone(String(result.data?.phone||''));})
-      .catch(()=>{})
-      .finally(()=>{if(active)setLoadingProfile(false);});
+    void (async()=>{
+      try{
+        const result=await supabase.from('profiles').select('phone').eq('user_id',access.user.id).maybeSingle();
+        if(active)setPhone(String(result.data?.phone||''));
+      }catch{
+        // Mantém o campo editável mesmo se a consulta do telefone falhar.
+      }finally{
+        if(active)setLoadingProfile(false);
+      }
+    })();
     return()=>{active=false;};
   },[access.ready,access.user,access.member?.displayName,access.account?.id,access.account?.name,access.account?.cnpj]);
 
