@@ -63,6 +63,14 @@ Não remover nem contornar `tests/public-ui-rules.test.mjs`.
 - Zeus começa no tema claro.
 - Áreas operacionais priorizam fluxo de trabalho, não decoração.
 
+## Consistência de botões
+
+- Não inventar geometria de botão por tela.
+- Usar os tokens e variantes oficiais definidos em `docs/UI-FORMATTING-RULES.md`.
+- Botões de ação internos usam a mesma altura, raio, tipografia e tamanho de ícone em todos os aplicativos.
+- Identidade de app muda cor/contexto; não muda aleatoriamente o formato do botão.
+- Tamanho compacto só é permitido pela variante oficial, nunca por override local.
+
 ## Alterações visuais
 
 Antes de substituir uma composição aprovada por um padrão genérico, confira os documentos de design.
