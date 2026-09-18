@@ -17,10 +17,18 @@ export type StoreMember = {
   apps: { appId: AppId; canConfigure: boolean; permissions: AppPermissionMap }[];
 };
 
+export type StoreIdentityStatus = {
+  registered: boolean;
+  verified: boolean;
+  provider: string | null;
+};
+
 export type StoreAccount = {
   id: string;
   name: string;
   status: 'active' | 'suspended' | 'closed';
+  personType: 'pf' | 'pj';
+  cnpj: string | null;
   apps: { appId: AppId; status: string; seats: number; currentPeriodEnd: string | null }[];
   members: StoreMember[];
 };
@@ -50,6 +58,7 @@ function useStoreAccessState() {
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<StoreAccount | null>(null);
   const [member, setMember] = useState<StoreMember | null>(null);
+  const [identityStatus, setIdentityStatus] = useState<StoreIdentityStatus | null>(null);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
@@ -58,11 +67,11 @@ function useStoreAccessState() {
     try {
       supabase = createStoreClient();
     } catch (reason) {
-      setUser(null); setAccount(null); setMember(null); setError(clientMessage(reason, 'Não foi possível abrir sua conta.')); setReady(true); return;
+      setUser(null); setAccount(null); setMember(null); setIdentityStatus(null); setError(clientMessage(reason, 'Não foi possível abrir sua conta.')); setReady(true); return;
     }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) { setUser(null); setAccount(null); setMember(null); setReady(true); return; }
+    if (userError || !userData.user) { setUser(null); setAccount(null); setMember(null); setIdentityStatus(null); setReady(true); return; }
     const currentUser = userData.user;
     setUser(currentUser);
 
@@ -100,11 +109,12 @@ function useStoreAccessState() {
     }
 
     const accountId = membership.account_id as string;
-    const [accountResult, appsResult, membersResult, appAccessResult] = await Promise.all([
-      supabase.from('accounts').select('id, name, status').eq('id', accountId).single(),
+    const [accountResult, appsResult, membersResult, appAccessResult, identityResult] = await Promise.all([
+      supabase.from('accounts').select('id, name, status, person_type, cnpj').eq('id', accountId).single(),
       supabase.from('account_apps').select('app_id, status, seats, current_period_end').eq('account_id', accountId),
       supabase.from('account_members').select('account_id, user_id, role, status, job_title').eq('account_id', accountId).eq('status', 'active'),
-      supabase.from('member_app_access').select('user_id, app_id, can_configure, permissions').eq('account_id', accountId)
+      supabase.from('member_app_access').select('user_id, app_id, can_configure, permissions').eq('account_id', accountId),
+      supabase.rpc('current_identity_summary')
     ]);
 
     const firstError = accountResult.error || appsResult.error || membersResult.error || appAccessResult.error;
@@ -145,11 +155,19 @@ function useStoreAccessState() {
       id: accountResult.data.id as string,
       name: accountResult.data.name as string,
       status: accountResult.data.status as StoreAccount['status'],
+      personType: accountResult.data.person_type === 'pj' ? 'pj' : 'pf',
+      cnpj: accountResult.data.cnpj as string | null,
       apps: accountApps,
       members
     };
+    const identity = identityResult.error ? null : identityResult.data as StoreIdentityStatus | null;
     setAccount(nextAccount);
     setMember(members.find(item => item.userId === currentUser.id) || null);
+    setIdentityStatus(identity ? {
+      registered: identity.registered === true,
+      verified: identity.verified === true,
+      provider: typeof identity.provider === 'string' ? identity.provider : null,
+    } : null);
     setReady(true);
   }, []);
 
@@ -223,7 +241,7 @@ function useStoreAccessState() {
     await refresh();
   };
 
-  return { ready, user, account, member, error, isOwner, hasApp, hasPermission, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, inviteMember, removeMember, logout };
+  return { ready, user, account, member, identityStatus, error, isOwner, hasApp, hasPermission, canConfigureApp, refresh, setMemberAppAccess, setMemberCanConfigure, inviteMember, removeMember, logout };
 }
 
 type StoreAccessContextValue = ReturnType<typeof useStoreAccessState>;
