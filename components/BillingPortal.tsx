@@ -112,6 +112,8 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
   const closedAttempts=useMemo(()=>attempts.filter(item=>['failed','cancelled'].includes(item.status)),[attempts]);
   const pendingTrialRequests=useMemo(()=>trialRequests.filter(item=>['requested','validating','validation_pending'].includes(item.status)),[trialRequests]);
   const activeApps=access.account?.apps.filter(item=>['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now()))||[];
+  const currentAppIds=new Set(current.map(item=>item.app_id));
+  const directActiveApps=activeApps.filter(item=>!currentAppIds.has(item.appId));
   const trialCount=activeApps.filter(item=>item.status==='trialing').length;
   const nextEvent=activeApps.map(item=>item.currentPeriodEnd).filter((value):value is string=>!!value&&Date.parse(value)>Date.now()).sort((a,b)=>Date.parse(a)-Date.parse(b))[0]||null;
 
@@ -193,6 +195,23 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
             {['authorized','paused'].includes(subscription.status)&&<button className="text-danger" disabled={!!busy||ready!==true} onClick={()=>void act('cancel',subscription)}>Cancelar renovação</button>}
             {hasAccess&&<Link className="ghost" href={`/${subscription.app_id}`}>Abrir aplicativo <ArrowRight size={14}/></Link>}
           </div>
+        </article>;
+      })}
+      {directActiveApps.map(entitlement=>{
+        const app=apps.find(item=>item.slug===entitlement.appId);
+        const trialActive=entitlement.status==='trialing';
+        return <article className="billing-product" key={`direct-${entitlement.appId}`}>
+          <div className="billing-product-main">
+            <div className="billing-product-title">
+              <div><span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div>
+              <div className="billing-price"><strong>{trialActive?'7 dias':'Ativo'}</strong><span>{trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
+            </div>
+            <div className="billing-product-meta">
+              <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
+              <div><span>Próximo passo</span><strong>{trialActive?'Assinar após o teste':'Nenhuma ação necessária'}</strong></div>
+            </div>
+          </div>
+          <div className="billing-product-actions"><Link className="ghost" href={`/${entitlement.appId}`}>Abrir aplicativo <ArrowRight size={14}/></Link></div>
         </article>;
       })}</div>}
     </section>
