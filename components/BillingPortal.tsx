@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Clock3, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { apps } from '@/lib/catalog';
@@ -32,31 +32,37 @@ type Payment = {
 
 type BillingList = {
   subscriptions: Subscription[];
+  attempts?: Subscription[];
+  checkoutSubscriptions?: Subscription[];
   payments?: Payment[];
   ready: boolean;
 };
 
 const money=(cents:number)=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const date=(value:string|null)=>value?new Date(value).toLocaleDateString('pt-BR'):'—';
+const dateTime=(value:string)=>new Date(value).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
 const cycle=(frequency:number)=>frequency===1?'Mensal':frequency===6?'Semestral':frequency===12?'Anual':`A cada ${frequency} meses`;
 const paymentStatus:Record<string,string>={approved:'Pago',pending:'Pendente',in_process:'Em processamento',rejected:'Recusado',refunded:'Estornado',cancelled:'Cancelado',charged_back:'Contestado'};
+const attemptStatus:Record<string,string>={creating:'Preparando contratação',pending:'Pagamento pendente',authorized:'Autorizada',paused:'Pausada',failed:'Não concluída',cancelled:'Cancelada'};
 const serviceEnd=(subscription:Subscription)=>subscription.current_period_end||subscription.trial_ends_at;
 
 export function BillingPortal({returned=false}:{returned?:boolean}){
   const access=useStoreAccess();
   const accountId=access.account?.id;
   const [subscriptions,setSubscriptions]=useState<Subscription[]>([]);
+  const [attempts,setAttempts]=useState<Subscription[]>([]);
   const [payments,setPayments]=useState<Payment[]>([]);
   const [loading,setLoading]=useState(true);
   const [ready,setReady]=useState<boolean|null>(null);
   const [busy,setBusy]=useState('');
   const [error,setError]=useState('');
-  const [notice,setNotice]=useState(returned?'Retorno recebido. Conferindo sua assinatura no Mercado Pago…':'');
+  const [notice,setNotice]=useState(returned?'Retorno recebido. Conferindo sua assinatura…':'');
 
   const load=useCallback(async()=>{
     if(!accountId)return;
     const result=await billingRequest<BillingList>({action:'list',accountId});
     setSubscriptions(result.subscriptions||[]);
+    setAttempts(result.attempts||result.checkoutSubscriptions||[]);
     setPayments(result.payments||[]);
     setReady(result.ready);
   },[accountId]);
@@ -69,11 +75,11 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
 
   useEffect(()=>{
     if(!returned||!accountId)return;
-    let attempts=0;
+    let count=0;
     const timer=window.setInterval(()=>{
-      attempts+=1;
+      count+=1;
       void load().then(()=>access.refresh()).catch(()=>{});
-      if(attempts>=8)window.clearInterval(timer);
+      if(count>=8)window.clearInterval(timer);
     },4000);
     return()=>window.clearInterval(timer);
   },[returned,accountId,load,access.refresh]);
@@ -89,13 +95,16 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     const end=serviceEnd(item);
     return !!end&&Date.parse(end)<=Date.now();
   }),[activatedSubscriptions]);
+  const openAttempts=useMemo(()=>attempts.filter(item=>['creating','pending'].includes(item.status)),[attempts]);
+  const closedAttempts=useMemo(()=>attempts.filter(item=>['failed','cancelled'].includes(item.status)),[attempts]);
   const activeApps=access.account?.apps.filter(item=>['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now()))||[];
   const trialCount=activeApps.filter(item=>item.status==='trialing').length;
   const nextEvent=activeApps.map(item=>item.currentPeriodEnd).filter((value):value is string=>!!value&&Date.parse(value)>Date.now()).sort((a,b)=>Date.parse(a)-Date.parse(b))[0]||null;
 
   async function act(action:'sync'|'cancel',subscription:Subscription){
     if(!accountId||busy)return;
-    if(action==='cancel'&&!window.confirm('Cancelar as próximas cobranças desta assinatura? O acesso já liberado permanece até o fim do período vigente.'))return;
+    const cancellingPending=action==='cancel'&&['creating','pending'].includes(subscription.status);
+    if(action==='cancel'&&!window.confirm(cancellingPending?'Cancelar esta tentativa de contratação?':'Cancelar as próximas cobranças desta assinatura? O acesso já liberado permanece até o fim do período vigente.'))return;
     setBusy(subscription.id+action);
     setError('');
     setNotice('');
@@ -103,7 +112,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
       await billingRequest({action,accountId,subscriptionId:subscription.id});
       await load();
       await access.refresh();
-      setNotice(action==='cancel'?'Renovação cancelada. O período já liberado continua disponível até vencer.':'Status atualizado com o Mercado Pago.');
+      setNotice(action==='cancel'?(cancellingPending?'Tentativa cancelada.':'Renovação cancelada. O período já liberado continua disponível até vencer.'):'Status atualizado.');
     }catch(reason){setError((reason as Error).message||'Não foi possível atualizar a assinatura.');}
     finally{setBusy('');}
   }
@@ -116,16 +125,31 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     {error&&<div className="billing-portal-message is-error"><p>{error}</p><button className="ghost" onClick={()=>{setLoading(true);void load().finally(()=>setLoading(false));}}>Tentar novamente</button></div>}
     {notice&&<div className="billing-portal-message"><CheckCircle2 size={17}/><span>{notice}</span></div>}
 
-    <section className="billing-overview" aria-label="Resumo de cobrança">
+    {(current.length>0||openAttempts.length>0)&&<section className="billing-overview" aria-label="Resumo de cobrança">
       <article><div className="billing-overview-icon"><ShieldCheck size={18}/></div><div><span>Aplicativos com acesso</span><strong>{activeApps.length}</strong><small>Assinatura ou teste vigente</small></div></article>
-      <article><div className="billing-overview-icon"><Clock3 size={18}/></div><div><span>Testes ativos</span><strong>{trialCount}</strong><small>{trialCount?'Autorizados pelo Mercado Pago':'Nenhum teste em andamento'}</small></div></article>
-      <article><div className="billing-overview-icon"><CreditCard size={18}/></div><div><span>Próximo evento</span><strong className="is-date">{nextEvent?date(nextEvent):'Sem cobrança prevista'}</strong><small>Renovação ou fim do período atual</small></div></article>
-    </section>
+      <article><div className="billing-overview-icon"><Clock3 size={18}/></div><div><span>Testes ativos</span><strong>{trialCount}</strong><small>{trialCount?'Períodos gratuitos em andamento':'Nenhum teste em andamento'}</small></div></article>
+      <article><div className="billing-overview-icon"><CreditCard size={18}/></div><div><span>{openAttempts.length?'Contratação pendente':'Próximo evento'}</span><strong className="is-date">{openAttempts.length?`${openAttempts.length} pendente${openAttempts.length>1?'s':''}`:nextEvent?date(nextEvent):'Sem cobrança prevista'}</strong><small>{openAttempts.length?'Aguardando conclusão':'Renovação ou fim do período atual'}</small></div></article>
+    </section>}
+
+    {openAttempts.length>0&&<section className="billing-management-card billing-pending-section">
+      <div className="account-section-heading"><div><span className="account-kicker">Pendências</span><h2>Contratações pendentes</h2><p>Existe contratação iniciada que ainda não liberou o aplicativo.</p></div></div>
+      <div className="billing-attempt-list">{openAttempts.map(item=>{
+        const app=apps.find(row=>row.slug===item.app_id);
+        return <article className="billing-attempt" key={item.id}>
+          <AlertTriangle size={18}/>
+          <div><span className="billing-status is-waiting">{attemptStatus[item.status]||'Pendente'}</span><h3>{app?.name||item.app_id}</h3><p>{money(item.amount_cents)} · {cycle(item.frequency)} · iniciada em {dateTime(item.created_at)}</p></div>
+          <div className="billing-attempt-actions">
+            {item.plan_id&&<Link className="primary small" href={`/checkout?app=${encodeURIComponent(item.app_id)}&plano=${encodeURIComponent(item.plan_id)}`}>Continuar <ArrowRight size={14}/></Link>}
+            {item.status==='pending'&&<button className="ghost small" disabled={!!busy||ready!==true} onClick={()=>void act('cancel',item)}>Cancelar</button>}
+          </div>
+        </article>;
+      })}</div>
+    </section>}
 
     <section className="billing-management-card">
-      <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Assinaturas da sua empresa</h2><p>Somente testes realmente ativados e períodos efetivamente liberados aparecem aqui. Aberturas e cancelamentos de checkout sem ativação não viram histórico.</p></div><Link className="primary small" href="/aplicativos">Adicionar aplicativo <ArrowRight size={15}/></Link></div>
+      <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Planos ativos</h2><p>Somente acessos efetivamente liberados aparecem como ativos.</p></div><Link className="primary small" href="/planos">Ver planos <ArrowRight size={15}/></Link></div>
       {ready===false&&<div className="billing-portal-message is-warning">A integração de cobrança está temporariamente indisponível.</div>}
-      {current.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhuma assinatura ou teste vigente.</h3><p>Escolha um aplicativo na Store para testar, ativar ou reativar.</p><Link className="primary" href="/aplicativos">Explorar aplicativos</Link></div>:<div className="billing-current-list">{current.map(subscription=>{
+      {current.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhum plano ativo.</h3><p>{openAttempts.length?'Conclua a pendência acima para liberar o acesso.':'Escolha um plano ou teste disponível para começar.'}</p>{openAttempts.length===0&&<Link className="primary" href="/planos">Ver planos</Link>}</div>:<div className="billing-current-list">{current.map(subscription=>{
         const app=apps.find(item=>item.slug===subscription.app_id);
         const entitlement=appAccess.get(subscription.app_id as AppId);
         const hasAccess=access.hasApp(subscription.app_id as AppId);
@@ -136,7 +160,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
         const tone=trialActive||subscription.status==='authorized'?'is-good':subscription.status==='paused'||remaining?'is-neutral':'';
         return <article className="billing-product" key={subscription.id}>
           <div className="billing-product-main"><div className="billing-product-title"><div><span className={`billing-status ${tone}`}>{label}</span><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div><div className="billing-price"><strong>{money(subscription.amount_cents)}</strong><span>{cycle(subscription.frequency)}</span></div></div>
-          <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div><div><span>Cobrança</span><strong>Mercado Pago</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
+          <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
           <div className="billing-product-actions">
             {subscription.status!=='creating'&&subscription.status!=='cancelled'&&<button className="ghost" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?<><RefreshCw size={14}/> Atualizando…</>:'Atualizar status'}</button>}
             {['authorized','paused'].includes(subscription.status)&&<button className="text-danger" disabled={!!busy||ready!==true} onClick={()=>void act('cancel',subscription)}>Cancelar renovação</button>}
@@ -147,18 +171,17 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     </section>
 
     <section className="billing-management-card">
-      <div className="account-section-heading"><div><span className="account-kicker">Pagamentos</span><h2>Histórico financeiro</h2><p>Cobranças confirmadas pelo Mercado Pago vinculadas às suas assinaturas.</p></div></div>
-      {payments.length===0?<p className="billing-muted">Nenhum pagamento recorrente registrado ainda.</p>:<div className="billing-payments">{payments.slice(0,12).map(payment=>{
-        const subscription=subscriptions.find(item=>item.id===payment.subscription_id);
+      <div className="account-section-heading"><div><span className="account-kicker">Pagamentos</span><h2>Histórico financeiro</h2><p>Pagamentos confirmados vinculados às suas assinaturas.</p></div></div>
+      {payments.length===0?<p className="billing-muted">Nenhum pagamento confirmado ainda.</p>:<div className="billing-payments">{payments.slice(0,12).map(payment=>{
+        const subscription=attempts.find(item=>item.id===payment.subscription_id)||subscriptions.find(item=>item.id===payment.subscription_id);
         const app=apps.find(item=>item.slug===subscription?.app_id);
         return <div className="billing-payment-row" key={payment.id}><div><strong>{app?.name||'CRM PLUS'}</strong><span>{payment.paid_at?date(payment.paid_at):'Aguardando processamento'}</span></div><div><strong>{money(payment.amount_cents)}</strong><span>{paymentStatus[payment.status]||payment.status}</span></div></div>;
       })}</div>}
     </section>
 
-    {history.length>0&&<section className="billing-history"><details><summary>Histórico de assinaturas <span>{history.length}</span></summary><div>{history.slice(0,12).map(subscription=>{
-      const end=serviceEnd(subscription);
-      const canStartAgain=subscription.status==='cancelled';
-      return <div className="billing-history-row" key={subscription.id}><span>{apps.find(item=>item.slug===subscription.app_id)?.name||subscription.app_id}</span><span>{cycle(subscription.frequency)}</span><span>{money(subscription.amount_cents)}</span><span className="billing-history-end"><span>Período encerrado em {date(end||subscription.created_at)}</span>{canStartAgain?<Link href={`/planos?app=${encodeURIComponent(subscription.app_id)}`}>{subscription.trial_requested?'Ativar':'Reativar'}</Link>:<button type="button" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?'Conferindo…':'Conferir renovação'}</button>}</span></div>;
-    })}</div></details></section>}
+    {(closedAttempts.length>0||history.length>0)&&<section className="billing-history"><details open><summary>Histórico de contratações <span>{closedAttempts.length+history.length}</span></summary><div>
+      {closedAttempts.slice(0,12).map(item=><div className="billing-history-row" key={item.id}><span>{apps.find(app=>app.slug===item.app_id)?.name||item.app_id}</span><span>{attemptStatus[item.status]||item.status}</span><span>{money(item.amount_cents)}</span><span>{dateTime(item.created_at)}</span></div>)}
+      {history.slice(0,12).map(subscription=>{const end=serviceEnd(subscription);return <div className="billing-history-row" key={subscription.id}><span>{apps.find(item=>item.slug===subscription.app_id)?.name||subscription.app_id}</span><span>Período encerrado</span><span>{money(subscription.amount_cents)}</span><span>{date(end||subscription.created_at)}</span></div>;})}
+    </div></details></section>}
   </>;
 }
