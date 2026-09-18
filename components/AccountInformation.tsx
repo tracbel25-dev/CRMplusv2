@@ -51,10 +51,11 @@ export function AccountInformation(){
     setCnpj(formatCnpj(String(access.account?.cnpj||'')));
     let active=true;
     const supabase=createStoreClient();
+    const userId=access.user.id;
     setLoadingProfile(true);
     void (async()=>{
       try{
-        const result=await supabase.from('profiles').select('phone').eq('user_id',access.user.id).maybeSingle();
+        const result=await supabase.from('profiles').select('phone').eq('user_id',userId).maybeSingle();
         if(active)setPhone(String(result.data?.phone||''));
       }catch{
         // Mantém o campo editável mesmo se a consulta do telefone falhar.
