@@ -121,6 +121,14 @@ export async function handler(request: Request) {
         payments = paymentResult.data || [];
       }
 
+      const trialRequestResult = await db.from('trial_requests')
+        .select('id,app_id,plan_id,status,requested_at,updated_at,activated_at')
+        .eq('account_id', body.accountId)
+        .order('requested_at', { ascending: false })
+        .limit(20);
+      check(trialRequestResult.error);
+      const trialRequests = trialRequestResult.data || [];
+
       const approvedIds = new Set(payments.filter(item => item.status === 'approved').map(item => String(item.subscription_id)));
       const visibleSubscriptions = (subscriptions || []).filter(item =>
         !!item.trial_ends_at || !!item.current_period_end || approvedIds.has(String(item.id))
@@ -145,6 +153,7 @@ export async function handler(request: Request) {
         checkoutSubscriptions: checkoutSubscriptions.map(publicSubscription),
         attempts: (subscriptions || []).map(publicSubscription),
         payments,
+        trialRequests,
         ready: configured(),
         trialEligibleApps: eligibility.filter(Boolean),
       });
