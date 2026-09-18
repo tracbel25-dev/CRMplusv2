@@ -55,3 +55,14 @@ Essa regra vale para todos os aplicativos atuais e futuros do CRM PLUS Store.
 O teste `tests/public-ui-rules.test.mjs` protege a rota `/aplicativos/[slug]`.
 
 Qualquer alteração que reintroduza preço, componente de pricing, consulta pública de planos ou marcação de preço/Offer nessa rota deve falhar no `npm test` e, consequentemente, no workflow de verificação do repositório.
+
+
+## Direção visual e formatação
+
+As páginas públicas também devem seguir:
+
+- `docs/DESIGN-CRMPLUS-STORE.md`
+- `docs/UI-FORMATTING-RULES.md`
+- `docs/RULES-INDEX.md`
+
+A regra de preço deste arquivo prevalece em qualquer composição visual: página comercial individual pode direcionar para planos, mas não renderiza valor.

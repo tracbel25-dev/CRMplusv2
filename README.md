@@ -6,6 +6,19 @@ Store e cinco aplicativos operacionais em Next.js 16, React 19 e TypeScript.
 - Acesso direto: `/entrar`
 - Apps: `/zeus`, `/artemis`, `/athena-pesquisa`, `/kronos`, `/athena-orcamentos`
 
+## Regras do projeto
+
+Antes de alterar interface, fluxo ou páginas públicas, consulte:
+
+- [Índice de regras](docs/RULES-INDEX.md)
+- [Regras de interface pública](docs/public-ui-rules.md)
+- [Design da CRM PLUS Store](docs/DESIGN-CRMPLUS-STORE.md)
+- [Design e formatação](docs/UI-FORMATTING-RULES.md)
+- [Design Zeus](docs/DESIGN-ZEUS.md)
+- [Design Artemis](docs/DESIGN-ARTEMIS.md)
+
+O arquivo [AGENTS.md](AGENTS.md) define a leitura obrigatória por área e a precedência entre documentos e implementação atual.
+
 ## Executar
 
 ```bash
