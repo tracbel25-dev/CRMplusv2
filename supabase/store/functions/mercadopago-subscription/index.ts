@@ -143,6 +143,7 @@ export async function handler(request: Request) {
       return reply({
         subscriptions: visibleSubscriptions.map(publicSubscription),
         checkoutSubscriptions: checkoutSubscriptions.map(publicSubscription),
+        attempts: (subscriptions || []).map(publicSubscription),
         payments,
         ready: configured(),
         trialEligibleApps: eligibility.filter(Boolean),
