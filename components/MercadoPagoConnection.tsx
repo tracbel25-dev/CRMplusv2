@@ -79,6 +79,10 @@ export function MercadoPagoConnection({ returned }: { returned?: string }) {
   }
 
   if (!access.ready || !access.user || !access.account) return null;
+  const hasActiveProduct=access.account.apps.some(item=>
+    ['active','trialing'].includes(item.status)&&(!item.currentPeriodEnd||Date.parse(item.currentPeriodEnd)>Date.now())
+  );
+  if(!hasActiveProduct)return null;
 
   return <section className="mp-connect-card" aria-labelledby="mp-connect-title">
     <div className="mp-connect-heading">
