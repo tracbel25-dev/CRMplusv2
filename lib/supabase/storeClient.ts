@@ -18,12 +18,18 @@ export function createStoreClient() {
 }
 
 export function createRecoveryClient() {
+  const memory = new Map<string,string>();
   return createClient(STORE_SUPABASE.url, STORE_SUPABASE.publishableKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: true,
       flowType: 'implicit',
+      storage: {
+        getItem: (key:string) => memory.get(key) ?? null,
+        setItem: (key:string,value:string) => { memory.set(key,value); },
+        removeItem: (key:string) => { memory.delete(key); },
+      },
     },
   });
 }
