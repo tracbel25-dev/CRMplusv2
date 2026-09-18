@@ -54,6 +54,44 @@ Aplicativos:
 - Não usar link vazio, `#` provisório ou botão sem ação.
 - Estados de foco, hover, ativo, erro, carregamento e desabilitado devem ser reconhecíveis.
 
+## Sistema de botões
+
+Botões de ação devem parecer parte do mesmo produto em todas as telas.
+
+### Padrão interno dos aplicativos
+
+O formato é compartilhado entre Zeus, Artemis e demais aplicativos. A identidade do aplicativo aparece principalmente por cor e contexto, não por inventar outra geometria de botão.
+
+Padrão:
+- altura normal: 42px;
+- altura compacta: 36px, somente quando a densidade realmente exigir;
+- raio: 10px;
+- fonte normal: 13px / peso 600;
+- fonte compacta: 12px / peso 600;
+- ícone em botão: 16px;
+- botão somente com ícone: 38 × 38px;
+- espaçamento interno horizontal normal: 14px;
+- espaçamento entre ícone e texto: 8px.
+
+Variantes oficiais:
+- `primary`: ação principal;
+- `secondary`: ação alternativa;
+- `danger`: ação destrutiva;
+- `text`: ação terciária sem caixa;
+- `compact`: apenas variação de tamanho, combinável com as variantes quando necessário.
+
+Regras:
+- não criar altura, raio, padding ou tamanho de fonte específico por tela;
+- não usar um botão arredondado em uma tela e quadrado em outra sem função distinta;
+- não aumentar botão apenas para "dar destaque"; destaque vem da variante e da posição;
+- evitar duas ações primárias concorrentes no mesmo grupo;
+- ações equivalentes devem manter a mesma variante entre telas;
+- botão seletor/card pode ter outra composição quando representa uma opção ou registro, mas não deve ser confundido com botão de ação;
+- mobile pode tornar o botão largo ou ocupar 100% da coluna, sem mudar sua linguagem visual;
+- Store pública pode manter sua família editorial própria de botões, mas deve ser consistente entre todas as páginas públicas.
+
+Os tokens oficiais dos aplicativos ficam em `operations.css`. Overrides locais de `.op-button` não devem redefinir geometria.
+
 ## Formulários
 
 - Formulários curtos quando possível.
