@@ -5,12 +5,12 @@ import { usePathname } from 'next/navigation';
 import { ChevronDown, ChevronUp, Save, Trash2, UserPlus } from 'lucide-react';
 import { apps } from '@/lib/catalog';
 import type { AppId } from '@/lib/operations/model';
+import type { Workspace } from '@/lib/operations/storage';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { Badge, Button } from './ui';
 import { SettingsSection } from './SettingsSection';
-
-const TEAM_LIMIT=4;
 
 type PermissionKey =
   | 'dashboard_view'|'appointments_view'|'appointments_manage'|'jobs_view'|'jobs_create'|'jobs_edit'|'jobs_advance'
@@ -75,7 +75,7 @@ async function detailRequest<T>(payload:Record<string,unknown>):Promise<T>{
   return result;
 }
 
-export function LocalAccountSettings(){
+export function LocalAccountSettings({ w }: { w: Workspace }){
   const access=useStoreAccess();
   const pathname=usePathname();
   const appId=useMemo<AppId>(()=>(pathname.split('/').filter(Boolean)[0] as AppId)||'zeus',[pathname]);
@@ -107,8 +107,12 @@ export function LocalAccountSettings(){
   if(access.error||!access.account||!access.member)return <SettingsSection title="Equipe e acessos" description="Gerencie pessoas, cargos e permissões do aplicativo."><p className="op-muted">{access.error||'Não foi possível carregar a conta.'}</p></SettingsSection>;
 
   const account=access.account;
-  const appActive=account.apps.some(item=>item.appId===appId&&['trialing','active'].includes(item.status));
-  const teamFull=account.members.length>=TEAM_LIMIT;
+  const appRow=account.apps.find(item=>item.appId===appId&&['trialing','active'].includes(item.status));
+  const appActive=!!appRow;
+  const seatLimit=Math.max(1,Number(appRow?.seats||1));
+  const usedSeats=1+account.members.filter(member=>member.role!=='owner'&&member.apps.some(item=>item.appId===appId)).length;
+  const teamFull=usedSeats>=seatLimit;
+  const granularPermissions=appId!=='zeus'||zeusViewHasFeature(w.data.settings,'granular_permissions');
   const clear=()=>{setError('');setMessage('');};
   const updateLocal=(userId:string,patch:Partial<DetailMember>)=>setMembers(current=>current.map(item=>item.userId===userId?{...item,...patch}:item));
 
@@ -133,15 +137,15 @@ export function LocalAccountSettings(){
 
   const invite=async()=>{
     clear();
-    if(teamFull){setError('Esta conta já possui 4 pessoas.');return;}
+    if(teamFull){setError(`O ${appName} já utiliza ${usedSeats} de ${seatLimit} acessos disponíveis neste plano.`);return;}
     if(!inviteName.trim()||!inviteEmail.trim()){setError('Informe nome e e-mail.');return;}
     setBusy('invite');
     try{
-      const canConfigure=invitePermissions.settings_fields||invitePermissions.settings_operation||invitePermissions.settings_access||invitePermissions.customers_manage;
+      const canConfigure=granularPermissions&&(invitePermissions.settings_fields||invitePermissions.settings_operation||invitePermissions.settings_access||invitePermissions.customers_manage);
       await access.inviteMember(inviteName.trim(),inviteEmail.trim(),[{appId,canConfigure}]);
-      await detailRequest({action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:invitePermissions});
+      if(granularPermissions||inviteTitle.trim()) await detailRequest({action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:granularPermissions?invitePermissions:blankPermissions()});
       setInviteName('');setInviteEmail('');setInviteTitle('');setInvitePreset('Atendimento');setInvitePermissions({...presets.Atendimento});setInviteOpen(false);
-      setMessage('Convite enviado com cargo e permissões definidos.');
+      setMessage(granularPermissions?'Convite enviado com cargo e permissões definidos.':'Convite enviado. O acesso usa as funções disponíveis no plano atual.');
       await access.refresh();await load();
     }catch(reason){setError((reason as Error).message);}finally{setBusy('');}
   };
@@ -158,11 +162,11 @@ export function LocalAccountSettings(){
 
   return <SettingsSection title={`Equipe e acessos · ${appName}`} description="Veja a equipe primeiro; abra somente a pessoa que quiser configurar.">
     <div className="access-overview">
-      <div><strong>{account.members.length}/{TEAM_LIMIT} pessoas</strong><span>{appActive?`${appName} ativo`:`${appName} inativo`}</span></div>
+      <div><strong>{usedSeats}/{seatLimit} acessos utilizados</strong><span>{appActive?`${appName} ativo`:`${appName} inativo`}</span></div>
       {access.isOwner&&<Button variant="secondary" disabled={teamFull||!appActive} onClick={()=>{clear();setInviteOpen(value=>!value);}}><UserPlus size={16}/>{inviteOpen?'Fechar':'Adicionar pessoa'}</Button>}
     </div>
 
-    {!access.isOwner&&<div className="access-self-card"><div><strong>Seu acesso</strong><small>{permissionCount(ownPermissions)} permissões liberadas</small></div><PermissionGrid value={ownPermissions} disabled/></div>}
+    {!access.isOwner&&<div className="access-self-card"><div><strong>Seu acesso</strong><small>{granularPermissions?`${permissionCount(ownPermissions)} permissões liberadas`:'Funções definidas pelo plano contratado'}</small></div>{granularPermissions&&<PermissionGrid value={ownPermissions} disabled/>}</div>}
 
     {access.isOwner&&inviteOpen&&!teamFull&&<div className="access-editor access-invite">
       <div className="access-editor-head"><div><span>Novo integrante</span><strong>Defina o acesso antes de enviar o convite</strong></div><Badge>{appName}</Badge></div>
@@ -170,9 +174,9 @@ export function LocalAccountSettings(){
         <label className="op-field"><span>Nome</span><input value={inviteName} onChange={e=>setInviteName(e.target.value)} placeholder="Nome da pessoa"/></label>
         <label className="op-field"><span>E-mail</span><input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="pessoa@empresa.com.br"/></label>
         <label className="op-field"><span>Cargo / função</span><input value={inviteTitle} onChange={e=>setInviteTitle(e.target.value)} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
-        <label className="op-field"><span>Perfil de acesso</span><select value={invitePreset} onChange={e=>{setInvitePreset(e.target.value);if(presets[e.target.value])setInvitePermissions({...presets[e.target.value]});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
+        {granularPermissions&&<label className="op-field"><span>Perfil de acesso</span><select value={invitePreset} onChange={e=>{setInvitePreset(e.target.value);if(presets[e.target.value])setInvitePermissions({...presets[e.target.value]});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>}
       </div>
-      <PermissionGrid value={invitePermissions} onChange={next=>{setInvitePermissions(next);setInvitePreset('Personalizado');}}/>
+      {granularPermissions?<PermissionGrid value={invitePermissions} onChange={next=>{setInvitePermissions(next);setInvitePreset('Personalizado');}}/>:<p className="op-muted">Este plano libera os acessos contratados com as funções do próprio plano. Permissões individuais ficam disponíveis nos planos que incluem esse controle.</p>}
       <div className="op-form-footer"><Button variant="secondary" onClick={()=>setInviteOpen(false)}>Cancelar</Button><Button disabled={busy==='invite'} onClick={()=>void invite()}>{busy==='invite'?'Enviando…':'Enviar convite'}</Button></div>
     </div>}
 
@@ -183,13 +187,13 @@ export function LocalAccountSettings(){
       const owner=member.role==='owner';
       const expanded=!owner&&open===member.userId;
       const count=owner?ALL_KEYS.length:permissionCount(member.permissions);
-      const profile=owner?'Titular':presetFor(member.permissions);
+      const profile=owner?'Titular':granularPermissions?presetFor(member.permissions):'Acesso do plano';
       return <article className={`access-member-card${expanded?' is-open':''}`} key={member.userId}>
         <div className="access-member-head">
-          <div className="access-person"><strong>{member.displayName}{owner&&<Badge>Titular</Badge>}</strong><span>{owner?'Acesso total':member.jobTitle||'Cargo não informado'}</span><small>{owner?'Todas as áreas liberadas.':`${profile} · ${count} permissões`}</small></div>
+          <div className="access-person"><strong>{member.displayName}{owner&&<Badge>Titular</Badge>}</strong><span>{owner?'Acesso total':member.jobTitle||'Cargo não informado'}</span><small>{owner?'Todas as áreas liberadas.':granularPermissions?`${profile} · ${count} permissões`:'Acesso conforme o plano contratado'}</small></div>
           {!owner&&<div className="access-member-actions">
             <label className="access-switch"><input type="checkbox" checked={member.enabled} disabled={!!busy} onChange={e=>void toggleAccess(member,e.target.checked)}/><span>{member.enabled?'Ativo':'Sem acesso'}</span></label>
-            <button type="button" className="access-configure-button" onClick={()=>setOpen(expanded?'':member.userId)}>{expanded?'Fechar':'Configurar'}{expanded?<ChevronUp size={17}/>:<ChevronDown size={17}/>}</button>
+            {granularPermissions&&<button type="button" className="access-configure-button" onClick={()=>setOpen(expanded?'':member.userId)}>{expanded?'Fechar':'Configurar'}{expanded?<ChevronUp size={17}/>:<ChevronDown size={17}/>}</button>}
             <button className="op-icon" type="button" disabled={!!busy} aria-label={`Remover ${member.displayName}`} onClick={()=>void remove(member)}><Trash2 size={17}/></button>
           </div>}
         </div>
