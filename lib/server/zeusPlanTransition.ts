@@ -47,8 +47,8 @@ export function validateZeusPlanTransition(current: Data | null, next: Data, pla
     }
   }
 
-  if (!zeusHasFeature(plan, 'full_operational_settings') && current &&
-      stable(current.settings.operationPreferences) !== stable(next.settings.operationPreferences)) {
+  if (!zeusHasFeature(plan, 'full_operational_settings') &&
+      stable(current?.settings.operationPreferences) !== stable(next.settings.operationPreferences)) {
     throw new Error('PLAN_FEATURE_REQUIRED: configurações operacionais completas');
   }
 }
