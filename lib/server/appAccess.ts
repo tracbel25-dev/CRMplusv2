@@ -48,8 +48,11 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   const user = await userResponse.json().catch(() => null);
   if (!user || typeof user.id !== 'string') return null;
 
-  const memberships = await storeFetch(restPath('account_members', {select:'account_id,role,status',user_id:`eq.${user.id}`,status:'eq.active',order:'created_at.asc',limit:'1'}), token) as Array<{account_id:string;role:string}> | null;
-  const membership = memberships?.[0];
+  const requestedAccountId = request.headers.get('x-crmplus-account-id')?.trim() || '';
+  const memberships = await storeFetch(restPath('account_members', {select:'account_id,role,status',user_id:`eq.${user.id}`,status:'eq.active',order:'created_at.asc',limit:'50'}), token) as Array<{account_id:string;role:string}> | null;
+  const membership = requestedAccountId
+    ? memberships?.find(item => item.account_id === requestedAccountId)
+    : memberships?.length === 1 ? memberships[0] : null;
   if (!membership?.account_id) return null;
 
   const accounts = await storeFetch(restPath('accounts', {select:'id',id:`eq.${membership.account_id}`,status:'eq.active'}), token) as Array<{id:string}> | null;
