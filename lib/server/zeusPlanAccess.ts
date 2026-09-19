@@ -33,3 +33,18 @@ export function planFeatureError(reason: unknown, fallback = 'Este recurso não 
   if (reason instanceof Error && reason.message.startsWith('PLAN_FEATURE_REQUIRED:')) return fallback;
   return reason instanceof Error ? reason.message : fallback;
 }
+
+
+export async function syncZeusEntitlementsFromStore(tenantKey: string, planCode: ZeusPlanCode) {
+  await operationalRest('zeus', 'tenant_entitlements?on_conflict=tenant_key', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({
+      tenant_key: tenantKey,
+      plan_code: planCode,
+      source: 'store_runtime',
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return readZeusEntitlements(tenantKey);
+}
