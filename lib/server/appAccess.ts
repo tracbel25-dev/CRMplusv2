@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
-import { readZeusEntitlements } from '@/lib/server/zeusPlanAccess';
-import { zeusHasFeature, type ZeusFeature } from '@/lib/operations/zeusPlans';
+import { readZeusEntitlements, syncZeusEntitlementsFromStore } from '@/lib/server/zeusPlanAccess';
+import { zeusHasFeature, type ZeusFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
 
 export type ServerApp = 'zeus' | 'artemis';
 export type ServerPermissionMap = Record<string, boolean>;
@@ -12,6 +12,8 @@ const ZEUS_PERMISSION_FEATURE: Record<string, ZeusFeature> = {
   billing_view:'billing', billing_manage:'billing',
   dashboard_view:'dashboard', reports_export:'export',
 };
+const ZEUS_PLAN_CODES = new Set<ZeusPlanCode>(['start','essencial','plus','premium']);
+
 const ZEUS_PATH_FEATURE: Array<[string, ZeusFeature]> = [
   ['/api/zeus/checklist', 'checklist'],
   ['/api/zeus/diagnostico', 'diagnosis'],
@@ -53,7 +55,7 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   const accounts = await storeFetch(restPath('accounts', {select:'id',id:`eq.${membership.account_id}`,status:'eq.active'}), token) as Array<{id:string}> | null;
   if (!accounts?.length) return null;
 
-  const accountApps = await storeFetch(restPath('account_apps', {select:'app_id,status,current_period_end,seats',account_id:`eq.${membership.account_id}`,app_id:`eq.${app}`,status:'in.(trialing,active)',or:`(and(status.eq.active,current_period_end.is.null),current_period_end.gt.${new Date().toISOString()})`,limit:'1'}), token) as Array<{app_id:string;seats?:number}> | null;
+  const accountApps = await storeFetch(restPath('account_apps', {select:'app_id,plan_id,status,current_period_end,seats',account_id:`eq.${membership.account_id}`,app_id:`eq.${app}`,status:'in.(trialing,active)',or:`(and(status.eq.active,current_period_end.is.null),current_period_end.gt.${new Date().toISOString()})`,limit:'1'}), token) as Array<{app_id:string;plan_id?:string|null;seats?:number}> | null;
   if (!accountApps?.length) return null;
 
   let permissions: ServerPermissionMap = {};
@@ -71,7 +73,20 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   let seatLimit = Math.max(1, Number(accountApps[0]?.seats || 1));
   if (app === 'zeus') {
     try {
-      const entitlements = await readZeusEntitlements(membership.account_id);
+      let entitlements = await readZeusEntitlements(membership.account_id);
+      const planId = accountApps[0]?.plan_id;
+      if (planId) {
+        const planRows = await storeFetch(restPath('plans', {
+          select:'plan_code',
+          id:`eq.${planId}`,
+          app_id:'eq.zeus',
+          limit:'1',
+        }), token) as Array<{plan_code?:string|null}> | null;
+        const storePlanCode = String(planRows?.[0]?.plan_code || '').toLowerCase() as ZeusPlanCode;
+        if (ZEUS_PLAN_CODES.has(storePlanCode) && storePlanCode !== entitlements.plan) {
+          entitlements = await syncZeusEntitlementsFromStore(membership.account_id, storePlanCode);
+        }
+      }
       plan = entitlements.plan;
       seatLimit = entitlements.seatLimit;
       const pathFeature = ZEUS_PATH_FEATURE.find(([prefix]) => request.nextUrl.pathname.startsWith(prefix))?.[1];
