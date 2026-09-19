@@ -86,21 +86,66 @@ async function hydrateArtemisProductImages(data: Record<string, unknown>, accoun
 
 function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
   const hydrated = structuredClone(data) as Record<string, unknown>;
-  const settings = (hydrated.settings || {}) as Record<string, unknown>;
-  const visibility = { ...((settings.actionVisibility || {}) as Record<string, boolean>) };
-  const allowed = {
-    agendamentos: zeusHasFeature(plan, 'scheduling'),
-    checklist: zeusHasFeature(plan, 'checklist'),
-    orcamentos: zeusHasFeature(plan, 'budgets'),
-    faturamento: zeusHasFeature(plan, 'billing'),
-    dashboard: zeusHasFeature(plan, 'dashboard'),
+  const settings = { ...((hydrated.settings || {}) as Record<string, unknown>) };
+
+  const rawPreferences = settings.operationPreferences && typeof settings.operationPreferences === 'object'
+    ? settings.operationPreferences as Record<string, unknown>
+    : {};
+  const preferences = {
+    version: 1,
+    fieldLabels: { ...((rawPreferences.fieldLabels || {}) as Record<string, string>) },
+    fieldVisibility: { ...((rawPreferences.fieldVisibility || {}) as Record<string, boolean>) },
+    fieldHelp: { ...((rawPreferences.fieldHelp || {}) as Record<string, string>) },
+    actionVisibility: { ...((rawPreferences.actionVisibility || {}) as Record<string, boolean>) },
+    customFields: Array.isArray(rawPreferences.customFields) ? rawPreferences.customFields : [],
   };
-  for (const [module, enabled] of Object.entries(allowed)) visibility[`module:${module}`] = enabled;
-  settings.actionVisibility = visibility;
+  const visibility = { ...(preferences.actionVisibility as Record<string, boolean>) };
+
+  const planFlags: Array<[string, boolean]> = [
+    ['module:agendamentos', zeusHasFeature(plan, 'scheduling')],
+    ['module:checklist', zeusHasFeature(plan, 'checklist')],
+    ['module:orcamentos', zeusHasFeature(plan, 'budgets')],
+    ['module:faturamento', zeusHasFeature(plan, 'billing')],
+    ['module:dashboard', zeusHasFeature(plan, 'dashboard')],
+    ['diagnosis', zeusHasFeature(plan, 'diagnosis')],
+    ['budget', zeusHasFeature(plan, 'budgets')],
+    ['feature:advanced_filters', zeusHasFeature(plan, 'advanced_filters')],
+    ['feature:export', zeusHasFeature(plan, 'export')],
+    ['feature:team_management', zeusHasFeature(plan, 'team_management')],
+    ['feature:granular_permissions', zeusHasFeature(plan, 'granular_permissions')],
+    ['feature:full_operational_settings', zeusHasFeature(plan, 'full_operational_settings')],
+  ];
+
+  for (const [key, included] of planFlags) {
+    visibility[key] = included && visibility[key] !== false;
+  }
+
+  preferences.actionVisibility = visibility;
+  settings.operationPreferences = preferences;
+
   settings.scheduleEnabled = zeusHasFeature(plan, 'scheduling') && settings.scheduleEnabled !== false;
   settings.budgetEnabled = zeusHasFeature(plan, 'budgets') && settings.budgetEnabled !== false;
   settings.diagnosisEnabled = zeusHasFeature(plan, 'diagnosis') && settings.diagnosisEnabled !== false;
+
   hydrated.settings = settings;
+
+  // Downgrade não apaga dados, mas a visualização ativa precisa seguir o fluxo do plano atual.
+  const jobs = Array.isArray(hydrated.jobs) ? hydrated.jobs as Array<Record<string, unknown>> : [];
+  for (const job of jobs) {
+    if (['Encerrado', 'Cancelado', 'Reprovado'].includes(String(job.status || ''))) continue;
+    if (!zeusHasFeature(plan, 'diagnosis') && job.stage === 'Diagnóstico') {
+      job.stage = zeusHasFeature(plan, 'budgets') ? 'Orçamento' : 'Execução';
+      if (String(job.status || '').toLowerCase().includes('diagnóstico')) job.status = 'Em andamento';
+    }
+    if (!zeusHasFeature(plan, 'budgets') && job.stage === 'Orçamento') {
+      job.stage = 'Execução';
+      if (String(job.status || '').toLowerCase().includes('orçamento') || job.status === 'Aguardando aprovação') job.status = 'Em andamento';
+    }
+    if (!zeusHasFeature(plan, 'checklist') && job.status === 'Aguardando checklist') {
+      job.status = settings.diagnosisEnabled ? 'Aguardando diagnóstico' : settings.budgetEnabled ? 'Aguardando orçamento' : 'Em andamento';
+    }
+  }
+
   return hydrated;
 }
 
@@ -173,12 +218,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   catch { return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 }); }
   if (!validWorkspace(body.data)) return NextResponse.json({ error: 'Os dados operacionais enviados são inválidos.' }, { status: 400 });
   const expectedRevision = Math.max(0, Math.trunc(Number(body.expectedRevision) || 0));
+  let zeusResponsePlan: ZeusPlanCode | null = null;
 
   try {
     if (app === 'zeus') {
       const rows = await operationalRest('zeus', `workspace_state?${query({ select: 'data', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ data: unknown }>;
       const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
       const entitlements = await readZeusEntitlements(access.accountId);
+      zeusResponsePlan = entitlements.plan;
       validateZeusPlanTransition(current, body.data as unknown as Data, entitlements.plan);
       validateZeusTransition(current, body.data as unknown as Data);
     }
@@ -194,11 +241,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       error: 'Outra pessoa atualizou estes dados ao mesmo tempo.',
       conflict: true,
       revision: Number(result.revision || 0),
-      data: result.data || null,
+      data: app === 'zeus' && zeusResponsePlan && result.data && validWorkspace(result.data)
+        ? applyZeusPlanView(result.data as Record<string, unknown>, zeusResponsePlan)
+        : result.data || null,
     }, { status: 409 });
 
     if (!result?.ok || !validWorkspace(result.data)) throw new Error('O banco não confirmou a gravação dos dados.');
-    return NextResponse.json({ ok: true, revision: Number(result.revision || 0), data: result.data });
+    const responseData = app === 'zeus' && zeusResponsePlan
+      ? applyZeusPlanView(result.data as Record<string, unknown>, zeusResponsePlan)
+      : result.data;
+    return NextResponse.json({ ok: true, revision: Number(result.revision || 0), data: responseData });
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : 'Não foi possível salvar os dados.';
     if (message.startsWith('PLAN_FEATURE_REQUIRED:')) return NextResponse.json({ error: 'Este recurso não está disponível no plano atual do Zeus.' }, { status: 403 });
