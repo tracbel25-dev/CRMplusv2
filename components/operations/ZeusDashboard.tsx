@@ -9,6 +9,8 @@ import { clientMessage } from '@/lib/clientMessage';
 import type { Workspace } from '@/lib/operations/storage';
 import { activeJob, effectiveQuoteStatus, matches, money } from '@/lib/operations/model';
 import { formatLeadTime, jobLeadTime } from '@/lib/operations/zeus';
+import { useOperationPreferences } from '@/lib/operations/configuration';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { Badge, Button, Empty, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 
@@ -59,6 +61,7 @@ function budgetBucket(job: Workspace['data']['jobs'][number]) {
 export function ZeusDashboard({ w }: { w: Workspace }) {
   const router = useRouter();
   const access = useStoreAccess();
+  const operation = useOperationPreferences('zeus');
   const canViewJobs = access.hasPermission('zeus', 'jobs_view');
   const canViewBilling = access.hasPermission('zeus', 'billing_view');
   const workspaceRef = useRef(w);
@@ -110,16 +113,31 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
       Prazo: ['Atrasado', 'Vence hoje', 'No prazo', 'Sem prazo'],
       Cobrança: ['Pendente', 'Recebido / baixado', 'Sem cobrança', 'Cancelada']
     };
-    const keys = canViewBilling ? [...DASHBOARD_FILTER_KEYS, 'Cobrança'] : DASHBOARD_FILTER_KEYS;
-    return keys.map(key => ({ key, label: key === 'Veículo' ? w.data.settings.assetLabel : key, options: values[key] || [] })).filter(item => item.options.length && (item.key !== 'Cobrança' || !billingBusy));
-  }, [w.data.jobs, w.data.customers, w.data.assets, w.data.settings.assetLabel, canViewBilling, billingBusy]);
+    const keys = (canViewBilling ? [...DASHBOARD_FILTER_KEYS, 'Cobrança'] : DASHBOARD_FILTER_KEYS).filter(key => {
+      if (key === 'Cliente') return operation.fieldVisible('customer');
+      if (key === 'Veículo') return operation.fieldVisible('asset');
+      if (key === 'Tipo') return operation.fieldVisible('type');
+      if (key === 'Responsável') return operation.fieldVisible('technician');
+      if (key === 'Prazo') return operation.fieldVisible('due');
+      if (key === 'Orçamento') return zeusViewHasFeature(w.data.settings, 'budgets');
+      return true;
+    });
+    const labels:Record<string,string>={
+      Cliente:operation.label('customer','Cliente'),
+      Veículo:w.data.settings.assetLabel,
+      Tipo:operation.label('type','Tipo'),
+      Responsável:operation.label('technician','Responsável'),
+      Prazo:operation.label('due','Prazo previsto')
+    };
+    return keys.map(key => ({ key, label: labels[key] || key, options: values[key] || [] })).filter(item => item.key !== 'Cobrança' || !billingBusy);
+  }, [w.data.jobs, w.data.customers, w.data.assets, w.data.settings.assetLabel, w.data.settings.planCode, w.data.settings.planFeatures, canViewBilling, billingBusy, operation]);
 
   const filtered = leads.filter(item => {
     const job = item.job;
     const customer = w.data.customers.find(current => current.id === job.customerId)?.name || 'Cliente não identificado';
     const asset = w.data.assets.find(current => current.id === job.assetId);
     const assetLabel = asset ? [asset.identifier, asset.model].filter(Boolean).join(' · ') || 'Sem identificação' : 'Sem identificação';
-    if (!matches(query, job.number, customer, asset?.identifier, asset?.model, job.type, job.technician, job.stage, job.status)) return false;
+    if (!matches(query, job.number, customer, asset?.identifier, asset?.model, job.type, operation.fieldVisible('technician') ? job.technician : '', job.stage, job.status)) return false;
     const checks: Record<string, string> = {
       'Número da OS': String(job.number).padStart(4, '0'),
       Status: job.status,
@@ -165,7 +183,7 @@ export function ZeusDashboard({ w }: { w: Workspace }) {
     <Title eyebrow="Visão gerencial" title="Dashboard">Acompanhe a operação da oficina{canViewBilling ? ' e, quando seu perfil permite, o faturamento' : ''} sem misturar andamento da OS com recebimento.</Title>
 
     <Section title="Visão das OS">
-      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'lead', label: 'Lead time' }, { value: 'createdAt', label: 'Data de abertura' }, { value: 'due', label: 'Prazo previsto' }, { value: 'number', label: 'Número da OS' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar OS, cliente, ${w.data.settings.assetLabel.toLowerCase()} ou técnico`} />
+      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={active} onActive={setActive} sort={sort} sortOptions={[{ value: 'lead', label: 'Lead time' }, { value: 'createdAt', label: 'Data de abertura' }, { value: 'due', label: 'Prazo previsto' }, { value: 'number', label: 'Número da OS' }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={operation.fieldVisible('technician') ? `Buscar OS, cliente, ${w.data.settings.assetLabel.toLowerCase()} ou ${operation.label('technician','responsável').toLowerCase()}` : `Buscar OS, cliente ou ${w.data.settings.assetLabel.toLowerCase()}`} />
 
       <section className="zeus-dashboard-kpis">
         <div><span>OS no filtro</span><strong>{filtered.length}</strong><small>{open.length} aberta(s) · {completed.length} encerrada(s)</small></div>
