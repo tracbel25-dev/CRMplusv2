@@ -86,8 +86,18 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       Cliente: operation.label('customer', 'Cliente'),
       Prazo: operation.label('due', 'Prazo previsto')
     };
-    return JOB_FILTER_KEYS.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
-  }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel]);
+    const available = JOB_FILTER_KEYS.filter(key => {
+      if (key === 'Cliente') return zeusViewHasFeature(s, 'customers');
+      if (key === 'Identificação' || key === 'Veículo') return zeusViewHasFeature(s, 'assets');
+      if (key === 'Tipo') return zeusViewHasFeature(s, 'service_types');
+      if (key === 'Etapa' || key === 'Status') return zeusViewHasFeature(s, 'status_stages');
+      if (key === 'Responsável') return zeusViewHasFeature(s, 'responsible');
+      if (key === 'Prazo') return zeusViewHasFeature(s, 'deadlines');
+      if (key === 'Orçamento') return zeusViewHasFeature(s, 'budgets');
+      return true;
+    });
+    return available.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
+  }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel, s.planFeatures]);
 
   const filteredJobs = (list: Job[]) => list.filter(job => {
     const asset = findAsset(job.assetId);
