@@ -80,6 +80,6 @@ test('Zeus does not leak checklist or fixed team limits outside plan capabilitie
   assert.match(detail, /zeusViewHasFeature\(w\.data\.settings, 'checklist'\)/);
   assert.doesNotMatch(team, /TEAM_LIMIT/);
   assert.match(team, /seatLimit=Math\.max\(1,Number\(appRow\?\.seats\|\|1\)\)/);
-  assert.match(team, /granularPermissions=appId!=='zeus'\|\|zeusViewHasFeature\(w\.data\.settings,'granular_permissions'\)/);
+  assert.match(team, /granularPermissions=appId!=='zeus'\|\|!!w&&zeusViewHasFeature\(w\.data\.settings,'granular_permissions'\)/);
   assert.match(server, /granularPermissions = zeusHasFeature\(entitlements\.plan, 'granular_permissions'\)/);
 });
