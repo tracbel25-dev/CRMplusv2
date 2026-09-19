@@ -96,7 +96,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       if (key === 'Orçamento') return zeusViewHasFeature(s, 'budgets');
       return true;
     });
-    return available.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
+    return available.map(key => ({ key, label: display[key] || key, options: values[key] || [] }));
   }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel, s.planFeatures]);
 
   const filteredJobs = (list: Job[]) => list.filter(job => {
