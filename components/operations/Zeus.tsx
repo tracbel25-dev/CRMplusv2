@@ -21,8 +21,7 @@ import { ZeusChecklistChoicePicker } from './ZeusChecklistChoicePicker';
 import { useRecordRoute } from './useRecordRoute';
 
 const assetKey = (value: string) => value.replace(/\W/g, '').toUpperCase();
-const BASIC_JOB_FILTER_KEYS = ['Cliente', 'Tipo', 'Etapa', 'Responsável', 'Status'];
-const ADVANCED_JOB_FILTER_KEYS = ['Número da OS', 'Identificação', 'Cliente', 'Veículo', 'Tipo', 'Etapa', 'Responsável', 'Status', 'Orçamento', 'Prazo'];
+const JOB_FILTER_KEYS = ['Número da OS', 'Identificação', 'Cliente', 'Veículo', 'Tipo', 'Etapa', 'Responsável', 'Status', 'Orçamento', 'Prazo'];
 
 function jobBudgetState(job: Job) {
   const hasBudget = job.quote.lines.length > 0 || job.stage === 'Orçamento' || job.quote.status !== 'Rascunho';
@@ -50,7 +49,6 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const canViewAppointments = access.hasPermission('zeus', 'appointments_view');
   const canManageAppointments = access.hasPermission('zeus', 'appointments_manage');
   const canExport = access.hasPermission('zeus', 'reports_export') && zeusViewHasFeature(s, 'export');
-  const advancedFilters = zeusViewHasFeature(s, 'advanced_filters');
   const [query, setQuery] = useState('');
   const [create, setCreate] = useState<Appointment | 'new' | null>(null);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
@@ -88,9 +86,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       Cliente: operation.label('customer', 'Cliente'),
       Prazo: operation.label('due', 'Prazo previsto')
     };
-    const keys = advancedFilters ? ADVANCED_JOB_FILTER_KEYS : BASIC_JOB_FILTER_KEYS;
-    return keys.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
-  }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel, advancedFilters]);
+    return JOB_FILTER_KEYS.map(key => ({ key, label: display[key] || key, options: values[key] || [] })).filter(item => item.options.length);
+  }, [d.jobs, d.assets, d.customers, operation, s.identifierLabel, s.assetLabel]);
 
   const filteredJobs = (list: Job[]) => list.filter(job => {
     const asset = findAsset(job.assetId);
