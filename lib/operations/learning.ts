@@ -1,5 +1,6 @@
 import type { AppId, Data, Line } from './model';
 import { normalize } from './model';
+import { zeusJobMatchesOwnership } from './zeus';
 
 export type LineSuggestion = {
   description: string;
@@ -16,7 +17,7 @@ type HistoricalLine = { line: Line; customerId: string; at: string };
 
 function historicalLines(data: Data, app: AppId): HistoricalLine[] {
   if (app === 'zeus') {
-    return data.jobs.flatMap(job => {
+    return data.jobs.filter(job => zeusJobMatchesOwnership(data, job)).flatMap(job => {
       const current = job.quote.lines.map(line => ({ line, customerId: job.customerId, at: job.quote.createdAt || job.createdAt }));
       const versions = (job.quote.versions || []).flatMap(version => version.lines.map(line => ({ line, customerId: job.customerId, at: version.at })));
       return [...current, ...versions];
