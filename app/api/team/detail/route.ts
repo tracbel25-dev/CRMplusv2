@@ -40,6 +40,19 @@ function sanitizePermissions(value:unknown){
   const input=(value&&typeof value==='object'?value:{}) as Record<string,unknown>;
   return Object.fromEntries([...ALLOWED].map(key=>[key,input[key]===true]));
 }
+async function zeusGranularPermissionsEnabled(service:SupabaseClient, accountId:string){
+  const {data:app,error:appError}=await service.from('account_apps')
+    .select('plan_id,status,current_period_end')
+    .eq('account_id',accountId).eq('app_id','zeus')
+    .in('status',['trialing','active'])
+    .limit(1).maybeSingle();
+  if(appError) throw appError;
+  if(!app?.plan_id) return false;
+  if(app.current_period_end && Date.parse(String(app.current_period_end))<=Date.now()) return false;
+  const {data:plan,error:planError}=await service.from('plans').select('plan_code').eq('id',app.plan_id).limit(1).maybeSingle();
+  if(planError) throw planError;
+  return plan?.plan_code==='plus'||plan?.plan_code==='premium';
+}
 
 async function saveAppAccess(service:SupabaseClient, accountId:string, targetId:string, appId:string, canConfigure:boolean, permissions:Record<string,boolean>){
   const payload={can_configure:!!canConfigure,permissions,updated_at:new Date().toISOString()};
@@ -104,8 +117,14 @@ export async function POST(request:NextRequest){
     if(!member||member.status!=='active') return fail(404,'Essa pessoa não faz parte da equipe.');
     if(member.role==='owner') return fail(400,'O titular já possui acesso completo.');
 
-    const permissions=sanitizePermissions(body.permissions);
-    const canConfigure=permissions.settings_fields||permissions.settings_operation||permissions.settings_access;
+    const {data:existingAccess,error:existingAccessError}=await service.from('member_app_access')
+      .select('user_id').eq('account_id',accountId).eq('user_id',targetId).eq('app_id',body.appId).limit(1).maybeSingle();
+    if(existingAccessError) throw existingAccessError;
+    if(!existingAccess) return fail(400,'Libere o acesso ao aplicativo antes de configurar esta pessoa.');
+
+    const granularPermissions=body.appId!=='zeus'||await zeusGranularPermissionsEnabled(service,accountId);
+    const permissions=granularPermissions?sanitizePermissions(body.permissions):sanitizePermissions({});
+    const canConfigure=granularPermissions&&(permissions.settings_fields||permissions.settings_operation||permissions.settings_access);
     const title=(body.jobTitle||'').trim().replace(/\s+/g,' ').slice(0,80);
     const {error:titleError}=await service.from('account_members').update({job_title:title||null}).eq('account_id',accountId).eq('user_id',targetId);
     if(titleError) throw titleError;
