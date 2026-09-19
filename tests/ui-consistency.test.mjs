@@ -22,3 +22,17 @@ test('operational action buttons use the shared geometry tokens', () => {
   const localHardcodedGeometry = [...lean.matchAll(/\.op-button\{[^}]*?(?:min-height|padding|font-size):(?:36px|38px|7px|8px|10px|11px|12px)[^}]*\}/g)];
   assert.equal(localHardcodedGeometry.length, 0, 'Lean Zeus styles must use shared button tokens instead of local geometry.');
 });
+
+
+test('Zeus atendimentos keeps one filter per visible column and no global filter/sort control', () => {
+  const bar = readFileSync(join(root, 'components', 'operations', 'ZeusFilterBar.tsx'), 'utf8');
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+
+  assert.match(bar, /zeus-filter-column-bar/);
+  assert.match(bar, /definitions\.map\(definition/);
+  assert.doesNotMatch(bar, /zeus-sort-control/);
+  assert.doesNotMatch(bar, />Filtros</);
+  assert.doesNotMatch(zeus, /sortOptions=/);
+  assert.doesNotMatch(zeus, /onDescending=/);
+  assert.match(zeus, /key === 'Orçamento'.*zeusViewHasFeature\(s, 'budgets'\)/s);
+});
