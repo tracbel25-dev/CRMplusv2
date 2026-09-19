@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { accountScopeHeaders } from '@/lib/account/accountScope';
 import { AppId, Data, initialData } from './model';
 
 const legacyStorageKey = (app: AppId) => `crmplus:${app}:operations:v1`;
@@ -187,13 +188,13 @@ export function useWorkspace(app: AppId, accountId?: string) {
         try {
           let base = clone(confirmedRef.current);
           let candidate = applyMutation(mutation, base);
-          let result = await cloudRequest(app, 'PUT', candidate, base.revision);
+          let result = await cloudRequest(app, 'PUT', candidate, base.revision, accountId);
 
           if (result.conflict && result.data) {
             base = decodeData(JSON.stringify(result.data));
             confirmedRef.current = base;
             candidate = applyMutation(mutation, base);
-            result = await cloudRequest(app, 'PUT', candidate, base.revision);
+            result = await cloudRequest(app, 'PUT', candidate, base.revision, accountId);
           }
 
           if (result.conflict || !result.data) {
@@ -242,7 +243,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     if (cloudApp(app) && accountId !== 'guest') {
       const load = async () => {
         try {
-          const remote = await cloudRequest(app, 'GET');
+          const remote = await cloudRequest(app, 'GET', undefined, 0, accountId);
           if (cancelled) return;
           let next: Data;
           if (remote.data) {
@@ -252,7 +253,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
             if (legacy) {
               const migrated = decodeData(legacy);
               migrated.revision = 0;
-              const saved = await cloudRequest(app, 'PUT', migrated, 0);
+              const saved = await cloudRequest(app, 'PUT', migrated, 0, accountId);
               if (!saved.data) throw new Error('Não foi possível concluir a atualização dos seus dados.');
               next = decodeData(JSON.stringify(saved.data));
               clearLegacyCloudData(app, accountId);
@@ -370,7 +371,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       const next = decodeData(raw);
       if (cloudApp(app) && accountId !== 'guest') {
         next.revision = confirmedRef.current.revision;
-        const result = await cloudRequest(app, 'PUT', next, confirmedRef.current.revision);
+        const result = await cloudRequest(app, 'PUT', next, confirmedRef.current.revision, accountId);
         if (result.conflict || !result.data) throw new Error('As informações mudaram durante a restauração. Atualize e tente novamente.');
         const saved = decodeData(JSON.stringify(result.data));
         confirmedRef.current = saved;
