@@ -14,6 +14,7 @@ import { defaultQuoteValidity, initialJobStatus, zeusJobsForAsset, zeusJobsForCu
 import { readZeusChecklistConfig, setZeusChecklistChoice } from '@/lib/operations/zeusChecklist';
 import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_RELATED_JOB_KEY, ZEUS_WARRANTY_REASON_KEY } from '@/lib/operations/zeusChecklistKeys';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { Badge, Button, CustomerManager, Empty, Modal, RecordForm, SearchBox, Section, Title } from './ui';
 import { ZeusFilterBar, type FilterDefinition } from './ZeusFilterBar';
 import { ZeusChecklistChoicePicker } from './ZeusChecklistChoicePicker';
@@ -48,8 +49,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   const canCreateJobs = access.hasPermission('zeus', 'jobs_create');
   const canViewAppointments = access.hasPermission('zeus', 'appointments_view');
   const canManageAppointments = access.hasPermission('zeus', 'appointments_manage');
-  const canExport = access.hasPermission('zeus', 'reports_export') && operation.actionVisible('feature:export');
-  const advancedFilters = operation.actionVisible('feature:advanced_filters');
+  const canExport = access.hasPermission('zeus', 'reports_export') && zeusViewHasFeature(s, 'export');
+  const advancedFilters = zeusViewHasFeature(s, 'advanced_filters');
   const [query, setQuery] = useState('');
   const [create, setCreate] = useState<Appointment | 'new' | null>(null);
   const [schedule, setSchedule] = useState<Appointment | 'new' | null>(null);
