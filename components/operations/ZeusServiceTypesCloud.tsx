@@ -35,12 +35,12 @@ export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
   useEffect(() => {
     const current = workspaceRef.current;
     if (!current.accountId || current.accountId === 'guest') return;
-    const local = readZeusServiceTypes();
+    const local = readZeusServiceTypes(current.accountId);
     const latestCloud = parseCloud(current.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
     if (latestCloud.length) {
       if (!same(local, latestCloud)) {
         applying.current = true;
-        saveZeusServiceTypes(latestCloud);
+        saveZeusServiceTypes(latestCloud, current.accountId);
         queueMicrotask(() => { applying.current = false; });
       }
       return;
@@ -54,7 +54,7 @@ export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
     const syncLocal = () => {
       if (applying.current) return;
       const current = workspaceRef.current;
-      const values = readZeusServiceTypes();
+      const values = readZeusServiceTypes(current.accountId);
       const currentCloud = parseCloud(current.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
       if (same(values, currentCloud)) return;
       void current.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(values) }), 'Tipos de atendimento atualizados para a equipe.');
@@ -68,7 +68,7 @@ export function ZeusServiceTypesCloudBridge({ w }: { w: Workspace }) {
 
 export function ZeusServiceTypeSettings({ w }: { w: Workspace }) {
   const cloud = parseCloud(w.data.customFieldValues?.[ZEUS_SERVICE_TYPES_KEY]?.value);
-  const [types, setTypes] = useState<string[]>(cloud.length ? cloud : readZeusServiceTypes());
+  const [types, setTypes] = useState<string[]>(cloud.length ? cloud : readZeusServiceTypes(w.accountId));
   const [newType, setNewType] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -80,7 +80,7 @@ export function ZeusServiceTypeSettings({ w }: { w: Workspace }) {
   const persist = async (next: string[]) => {
     const normalized = Array.from(new Set(next.map(value => value.trim()).filter(Boolean)));
     if (!normalized.length) { w.setError('Mantenha ao menos um tipo de atendimento.'); return; }
-    saveZeusServiceTypes(normalized);
+    saveZeusServiceTypes(normalized, w.accountId);
     const ok = await w.mutate(data => setCustomValues(data, ZEUS_SERVICE_TYPES_KEY, { value: JSON.stringify(normalized) }), 'Tipos de atendimento salvos para toda a equipe.');
     if (ok) { setTypes(normalized); setSaved(true); }
   };
