@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { AppId } from './model';
+import type { Workspace } from './storage';
+import { useCurrentWorkspace } from './storage';
 
 export type ConfigField = {
   key: string;
@@ -195,7 +197,7 @@ export const segmentDefinitions: Record<AppId, SegmentDefinition> = {
   }
 };
 
-export const configStorageKey = (app: AppId) => `crmplus:${app}:configuration:v1`;
+export const configStorageKey = (app: AppId, accountId = 'guest') => `crmplus:${accountId}:${app}:configuration:v1`;
 
 function legacyAliases(app: AppId, values: Record<string, string>) {
   if (app !== 'zeus') return values;
@@ -219,13 +221,12 @@ export function defaultOperationPreferences(app: AppId): OperationPreferences {
   };
 }
 
-export function readOperationPreferences(app: AppId): OperationPreferences {
+export function readOperationPreferences(app: AppId, accountId = 'guest', canonical?: OperationPreferences | null): OperationPreferences {
   const fallback = defaultOperationPreferences(app);
-  if (typeof window === 'undefined') return fallback;
   try {
-    const raw = localStorage.getItem(configStorageKey(app));
-    if (!raw) return fallback;
-    const value = JSON.parse(raw) as Partial<OperationPreferences> & { fieldHelp?: Record<string, string> };
+    const rawValue = canonical || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem(configStorageKey(app, accountId)) || 'null') : null);
+    if (!rawValue) return fallback;
+    const value = rawValue as Partial<OperationPreferences> & { fieldHelp?: Record<string, string> };
     return {
       ...fallback,
       ...value,
@@ -241,22 +242,28 @@ export function readOperationPreferences(app: AppId): OperationPreferences {
   }
 }
 
-export function saveOperationPreferences(app: AppId, preferences: OperationPreferences) {
-  localStorage.setItem(configStorageKey(app), JSON.stringify(preferences));
-  window.dispatchEvent(new CustomEvent('crmplus:configuration', { detail: { app } }));
+export function saveOperationPreferences(app: AppId, preferences: OperationPreferences, accountId = 'guest') {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(configStorageKey(app, accountId), JSON.stringify(preferences));
+  window.dispatchEvent(new CustomEvent('crmplus:configuration', { detail: { app, accountId } }));
 }
 
-export function useOperationPreferences(app: AppId) {
-  const [preferences, setPreferences] = useState<OperationPreferences>(() => defaultOperationPreferences(app));
+export function useOperationPreferences(app: AppId, workspaceOverride?: Workspace | null) {
+  const contextWorkspace = useCurrentWorkspace();
+  const workspace = workspaceOverride || contextWorkspace;
+  const accountId = workspace?.accountId || 'guest';
+  const canonical = workspace?.data.settings.operationPreferences || null;
+  const [preferences, setPreferences] = useState<OperationPreferences>(() => readOperationPreferences(app, accountId, canonical));
   useEffect(() => {
-    const sync = () => setPreferences(readOperationPreferences(app));
+    const sync = () => setPreferences(readOperationPreferences(app, accountId, canonical));
     sync();
+    if (canonical) return;
     const storage = (event: StorageEvent) => {
-      if (event.key === configStorageKey(app)) sync();
+      if (event.key === configStorageKey(app, accountId)) sync();
     };
     const custom = (event: Event) => {
-      const detail = (event as CustomEvent<{ app?: AppId }>).detail;
-      if (!detail?.app || detail.app === app) sync();
+      const detail = (event as CustomEvent<{ app?: AppId; accountId?: string }>).detail;
+      if ((!detail?.app || detail.app === app) && (!detail?.accountId || detail.accountId === accountId)) sync();
     };
     window.addEventListener('storage', storage);
     window.addEventListener('crmplus:configuration', custom);
@@ -264,7 +271,7 @@ export function useOperationPreferences(app: AppId) {
       window.removeEventListener('storage', storage);
       window.removeEventListener('crmplus:configuration', custom);
     };
-  }, [app]);
+  }, [app, accountId, canonical]);
 
   return useMemo(() => ({
     preferences,
