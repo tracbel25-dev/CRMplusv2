@@ -27,8 +27,8 @@ export type ZeusPlanDefinition = {
   features: ReadonlySet<ZeusFeature>;
 };
 
-const START: ZeusFeature[] = ['core_os','customers','assets','history','service_types','responsible','deadlines','status_stages','tasks','notes','related_jobs','basic_filters','advanced_filters','ai'];
-const ESSENCIAL: ZeusFeature[] = [...START,'scheduling','checklist','diagnosis','budgets','quote_external_approval'];
+const START: ZeusFeature[] = ['core_os','customers','assets','history','service_types','deadlines','status_stages','tasks','notes','related_jobs','basic_filters','advanced_filters','ai'];
+const ESSENCIAL: ZeusFeature[] = [...START,'responsible','scheduling','checklist','diagnosis','budgets','quote_external_approval'];
 const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','export','team_management','granular_permissions'];
 const PREMIUM: ZeusFeature[] = [...PLUS,'full_operational_settings'];
 
@@ -40,7 +40,6 @@ const START_COMMERCIAL = [
   'Histórico de OS',
   'Histórico por cliente e veículo/equipamento',
   'Tipos de atendimento',
-  'Responsável',
   'Prazos',
   'Status e etapas da OS',
   'Tarefas da execução',
@@ -50,6 +49,7 @@ const START_COMMERCIAL = [
 ] as const;
 
 const ESSENCIAL_ADDITIONAL = [
+  'Responsável / técnico',
   'Agendamentos',
   'Agenda diária',
   'Agenda semanal',
