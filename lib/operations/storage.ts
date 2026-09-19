@@ -105,12 +105,12 @@ export function decodeData(raw: string): Data {
   return { ...base, ...value, settings: { ...base.settings, ...value.settings } };
 }
 
-function mirrorConfigurationCache(app: AppId, data: Data) {
+function mirrorConfigurationCache(app: AppId, accountId: string, data: Data) {
   if (typeof window === 'undefined') return;
   const prefs = data.settings.operationPreferences;
   if (!prefs || typeof prefs !== 'object') return;
-  localStorage.setItem(`crmplus:${app}:configuration:v1`, JSON.stringify(prefs));
-  window.dispatchEvent(new CustomEvent('crmplus:configuration', { detail: { app } }));
+  localStorage.setItem(`crmplus:${accountId}:${app}:configuration:v1`, JSON.stringify(prefs));
+  window.dispatchEvent(new CustomEvent('crmplus:configuration', { detail: { app, accountId } }));
 }
 
 async function sessionToken() {
@@ -169,7 +169,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     ref.current = next;
     if (key) workspaceMemoryCache.set(key, next);
     setData(next);
-    mirrorConfigurationCache(app, next);
+    mirrorConfigurationCache(app, accountId || 'guest', next);
   }, [app, key]);
 
   const rebuildVisible = useCallback(() => {
