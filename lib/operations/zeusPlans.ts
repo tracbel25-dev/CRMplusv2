@@ -7,6 +7,14 @@ export type ZeusFeature =
   | 'billing' | 'dashboard' | 'advanced_filters' | 'export' | 'team_management' | 'granular_permissions'
   | 'full_operational_settings';
 
+export const ZEUS_FEATURES: ZeusFeature[] = [
+  'core_os','customers','assets','history','service_types','responsible','deadlines',
+  'status_stages','tasks','notes','related_jobs','basic_filters','ai',
+  'scheduling','checklist','diagnosis','budgets','quote_external_approval',
+  'billing','dashboard','advanced_filters','export','team_management','granular_permissions',
+  'full_operational_settings'
+];
+
 export type ZeusPlanDefinition = {
   code: ZeusPlanCode;
   name: string;
@@ -166,3 +174,9 @@ export const ZEUS_MODULES_BY_PLAN: Record<ZeusPlanCode, string[]> = {
   plus: [...PLUS_COMMERCIAL_FULL],
   premium: [...PREMIUM_COMMERCIAL_FULL],
 };
+
+
+export function zeusViewHasFeature(settings: { planFeatures?: Record<string, boolean> } | null | undefined, feature: ZeusFeature) {
+  const flags = settings?.planFeatures;
+  return !flags || flags[feature] !== false;
+}
