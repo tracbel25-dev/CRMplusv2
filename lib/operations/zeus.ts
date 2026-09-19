@@ -1,4 +1,5 @@
-import { Data, Job, Quote, Settings, localDay, total } from './model';
+import { localDay, total } from './model';
+import type { Data, Job, Quote, Settings } from './model';
 
 export const ZEUS_PREFS_ID = '__zeus_preferences';
 
