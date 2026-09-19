@@ -6,7 +6,7 @@ import { clientMessage } from '@/lib/clientMessage';
 import { AppId, Settings, stages, uid } from '@/lib/operations/model';
 import { Workspace, decodeData, download } from '@/lib/operations/storage';
 import {
-  CustomField, OperationPreferences, defaultOperationPreferences, saveOperationPreferences,
+  CustomField, OperationPreferences, configStorageKey, defaultOperationPreferences, saveOperationPreferences,
   segmentDefinitions, useOperationPreferences
 } from '@/lib/operations/configuration';
 import { readZeusPreferences, writeZeusPreferences, type ZeusPreferences } from '@/lib/operations/zeus';
@@ -223,7 +223,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
     }, 'Configurações salvas.');
 
     if (!ok) return false;
-    saveOperationPreferences(app, nextPreferences);
+    saveOperationPreferences(app, nextPreferences, w.accountId);
     setPreferences(nextPreferences);
     dirtyRef.current = false;
     setDirtySections(new Set());
@@ -264,8 +264,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
         data.settings = next;
       }, 'Personalização restaurada ao padrão.');
       if (!ok) return false;
-      saveOperationPreferences(app, nextPreferences);
-      resetFieldLabelOptions(app, definition.fields.map(field => field.key));
+      saveOperationPreferences(app, nextPreferences, w.accountId);
+      resetFieldLabelOptions(app, definition.fields.map(field => field.key), w.accountId);
       setPreferences(nextPreferences);
       setCustomName('');
       dirtyRef.current = false;
@@ -283,7 +283,8 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   const dataExport = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'export');
   const settingsTabs = [
     { id:'dados', label:'Dados' },
-    ...(fullOperationalSettings ? [{ id:'campos', label:'Personalização' }, { id:'operacao', label:'Fluxo do processo' }] : []),
+    { id:'campos', label:'Personalização' },
+    ...(fullOperationalSettings ? [{ id:'operacao', label:'Fluxo do processo' }] : []),
     ...(teamSettings ? [{ id:'acessos', label:'Acessos' }] : []),
     ...(dataExport ? [{ id:'backup', label:'Cópias de dados' }] : []),
   ];
@@ -332,7 +333,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
           {sectionSave('campos-adicionais')}
         </SettingsSection>
 
-        {app === 'zeus' && <ZeusSettingsExtras w={w} budgetEnabled={preferences.actionVisibility.budget !== false} value={zeusPreferences} onChange={value => { markDirty('filtros'); setZeusPreferences(value); }} dirty={dirtySections.has('filtros')} saving={savingSection === 'filtros'} onSave={() => { void saveSection('filtros'); }} />}
+        {app === 'zeus' && <ZeusSettingsExtras w={w} budgetEnabled={zeusViewHasFeature(w.data.settings, 'budgets') && preferences.actionVisibility.budget !== false} value={zeusPreferences} onChange={value => { markDirty('filtros'); setZeusPreferences(value); }} dirty={dirtySections.has('filtros')} saving={savingSection === 'filtros'} onSave={() => { void saveSection('filtros'); }} />}
       </CompactPanel>
 
       <CompactPanel value="operacao">
@@ -367,12 +368,12 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
 
     <CompactPanel value="acessos"><LocalAccountSettings w={w} /></CompactPanel>
     <CompactPanel value="backup">
-      <SettingsSection title="Cópia dos seus dados" description={cloudCanonical ? 'Exporte uma cópia adicional dos dados sincronizados para seu próprio arquivo.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></SettingsSection>
+      <SettingsSection title="Cópia dos seus dados" description={cloudCanonical ? 'Exporte uma cópia adicional dos dados sincronizados para seu próprio arquivo.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(configStorageKey(app, w.accountId)); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : w.data.settings.operationPreferences || preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></SettingsSection>
     </CompactPanel>
     </CompactTabs>
 
     {restoreConfirm && <div className="op-restore-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !restoring) setRestoreConfirm(false); }}><section className="op-restore-confirm" role="dialog" aria-modal="true" aria-labelledby="restore-personalization-title"><div><span className="op-kicker">Restaurar padrão</span><h2 id="restore-personalization-title">Restaurar a personalização?</h2><p>Você tem certeza que gostaria de restaurar? Essa ação é irreversível.</p></div><div className="op-form-footer"><Button variant="secondary" disabled={restoring} onClick={() => setRestoreConfirm(false)}>Cancelar</Button><Button disabled={restoring} onClick={async () => { if (await restorePersonalization()) setRestoreConfirm(false); }}>{restoring ? 'Restaurando…' : 'Restaurar padrão'}</Button></div></section></div>}
-    {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => { const raw = JSON.parse(importData); const ok = await w.restore(JSON.stringify(raw.data)); if (ok && raw.configuration) saveOperationPreferences(app, raw.configuration); return ok; }}>Os registros e configurações atuais deste app serão substituídos pelos da cópia. Exporte os dados atuais antes de continuar, se precisar preservá-los.</Confirm>}
+    {importData && <Confirm title="Restaurar esta cópia?" label="Substituir dados deste aplicativo" onClose={() => setImportData(null)} onConfirm={async () => { const raw = JSON.parse(importData); const ok = await w.restore(JSON.stringify(raw.data)); if (ok && raw.configuration) saveOperationPreferences(app, raw.configuration, w.accountId); return ok; }}>Os registros e configurações atuais deste app serão substituídos pelos da cópia. Exporte os dados atuais antes de continuar, se precisar preservá-los.</Confirm>}
 
     <style jsx global>{`
       .op-config-help{margin-top:2px;padding:0;border:0;background:transparent}.op-config-help-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.op-config-help-head>span{display:flex;align-items:center;gap:6px;color:var(--op-ink);font-weight:750}.op-config-help>small{color:var(--op-muted);line-height:1.4}
