@@ -10,7 +10,7 @@ import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useZeusServiceTypes } from '@/lib/operations/serviceTypes';
 import { Workspace, csv } from '@/lib/operations/storage';
-import { defaultQuoteValidity, initialJobStatus } from '@/lib/operations/zeus';
+import { defaultQuoteValidity, initialJobStatus, zeusJobsForAsset, zeusJobsForCustomer } from '@/lib/operations/zeus';
 import { readZeusChecklistConfig, setZeusChecklistChoice } from '@/lib/operations/zeusChecklist';
 import type { ZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_RELATED_JOB_KEY, ZEUS_WARRANTY_REASON_KEY } from '@/lib/operations/zeusChecklistKeys';
@@ -155,7 +155,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       {week ? <div className="zeus-week">{Array.from({ length: 7 }, (_, index) => { const value = new Date(day + 'T12:00:00'); value.setDate(value.getDate() + index); const key = localDay(value); return <Section key={key} title={value.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === key))}</Section>; })}</div> : <Section title={date(day)}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === day))}</Section>}
     </>}
 
-    {page === 'clientes' && <CustomerManager w={w} title={`Clientes e ${s.assetLabel.toLowerCase()}s`} onOpen={customer => <><Section title={`${s.assetLabel}s`} action={<Button variant="secondary" onClick={() => setAssetCustomer(customer.id)}><Plus size={16} />Adicionar</Button>}>{d.assets.filter(asset => asset.customerId === customer.id).map(asset => <div className="op-row" key={asset.id}><div className="op-grow"><strong className="op-identifier">{asset.identifier}</strong><span>{asset.model} · {asset.year || 'Ano não informado'}</span></div><Badge>{d.jobs.filter(job => job.assetId === asset.id).length} OS</Badge></div>)}{!d.assets.some(asset => asset.customerId === customer.id) && <Empty>Nenhum cadastro associado.</Empty>}</Section><Section title="Histórico do cliente">{d.jobs.filter(job => job.customerId === customer.id).map(job => <div className="op-row" key={job.id}><strong>OS {job.number}</strong><span>{job.type} · {date(job.createdAt)}</span><Badge>{job.status}</Badge></div>)}</Section></>} />}
+    {page === 'clientes' && <CustomerManager w={w} title={`Clientes e ${s.assetLabel.toLowerCase()}s`} onOpen={customer => <><Section title={`${s.assetLabel}s`} action={<Button variant="secondary" onClick={() => setAssetCustomer(customer.id)}><Plus size={16} />Adicionar</Button>}>{d.assets.filter(asset => asset.customerId === customer.id).map(asset => <div className="op-row" key={asset.id}><div className="op-grow"><strong className="op-identifier">{asset.identifier}</strong><span>{asset.model} · {asset.year || 'Ano não informado'}</span></div><Badge>{zeusJobsForAsset(d, asset.id, customer.id).length} OS</Badge></div>)}{!d.assets.some(asset => asset.customerId === customer.id) && <Empty>Nenhum cadastro associado.</Empty>}</Section><Section title="Histórico do cliente">{zeusJobsForCustomer(d, customer.id).map(job => <div className="op-row" key={job.id}><strong>OS {job.number}</strong><span>{job.type} · {date(job.createdAt)}</span><Badge>{job.status}</Badge></div>)}</Section></>} />}
 
     {create && <Modal title={`Identificação do ${s.assetLabel.toLowerCase()}`} wide onClose={() => setCreate(null)}><JobForm w={w} appointment={create === 'new' ? undefined : create} onClose={() => setCreate(null)} onCreated={id => { setCreate(null); setCreatedJobId(id); }} /></Modal>}
     {schedule && <Modal title={schedule === 'new' ? 'Novo agendamento' : 'Reagendar atendimento'} wide onClose={() => setSchedule(null)}><AppointmentForm w={w} appointment={schedule === 'new' ? undefined : schedule} onClose={() => setSchedule(null)} /></Modal>}
@@ -187,7 +187,7 @@ function JobForm({ w, appointment, onClose, onCreated }: { w: Workspace; appoint
   const suggestions = customerSuggestions(w.data);
   const customGroups = ['Cliente', 'Veículo / equipamento', 'Atendimento'];
   const results = !appointment && search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(customer => customer.id === item.customerId)?.name)).slice(0, 8) : [];
-  const previousJobs = asset ? w.data.jobs.filter(item => item.assetId === asset.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20) : [];
+  const previousJobs = asset ? zeusJobsForAsset(w.data, asset.id, asset.customerId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20) : [];
 
   return <>
     {!appointment && <SearchBox value={search} onChange={value => { setSearch(value); if (assetId) { setAssetId(''); setRelatedJobId(''); setWarrantyReason(''); } }} placeholder={`Digite ${s.identifierLabel.toLowerCase()}, ${s.assetLabel.toLowerCase()} ou cliente`} />}
@@ -218,11 +218,15 @@ function JobForm({ w, appointment, onClose, onCreated }: { w: Workspace; appoint
       let aid = selectedAsset?.id || '';
       if (!selectedAsset) {
         const identifier = form.identifier.trim();
+        const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
+        cid = resolved.id;
         const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(identifier));
-        if (exact) { selectedAsset = exact; cid = exact.customerId; aid = exact.id; }
-        else {
-          const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
-          cid = resolved.id; aid = uid();
+        if (exact) {
+          if (exact.customerId !== cid) throw new Error('Esta identificação já está vinculada a outro cliente. Selecione o cadastro existente ou informe outra identificação.');
+          selectedAsset = exact;
+          aid = exact.id;
+        } else {
+          aid = uid();
           data.assets.push({ id: aid, customerId: cid, identifier: identifier.toUpperCase(), model: form.model.trim(), year: form.year || '', meter: form.meter || '' });
         }
       }
@@ -276,10 +280,12 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
     ]} onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
       if (!selectedAsset) {
+        const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
         const exact = data.assets.find(item => assetKey(item.identifier) === assetKey(form.identifier));
-        if (exact) selectedAsset = exact;
-        else {
-          const resolved = resolveCustomer(data, form.customer, { phone: form.phone });
+        if (exact) {
+          if (exact.customerId !== resolved.id) throw new Error('Esta identificação já está vinculada a outro cliente. Selecione o cadastro existente ou informe outra identificação.');
+          selectedAsset = exact;
+        } else {
           selectedAsset = { id: uid(), customerId: resolved.id, identifier: form.identifier.trim().toUpperCase(), model: form.model.trim(), year: '', meter: '' };
           data.assets.push(selectedAsset);
         }
