@@ -5,7 +5,8 @@
 create or replace function public.assert_zeus_workspace_customer_scope(p_data jsonb)
 returns void
 language plpgsql
-as $$
+set search_path = pg_catalog, public
+as $
 declare
   v_job jsonb;
   v_appointment jsonb;
@@ -97,7 +98,8 @@ $$;
 create or replace function public.enforce_zeus_workspace_customer_scope()
 returns trigger
 language plpgsql
-as $$
+set search_path = pg_catalog, public
+as $
 begin
   perform public.assert_zeus_workspace_customer_scope(new.data);
   return new;
