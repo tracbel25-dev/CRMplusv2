@@ -16,6 +16,7 @@ import { corporateDeveloperLine, corporateUi } from '@/lib/operations/corporate'
 import { navigation } from '@/lib/operations/navigation';
 import { useWorkspace, WorkspaceContext } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { ZEUS_PAGE_FEATURE, zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { AppAsset } from '@/components/AppAsset';
 import './lean-operations.css';
@@ -70,8 +71,8 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
   const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
     || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
-  const planControlledPage = app === 'zeus' && ['agendamentos','checklist','orcamentos','faturamento','dashboard'].includes(page);
-  const canUsePlanPage = !planControlledPage || operation.actionVisible(`module:${page}`);
+  const planFeature = app === 'zeus' ? ZEUS_PAGE_FEATURE[page] : undefined;
+  const canUsePlanPage = !planFeature || zeusViewHasFeature(w.data.settings, planFeature);
 
   useEffect(() => { setSidebarCollapsed(w.data.settings.collapsed); }, [app, workspaceScope, w.data.settings.collapsed]);
 
@@ -89,6 +90,10 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
     if (section.path === 'historico') return false;
     if (app === 'zeus' && access.account && zeusPagePermissions[section.path] && !access.hasPermission(app, zeusPagePermissions[section.path])) return false;
+    if (app === 'zeus') {
+      const feature = ZEUS_PAGE_FEATURE[section.path];
+      if (feature && !zeusViewHasFeature(w.data.settings, feature)) return false;
+    }
     return operation.actionVisible(`module:${section.path}`);
   });
 
@@ -126,7 +131,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
 
   return <WorkspaceContext.Provider value={w}>
     <ErrorContext.Provider value={publicError}>
-      {app === 'zeus' && <>{operation.actionVisible('module:checklist') && <ZeusExternalSync w={w} />}<ZeusServiceTypesCloudBridge w={w} /></>}
+      {app === 'zeus' && <>{zeusViewHasFeature(w.data.settings, 'checklist') && operation.actionVisible('module:checklist') && <ZeusExternalSync w={w} />}<ZeusServiceTypesCloudBridge w={w} /></>}
       <div className={`op-app app-${app} theme-${w.data.settings.theme} ${sidebarCollapsed ? 'is-collapsed' : ''} ${mobile ? 'mobile-nav-open' : ''}`}>
         <a className="op-skip" href="#op-main">Pular para o conteúdo</a>
         {mobile && <button className="op-nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobile(false)} />}
