@@ -122,12 +122,14 @@ async function sessionToken() {
 
 type CloudPayload = { data: Data | null; revision: number; conflict?: boolean; error?: string };
 
-async function cloudRequest(app: 'zeus' | 'artemis', method: 'GET' | 'PUT', data?: Data, expectedRevision = 0): Promise<CloudPayload> {
+async function cloudRequest(app: 'zeus' | 'artemis', accountId: string, method: 'GET' | 'PUT', data?: Data, expectedRevision = 0): Promise<CloudPayload> {
+  if (!accountId || accountId === 'guest') throw new Error('A conta ainda não foi identificada.');
   const token = await sessionToken();
   const response = await fetch(`/api/operations/${app}`, {
     method,
     headers: {
       authorization: `Bearer ${token}`,
+      'x-crmplus-account-id': accountId,
       ...(method === 'PUT' ? { 'content-type': 'application/json' } : {}),
     },
     body: method === 'PUT' ? JSON.stringify({ data, expectedRevision }) : undefined,
@@ -187,13 +189,13 @@ export function useWorkspace(app: AppId, accountId?: string) {
         try {
           let base = clone(confirmedRef.current);
           let candidate = applyMutation(mutation, base);
-          let result = await cloudRequest(app, 'PUT', candidate, base.revision);
+          let result = await cloudRequest(app, accountId, 'PUT', candidate, base.revision);
 
           if (result.conflict && result.data) {
             base = decodeData(JSON.stringify(result.data));
             confirmedRef.current = base;
             candidate = applyMutation(mutation, base);
-            result = await cloudRequest(app, 'PUT', candidate, base.revision);
+            result = await cloudRequest(app, accountId, 'PUT', candidate, base.revision);
           }
 
           if (result.conflict || !result.data) {
@@ -242,7 +244,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     if (cloudApp(app) && accountId !== 'guest') {
       const load = async () => {
         try {
-          const remote = await cloudRequest(app, 'GET');
+          const remote = await cloudRequest(app, accountId, 'GET');
           if (cancelled) return;
           let next: Data;
           if (remote.data) {
@@ -252,7 +254,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
             if (legacy) {
               const migrated = decodeData(legacy);
               migrated.revision = 0;
-              const saved = await cloudRequest(app, 'PUT', migrated, 0);
+              const saved = await cloudRequest(app, accountId, 'PUT', migrated, 0);
               if (!saved.data) throw new Error('Não foi possível concluir a atualização dos seus dados.');
               next = decodeData(JSON.stringify(saved.data));
               clearLegacyCloudData(app, accountId);
@@ -370,7 +372,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       const next = decodeData(raw);
       if (cloudApp(app) && accountId !== 'guest') {
         next.revision = confirmedRef.current.revision;
-        const result = await cloudRequest(app, 'PUT', next, confirmedRef.current.revision);
+        const result = await cloudRequest(app, accountId, 'PUT', next, confirmedRef.current.revision);
         if (result.conflict || !result.data) throw new Error('As informações mudaram durante a restauração. Atualize e tente novamente.');
         const saved = decodeData(JSON.stringify(result.data));
         confirmedRef.current = saved;

@@ -40,10 +40,18 @@ function serviceClient() {
   return createClient(STORE_SUPABASE.url, secret, { auth:{persistSession:false,autoRefreshToken:false} });
 }
 
-async function ownerAccount(service: SupabaseClient, userId: string) {
-  const { data, error } = await service.from('account_members').select('account_id, role, status').eq('user_id', userId).eq('role','owner').eq('status','active').limit(1).maybeSingle();
-  if (error || !data?.account_id) return null;
-  const { data: account } = await service.from('accounts').select('id, status').eq('id', data.account_id).eq('status','active').maybeSingle();
+async function ownerAccount(service: SupabaseClient, userId: string, requestedAccountId: string) {
+  if (!requestedAccountId) return null;
+  const { data, error } = await service.from('account_members')
+    .select('account_id, role, status')
+    .eq('user_id', userId)
+    .eq('account_id', requestedAccountId)
+    .eq('role','owner')
+    .eq('status','active')
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.account_id || data.account_id !== requestedAccountId) return null;
+  const { data: account } = await service.from('accounts').select('id, status').eq('id', requestedAccountId).eq('status','active').maybeSingle();
   return account?.id ? String(account.id) : null;
 }
 
@@ -125,7 +133,8 @@ export async function POST(request: NextRequest) {
   if (!caller) return responseError(401,'Sua sessão expirou. Entre novamente para continuar.');
   const service = serviceClient();
   if (!service) return responseError(503,'A gestão da equipe está temporariamente indisponível. Tente novamente em instantes.');
-  const accountId = await ownerAccount(service,caller.userId);
+  const requestedAccountId = request.headers.get('x-crmplus-account-id')?.trim() || '';
+  const accountId = await ownerAccount(service, caller.userId, requestedAccountId);
   if (!accountId) return responseError(403,'Somente o titular da empresa pode alterar a equipe e os acessos.');
   const body = await request.json().catch(() => null) as Body | null;
   if (!body?.action) return responseError(400,'Não foi possível identificar a alteração solicitada.');
