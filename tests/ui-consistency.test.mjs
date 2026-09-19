@@ -54,3 +54,16 @@ test('Zeus runtime syncs operational plan from the active Store subscription', (
   assert.match(planAccess, /tenant_entitlements\?on_conflict=tenant_key/);
   assert.match(planAccess, /source: 'store_runtime'/);
 });
+
+
+test('Zeus Start does not expose technician/responsible UI, while Essencial does', () => {
+  const plans = readFileSync(join(root, 'lib', 'operations', 'zeusPlans.ts'), 'utf8');
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+
+  assert.match(plans, /const START: ZeusFeature\[\] = \[[^\]]*'service_types'[^\]]*'deadlines'/s);
+  assert.doesNotMatch(plans.match(/const START: ZeusFeature\[\] = \[[^\]]*\]/s)?.[0] || '', /'responsible'/);
+  assert.match(plans.match(/const ESSENCIAL: ZeusFeature\[\] = \[[^\]]*\]/s)?.[0] || '', /'responsible'/);
+  assert.match(zeus, /if \(key === 'Responsável'\) return zeusViewHasFeature\(s, 'responsible'\)/);
+  assert.match(zeus, /hasResponsible && <span>/);
+  assert.match(zeus, /zeusViewHasFeature\(s, 'responsible'\) \? \[\{ name: 'technician'/);
+});
