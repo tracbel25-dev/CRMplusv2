@@ -127,7 +127,7 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
   const canAdvance = access.hasPermission('zeus', 'jobs_advance');
   const canAttach = access.hasPermission('zeus', 'attachments_manage');
   const canUseAI = access.hasPermission('zeus', 'ai_use');
-  const canExport = access.hasPermission('zeus', 'reports_export');
+  const canExport = access.hasPermission('zeus', 'reports_export') && operation.actionVisible('feature:export');
   const [editMode, setEditMode] = useState<EditMode>(null);
   const [diagnosisOpen, setDiagnosisOpen] = useState(false);
   const [finish, setFinish] = useState(false);
