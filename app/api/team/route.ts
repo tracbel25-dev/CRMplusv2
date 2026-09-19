@@ -14,7 +14,7 @@ type Body = {
   canConfigure?: boolean;
 };
 
-type AccountAppRow = { app_id: string; status: string; current_period_end: string | null; seats: number };
+type AccountAppRow = { app_id: string; plan_id?: string | null; status: string; current_period_end: string | null; seats: number };
 
 function responseError(status: number, error: string) { return NextResponse.json({ error }, { status }); }
 function activeApp(row: AccountAppRow) {
@@ -59,9 +59,18 @@ async function findUserByEmail(service: SupabaseClient, email: string): Promise<
 }
 
 async function getActiveApps(service: SupabaseClient, accountId: string) {
-  const { data, error } = await service.from('account_apps').select('app_id, status, current_period_end, seats').eq('account_id', accountId);
+  const { data, error } = await service.from('account_apps').select('app_id, plan_id, status, current_period_end, seats').eq('account_id', accountId);
   if (error) throw error;
   return (data as AccountAppRow[]).filter(activeApp);
+}
+
+async function zeusGranularPermissionsEnabled(service: SupabaseClient, accountId: string) {
+  const apps = await getActiveApps(service, accountId);
+  const zeus = apps.find(row => row.app_id === 'zeus');
+  if (!zeus?.plan_id) return false;
+  const { data, error } = await service.from('plans').select('plan_code').eq('id', zeus.plan_id).limit(1).maybeSingle();
+  if (error) throw error;
+  return data?.plan_code === 'plus' || data?.plan_code === 'premium';
 }
 
 async function appSeatUsage(service: SupabaseClient, accountId: string, appId: string) {
@@ -129,7 +138,8 @@ export async function POST(request: NextRequest) {
       if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return responseError(400,'Informe um e-mail válido.');
       const activeApps=await getActiveApps(service,accountId);
       const activeMap=new Map(activeApps.map(row=>[row.app_id,row]));
-      const selected=Array.isArray(body.apps)?body.apps.filter(item=>item&&typeof item.appId==='string'&&activeMap.has(item.appId)).map(item=>({appId:item.appId,canConfigure:!!item.canConfigure})):[];
+      const zeusGranular=await zeusGranularPermissionsEnabled(service,accountId);
+      const selected=Array.isArray(body.apps)?body.apps.filter(item=>item&&typeof item.appId==='string'&&activeMap.has(item.appId)).map(item=>({appId:item.appId,canConfigure:item.appId==='zeus'&&!zeusGranular?false:!!item.canConfigure})):[];
       const uniqueSelected=[...new Map(selected.map(item=>[item.appId,item])).values()];
       if(!uniqueSelected.length)return responseError(400,'Selecione pelo menos um aplicativo para essa pessoa.');
 
@@ -175,12 +185,14 @@ export async function POST(request: NextRequest) {
     const activeApps=new Set((await getActiveApps(service,accountId)).map(row=>row.app_id));if(!activeApps.has(appId))return responseError(400,'Este aplicativo não está ativo nesta empresa.');
 
     if(body.action==='access'){
-      if(body.enabled){await assertSeatAvailable(service,accountId,appId,targetId);const {error}=await service.from('member_app_access').upsert({account_id:accountId,user_id:targetId,app_id:appId,can_configure:!!body.canConfigure,updated_at:new Date().toISOString()},{onConflict:'account_id,user_id,app_id'});if(error)throw error;}
+      const zeusGranular=appId==='zeus'?await zeusGranularPermissionsEnabled(service,accountId):true;
+      if(body.enabled){await assertSeatAvailable(service,accountId,appId,targetId);const {error}=await service.from('member_app_access').upsert({account_id:accountId,user_id:targetId,app_id:appId,can_configure:appId==='zeus'&&!zeusGranular?false:!!body.canConfigure,updated_at:new Date().toISOString()},{onConflict:'account_id,user_id,app_id'});if(error)throw error;}
       else{const {error}=await service.from('member_app_access').delete().eq('account_id',accountId).eq('user_id',targetId).eq('app_id',appId);if(error)throw error;}
       return NextResponse.json({ok:true});
     }
 
     if(body.action==='configure'){
+      if(appId==='zeus'&&body.enabled&&!(await zeusGranularPermissionsEnabled(service,accountId))) return responseError(403,'Este plano do Zeus não inclui permissões individuais por usuário.');
       const {data:existingAccess,error:accessReadError}=await service.from('member_app_access').select('app_id').eq('account_id',accountId).eq('user_id',targetId).eq('app_id',appId).maybeSingle();if(accessReadError)throw accessReadError;if(!existingAccess)return responseError(400,'Libere o acesso ao aplicativo antes de permitir configurações.');
       const {error}=await service.from('member_app_access').update({can_configure:!!body.enabled,updated_at:new Date().toISOString()}).eq('account_id',accountId).eq('user_id',targetId).eq('app_id',appId);if(error)throw error;return NextResponse.json({ok:true});
     }
