@@ -61,9 +61,10 @@ export function FieldHelp({ text }: { text?: string }) {
 
 export type FieldDef = { name: string; label: string; type?: string; required?: boolean; options?: { value: string; label: string }[]; suggestions?: string[]; value?: string | number; wide?: boolean; min?: string | number; step?: string | number; hint?: string; help?: string; configKey?: string };
 
-function readDraft(key: string | undefined) {
+function draftStorageKey(accountId: string, app: AppId, key: string) { return `crmplus:${accountId}:${app}:draft:${key}`; }
+function readDraft(accountId: string, app: AppId, key: string | undefined) {
   if (!key || typeof window === 'undefined') return {} as Record<string, string>;
-  try { return JSON.parse(sessionStorage.getItem(`crmplus:draft:${key}`) || '{}') as Record<string, string>; } catch { return {}; }
+  try { return JSON.parse(sessionStorage.getItem(draftStorageKey(accountId, app, key)) || '{}') as Record<string, string>; } catch { return {}; }
 }
 
 const inferredFieldKey: Record<string, string> = {
@@ -77,14 +78,16 @@ export function RecordForm({ fields, onSave, onClose, submit = 'Salvar', childre
   const operation = useOperationPreferences(workspace?.app || 'zeus');
   const helpMap = ((operation.preferences as typeof operation.preferences & { fieldHelp?: Record<string, string> }).fieldHelp || {});
   const formId = useId();
-  const savedDraft = useMemo(() => readDraft(draftKey), [draftKey]);
-  const clearDraft = () => { if (draftKey && typeof window !== 'undefined') sessionStorage.removeItem(`crmplus:draft:${draftKey}`); };
+  const draftScope = workspace?.accountId || 'guest';
+  const draftApp = workspace?.app || 'zeus';
+  const savedDraft = useMemo(() => readDraft(draftScope, draftApp, draftKey), [draftScope, draftApp, draftKey]);
+  const clearDraft = () => { if (draftKey && typeof window !== 'undefined') sessionStorage.removeItem(draftStorageKey(draftScope, draftApp, draftKey)); };
   const close = () => onClose();
   return <form
     onChange={event => {
       if (!draftKey) return;
       const form = event.currentTarget;
-      sessionStorage.setItem(`crmplus:draft:${draftKey}`, JSON.stringify(Object.fromEntries(new FormData(form))));
+      sessionStorage.setItem(draftStorageKey(draftScope, draftApp, draftKey), JSON.stringify(Object.fromEntries(new FormData(form))));
     }}
     onSubmit={async event => {
       event.preventDefault();
