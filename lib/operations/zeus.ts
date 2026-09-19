@@ -133,3 +133,28 @@ export function zeusJobsForCustomer(data: Data, customerId: string) {
 export function zeusJobsForAsset(data: Data, assetId: string, customerId: string) {
   return zeusJobsForCustomer(data, customerId).filter(job => job.assetId === assetId);
 }
+
+
+export function sanitizeZeusCustomerScope(data: Data): Data {
+  const next = structuredClone(data);
+  const customerIds = new Set(next.customers.map(customer => customer.id));
+  next.assets = next.assets.filter(asset => customerIds.has(asset.customerId));
+  const assets = new Map(next.assets.map(asset => [asset.id, asset]));
+
+  next.jobs = next.jobs.filter(job => {
+    const asset = assets.get(job.assetId);
+    if (!asset || asset.customerId !== job.customerId || !customerIds.has(job.customerId)) return false;
+    if (job.quote?.customerId && job.quote.customerId !== job.customerId) return false;
+    return true;
+  });
+
+  const jobIds = new Set(next.jobs.map(job => job.id));
+  next.appointments = next.appointments.filter(appointment => {
+    const asset = assets.get(appointment.assetId);
+    if (!asset || asset.customerId !== appointment.customerId || !customerIds.has(appointment.customerId)) return false;
+    return !appointment.jobId || jobIds.has(appointment.jobId);
+  });
+
+  next.quotes = next.quotes.filter(quote => !quote.customerId || customerIds.has(quote.customerId));
+  return next;
+}
