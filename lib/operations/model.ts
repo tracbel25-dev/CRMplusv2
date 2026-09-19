@@ -150,6 +150,8 @@ export type Settings = {
   hours: string;
   salesStages: string[];
   operationPreferences?: StoredOperationPreferences;
+  planCode?: string;
+  planFeatures?: Record<string, boolean>;
 };
 export type Data = {
   version: 1;
