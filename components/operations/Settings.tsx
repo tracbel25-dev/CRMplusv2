@@ -365,7 +365,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </CompactPanel>{app !== 'zeus' && <div className="op-form-footer op-settings-actions">{saved && <span role="status">Configurações salvas.</span>}<Button type="submit">Salvar configurações</Button></div>}
     </form>
 
-    <CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
+    <CompactPanel value="acessos"><LocalAccountSettings w={w} /></CompactPanel>
     <CompactPanel value="backup">
       <SettingsSection title="Cópia dos seus dados" description={cloudCanonical ? 'Exporte uma cópia adicional dos dados sincronizados para seu próprio arquivo.' : 'Exporte uma cópia antes de trocar de dispositivo ou limpar os dados locais.'}><div className="op-actions"><Button variant="secondary" onClick={() => { const config = localStorage.getItem(`crmplus:${app}:configuration:v1`); download(`${app}-backup.json`, JSON.stringify({ app, exportedAt: new Date().toISOString(), data: w.data, configuration: config ? JSON.parse(config) : preferences }, null, 2)); }}><Download size={17} />Exportar dados</Button><label className="op-button secondary"><FileUp size={17} />Restaurar cópia<input hidden type="file" accept="application/json,.json" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { const raw = JSON.parse(await file.text()); if (raw.app !== app) throw new Error('Esta cópia pertence a outro aplicativo.'); decodeData(JSON.stringify(raw.data)); setImportData(JSON.stringify(raw)); } catch (error) { w.setError(clientMessage(error, 'Não foi possível ler esta cópia.')); } event.target.value = ''; }} /></label></div></SettingsSection>
     </CompactPanel>
