@@ -155,14 +155,17 @@ export async function authorizeR2Request(request: NextRequest, app: R2App) {
   const user = await userResponse.json().catch(() => null);
   if (!user || typeof user.id !== 'string') return null;
 
+  const requestedAccountId = request.headers.get('x-crmplus-account-id')?.trim() || '';
   const memberships = await storeFetch(restPath('account_members', {
     select: 'account_id,role,status',
     user_id: `eq.${user.id}`,
     status: 'eq.active',
     order: 'created_at.asc',
-    limit: '1',
+    limit: '50',
   }), token) as Array<{ account_id: string; role: string }> | null;
-  const membership = memberships?.[0];
+  const membership = requestedAccountId
+    ? memberships?.find(item => item.account_id === requestedAccountId)
+    : memberships?.length === 1 ? memberships[0] : null;
   if (!membership?.account_id) return null;
 
   const accounts = await storeFetch(restPath('accounts', {
