@@ -30,7 +30,7 @@ export type StoreAccount = {
   status: 'active' | 'suspended' | 'closed';
   personType: 'pf' | 'pj';
   cnpj: string | null;
-  apps: { appId: AppId; planId: string | null; status: string; seats: number; currentPeriodEnd: string | null }[];
+  apps: { appId: AppId; planId: string | null; planCode: string | null; status: string; seats: number; currentPeriodEnd: string | null }[];
   members: StoreMember[];
 };
 
@@ -122,6 +122,13 @@ function useStoreAccessState(disabled=false) {
     const firstError = accountResult.error || appsResult.error || membersResult.error || appAccessResult.error;
     if (firstError || !accountResult.data) { setError(clientMessage(firstError, 'Não foi possível carregar sua conta.')); setReady(true); return; }
 
+    const planIds = Array.from(new Set((appsResult.data || []).map(row => row.plan_id as string | null).filter((value): value is string => !!value)));
+    const plansResult = planIds.length
+      ? await supabase.from('plans').select('id, plan_code').in('id', planIds)
+      : { data: [], error: null };
+    if (plansResult.error) { setError(clientMessage(plansResult.error, 'Não foi possível identificar os planos contratados.')); setReady(true); return; }
+    const planCodes = new Map((plansResult.data || []).map(plan => [plan.id as string, plan.plan_code as string | null]));
+
     const membersRaw = membersResult.data || [];
     const userIds = membersRaw.map(item => item.user_id as string);
     const profilesResult = userIds.length
@@ -149,6 +156,7 @@ function useStoreAccessState(disabled=false) {
     const accountApps = (appsResult.data || []).map(row => ({
       appId: row.app_id as AppId,
       planId: row.plan_id as string | null,
+      planCode: planCodes.get(row.plan_id as string) || null,
       status: row.status as string,
       seats: Number(row.seats || 0),
       currentPeriodEnd: row.current_period_end as string | null
@@ -201,6 +209,8 @@ function useStoreAccessState(disabled=false) {
     if (!activeApps.has(app)) return false;
     const row = memberApp(app);
     if (!row) return false;
+    const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
+    if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return true;
     const keys = Object.keys(row.permissions || {});
     if (!keys.length) return true;
     return row.permissions[permission] === true;
@@ -210,6 +220,8 @@ function useStoreAccessState(disabled=false) {
     if (isOwner) return true;
     const row = memberApp(app);
     if (!row) return false;
+    const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
+    if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return false;
     const p = row.permissions || {};
     return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true;
   };
