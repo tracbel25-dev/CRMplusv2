@@ -118,3 +118,18 @@ export function formatLeadTime(ms: number) {
   if (hours) return `${hours}h ${mins}min`;
   return `${mins}min`;
 }
+
+
+export function zeusJobMatchesOwnership(data: Data, job: Job) {
+  const asset = data.assets.find(item => item.id === job.assetId);
+  if (!asset || asset.customerId !== job.customerId) return false;
+  return data.customers.some(customer => customer.id === job.customerId);
+}
+
+export function zeusJobsForCustomer(data: Data, customerId: string) {
+  return data.jobs.filter(job => job.customerId === customerId && zeusJobMatchesOwnership(data, job));
+}
+
+export function zeusJobsForAsset(data: Data, assetId: string, customerId: string) {
+  return zeusJobsForCustomer(data, customerId).filter(job => job.assetId === assetId);
+}
