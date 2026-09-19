@@ -114,12 +114,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       Prazo: jobDeadlineBucket(job.due)
     };
     return Object.entries(activeFilters).every(([key, selected]) => !selected.length || selected.includes(values[key]));
-  }).sort((a, b) => {
-    const value = (job: Job) => sort === 'number' ? job.number : sort === 'due' ? job.due : job.createdAt;
-    const av = value(a); const bv = value(b);
-    const result = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
-    return descending ? -result : result;
-  });
+  }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const approvalSince = (job: Job) => [...job.quote.events].reverse().find(item => item.text.toLocaleLowerCase('pt-BR').includes('enviad'))?.at || job.createdAt;
 
@@ -156,7 +151,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
     {(page === 'atendimentos' || page === 'historico') && <>
       <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<>{canExport && <Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>}{page !== 'historico' && canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
-      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} sort={sort} sortOptions={[{ value: 'createdAt', label: 'Data de abertura' }, { value: 'number', label: 'Número da OS' }, { value: 'due', label: operation.label('due', 'Prazo previsto') }]} descending={descending} onSort={setSort} onDescending={setDescending} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
+      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
       {jobList(filteredJobs(searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job))))}
     </>}
 
