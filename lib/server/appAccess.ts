@@ -66,7 +66,6 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
     if (!row) return null;
     permissions = row.permissions && typeof row.permissions === 'object' ? row.permissions : {};
     canConfigure = !!row.can_configure;
-    if (!serverPermissionGranted(membership.role, permissions, requiredPermission)) return null;
   }
 
   let plan: string | undefined;
@@ -88,11 +87,16 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
         }
       }
       plan = entitlements.plan;
-      seatLimit = entitlements.seatLimit;
+      seatLimit = Math.max(1, Number(accountApps[0]?.seats || entitlements.seatLimit || 1));
+      const granularPermissions = zeusHasFeature(entitlements.plan, 'granular_permissions');
+      if (membership.role !== 'owner' && granularPermissions && !serverPermissionGranted(membership.role, permissions, requiredPermission)) return null;
+      if (!granularPermissions) canConfigure = false;
       const pathFeature = ZEUS_PATH_FEATURE.find(([prefix]) => request.nextUrl.pathname.startsWith(prefix))?.[1];
       const feature = pathFeature || (requiredPermission ? ZEUS_PERMISSION_FEATURE[requiredPermission] : undefined);
       if (feature && !zeusHasFeature(entitlements.plan, feature)) return null;
     } catch { return null; }
+  } else if (membership.role !== 'owner' && !serverPermissionGranted(membership.role, permissions, requiredPermission)) {
+    return null;
   }
 
   return { token, userId:user.id as string, accountId:membership.account_id as string, role:membership.role as string, permissions, canConfigure, plan, seatLimit };
