@@ -43,3 +43,14 @@ test('Zeus keeps visible filter columns even when there are no records yet', () 
   assert.match(zeus, /return available\.map\(key => \(\{ key, label: display\[key\] \|\| key, options: values\[key\] \|\| \[\] \}\)\);/);
   assert.doesNotMatch(zeus, /filter\(item => item\.options\.length\)/);
 });
+
+
+test('Zeus runtime syncs operational plan from the active Store subscription', () => {
+  const appAccess = readFileSync(join(root, 'lib', 'server', 'appAccess.ts'), 'utf8');
+  const planAccess = readFileSync(join(root, 'lib', 'server', 'zeusPlanAccess.ts'), 'utf8');
+
+  assert.match(appAccess, /select:'app_id,plan_id,status,current_period_end,seats'/);
+  assert.match(appAccess, /syncZeusEntitlementsFromStore\(membership\.account_id, storePlanCode\)/);
+  assert.match(planAccess, /tenant_entitlements\?on_conflict=tenant_key/);
+  assert.match(planAccess, /source: 'store_runtime'/);
+});
