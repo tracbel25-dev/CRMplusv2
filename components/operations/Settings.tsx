@@ -10,6 +10,7 @@ import {
   segmentDefinitions, useOperationPreferences
 } from '@/lib/operations/configuration';
 import { readZeusPreferences, writeZeusPreferences, type ZeusPreferences } from '@/lib/operations/zeus';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { Badge, Button, Confirm, Title } from './ui';
 import { ConfigFieldNameSelect, resetFieldLabelOptions } from './ConfigFieldNameSelect';
 import { ZeusSettingsExtras } from './ZeusSettingsExtras';
@@ -277,10 +278,19 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   };
 
   const cloudCanonical = (app === 'zeus' || app === 'artemis') && w.accountId !== 'guest';
+  const fullOperationalSettings = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'full_operational_settings');
+  const teamSettings = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'team_management');
+  const dataExport = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'export');
+  const settingsTabs = [
+    { id:'dados', label:'Dados' },
+    ...(fullOperationalSettings ? [{ id:'campos', label:'Personalização' }, { id:'operacao', label:'Fluxo do processo' }] : []),
+    ...(teamSettings ? [{ id:'acessos', label:'Acessos' }] : []),
+    ...(dataExport ? [{ id:'backup', label:'Cópias de dados' }] : []),
+  ];
 
   return <>
     <Title eyebrow="Sua operação" title="Configurações">{definition.description}</Title>
-    <CompactTabs label="Áreas de configuração" tabs={[{id:'dados',label:'Dados'},{id:'campos',label:'Personalização'},{id:'operacao',label:'Fluxo do processo'},{id:'acessos',label:'Acessos'},{id:'backup',label:'Cópias de dados'}]}>
+    <CompactTabs label="Áreas de configuração" tabs={settingsTabs}>
     <form onSubmit={async event => { event.preventDefault(); if (app !== 'zeus') await save(); }}>
       <CompactPanel value="dados">
         <SettingsSection title={app === 'zeus' ? 'Dados da oficina' : app === 'artemis' ? 'Dados do restaurante' : 'Dados do negócio'} description="Informações principais usadas no cadastro e na operação.">
