@@ -12,6 +12,7 @@ import {
   event, money, setCustomValues, stages, total, uid
 } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { Workspace } from '@/lib/operations/storage';
 import { Badge, Button, Confirm, Empty, Modal, RecordForm, Section, Timeline, Title } from './ui';
 import { ZeusQuotePanel } from './ZeusQuotePanel';
@@ -127,7 +128,7 @@ export function LeanZeusJobDetail({ w, recordId }: { w: Workspace; recordId: str
   const canAdvance = access.hasPermission('zeus', 'jobs_advance');
   const canAttach = access.hasPermission('zeus', 'attachments_manage');
   const canUseAI = access.hasPermission('zeus', 'ai_use');
-  const canExport = access.hasPermission('zeus', 'reports_export') && operation.actionVisible('feature:export');
+  const canExport = access.hasPermission('zeus', 'reports_export') && zeusViewHasFeature(w.data.settings, 'export');
   const [editMode, setEditMode] = useState<EditMode>(null);
   const [diagnosisOpen, setDiagnosisOpen] = useState(false);
   const [finish, setFinish] = useState(false);
