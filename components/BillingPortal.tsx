@@ -194,7 +194,7 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     </section>}
 
     <section className="billing-management-card">
-      <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Planos ativos</h2><p>Somente acessos efetivamente liberados aparecem como ativos.</p></div><Link className="primary small" href="/planos">Ver planos <ArrowRight size={15}/></Link></div>
+      <div className="account-section-heading"><div><span className="account-kicker">Assinaturas</span><h2>Planos ativos</h2><p>Somente acessos efetivamente liberados aparecem como ativos.</p></div><Link className="ghost small" href="/planos">Ver planos <ArrowRight size={15}/></Link></div>
       {ready===false&&<div className="billing-portal-message is-warning">A integração de cobrança está temporariamente indisponível.</div>}
       {current.length===0&&activeApps.length===0?<div className="billing-portal-empty is-inline"><h3>Nenhum plano ativo.</h3><p>{pendingTrialRequests.length?'Seu teste foi solicitado e ainda está em validação.':openAttempts.length?'Conclua a pendência acima para liberar o acesso.':'Escolha um plano ou teste disponível para começar.'}</p>{pendingTrialRequests.length===0&&openAttempts.length===0&&<Link className="primary" href="/planos">Ver planos</Link>}</div>:<div className="billing-current-list">{current.map(subscription=>{
         const app=apps.find(item=>item.slug===subscription.app_id);
@@ -205,9 +205,21 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
         const remaining=subscription.status==='cancelled';
         const label=trialActive?'Teste grátis ativo':subscription.status==='authorized'?'Ativa':subscription.status==='paused'?'Pausada':remaining?'Renovação cancelada':'Ativa';
         const tone=trialActive||subscription.status==='authorized'?'is-good':subscription.status==='paused'||remaining?'is-neutral':'';
+        const currentPlanName=planLabel(subscription.plan_id);
         return <article className="billing-product" key={subscription.id}>
-          <div className="billing-product-main"><div className="billing-product-title"><div><span className={`billing-status ${tone}`}>{label}</span><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div><div className="billing-price"><strong>{money(subscription.amount_cents)}</strong><span>{cycle(subscription.frequency)}</span></div></div>
-          <div className="billing-product-meta"><div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div><div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div></div></div>
+          <div className="billing-product-identity">
+            <span className={`billing-status ${tone}`}>{label}</span>
+            <div><h3>{app?.name||subscription.app_id}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div>
+          </div>
+          <div className="billing-product-plan">
+            <span>Plano</span>
+            <strong>{currentPlanName?`Plano ${currentPlanName}`:money(subscription.amount_cents)}</strong>
+            <small>{currentPlanName?`${money(subscription.amount_cents)} · ${cycle(subscription.frequency)}`:cycle(subscription.frequency)}</small>
+          </div>
+          <div className="billing-product-info">
+            <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement?.currentPeriodEnd||subscription.trial_ends_at)}`:`Até ${date(end)}`}</strong></div>
+            <div><span>Renovação</span><strong>{remaining?'Desativada':subscription.status==='paused'?'Pausada':'Automática'}</strong></div>
+          </div>
           <div className="billing-product-actions">
             {subscription.status!=='creating'&&subscription.status!=='cancelled'&&<button className="ghost" disabled={!!busy||ready!==true} onClick={()=>void act('sync',subscription)}>{busy===subscription.id+'sync'?<><RefreshCw size={14}/> Atualizando…</>:'Atualizar status'}</button>}
             {['authorized','paused'].includes(subscription.status)&&<button className="text-danger" disabled={!!busy||ready!==true} onClick={()=>void act('cancel',subscription)}>Cancelar renovação</button>}
@@ -223,15 +235,18 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
         const directPlan=directPlanId?planById.get(directPlanId):undefined;
         const directPlanName=planLabel(directPlanId);
         return <article className="billing-product" key={`direct-${entitlement.appId}`}>
-          <div className="billing-product-main">
-            <div className="billing-product-title">
-              <div><span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div>
-              <div className="billing-price"><strong>{directPlanName?`Plano ${directPlanName}`:trialActive?'Teste ativo':'Ativo'}</strong><span>{directPlan?`${money(directPlan.amount_cents)}/mês após o teste · ${directPlan.seats} ${directPlan.seats===1?'acesso':'acessos'}`:trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</span></div>
-            </div>
-            <div className="billing-product-meta">
-              <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
-              <div><span>Próximo passo</span><strong>{trialActive?'Assinar após o teste':'Nenhuma ação necessária'}</strong></div>
-            </div>
+          <div className="billing-product-identity">
+            <span className="billing-status is-good">{trialActive?'Teste grátis ativo':'Acesso ativo'}</span>
+            <div><h3>{app?.name||entitlement.appId}</h3><p>{app?.category||'Aplicativo CRM PLUS'}</p></div>
+          </div>
+          <div className="billing-product-plan">
+            <span>Plano</span>
+            <strong>{directPlanName?`Plano ${directPlanName}`:trialActive?'Teste ativo':'Ativo'}</strong>
+            <small>{directPlan?`${money(directPlan.amount_cents)}/mês após o teste · ${directPlan.seats} ${directPlan.seats===1?'acesso':'acessos'}`:trialActive?'Sem cobrança durante o teste':'Acesso liberado'}</small>
+          </div>
+          <div className="billing-product-info">
+            <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
+            <div><span>Próximo passo</span><strong>{trialActive?'Assinar após o teste':'Nenhuma ação necessária'}</strong></div>
           </div>
           <div className="billing-product-actions"><Link className="ghost" href={`/${entitlement.appId}`}>Abrir aplicativo <ArrowRight size={14}/></Link></div>
         </article>;
