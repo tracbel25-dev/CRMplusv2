@@ -36,3 +36,10 @@ test('Zeus atendimentos keeps one filter per visible column and no global filter
   assert.doesNotMatch(zeus, /onDescending=/);
   assert.match(zeus, /key === 'Orçamento'.*zeusViewHasFeature\(s, 'budgets'\)/s);
 });
+
+
+test('Zeus keeps visible filter columns even when there are no records yet', () => {
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+  assert.match(zeus, /return available\.map\(key => \(\{ key, label: display\[key\] \|\| key, options: values\[key\] \|\| \[\] \}\)\);/);
+  assert.doesNotMatch(zeus, /filter\(item => item\.options\.length\)/);
+});
