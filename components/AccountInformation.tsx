@@ -138,22 +138,24 @@ export function AccountInformation(){
         <label><span>E-mail</span><div className="account-input-icon is-readonly"><Mail size={16}/><input value={currentUser.email||''} readOnly aria-readonly="true"/></div><small>Este é o e-mail usado para entrar na sua conta.</small></label>
       </section>
 
-      <section className="account-details-card">
-        <div className="account-details-heading"><Building2 size={19}/><div><h2>{isPJ?'Empresa':'Conta profissional'}</h2><p>{isPJ?'Dados principais da empresa desta conta.':'Dados principais do negócio vinculado à sua conta.'}</p></div></div>
-        <label><span>{isPJ?'Nome da empresa':'Nome do negócio'}</span><input value={companyName} onChange={event=>setCompanyName(event.target.value)} disabled={!access.isOwner} required={access.isOwner}/>{!access.isOwner&&<small>Somente o titular pode alterar este dado.</small>}</label>
-        {isPJ&&<label><span>CNPJ</span><div className={!access.isOwner?'account-input-icon is-readonly':'account-input-icon'}><Building2 size={16}/><input value={cnpj} onChange={event=>setCnpj(formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" inputMode="numeric" maxLength={18} disabled={!access.isOwner} required={access.isOwner}/></div><small>{access.isOwner?'CNPJ usado para identificar a empresa.':'Somente o titular pode alterar o CNPJ.'}</small></label>}
-        <div className="account-readout"><ShieldCheck size={17}/><div><span>Tipo de conta</span><strong>{isPJ?'Pessoa jurídica':'Pessoa física'}</strong></div></div>
-        <div className="account-readout"><ShieldCheck size={17}/><div><span>Seu perfil</span><strong>{access.isOwner?'Titular':'Usuário'}</strong></div></div>
-        <div className="account-readout"><Building2 size={17}/><div><span>Status do cadastro</span><strong>{currentAccount.status==='active'?'Concluído':currentAccount.status==='suspended'?'Suspenso':'Encerrado'}</strong></div></div>
-      </section>
+      <div className="account-details-side">
+        <section className="account-details-card">
+          <div className="account-details-heading"><Building2 size={19}/><div><h2>{isPJ?'Empresa':'Conta profissional'}</h2><p>{isPJ?'Dados principais da empresa desta conta.':'Dados principais do negócio vinculado à sua conta.'}</p></div></div>
+          <label><span>{isPJ?'Nome da empresa':'Nome do negócio'}</span><input value={companyName} onChange={event=>setCompanyName(event.target.value)} disabled={!access.isOwner} required={access.isOwner}/>{!access.isOwner&&<small>Somente o titular pode alterar este dado.</small>}</label>
+          {isPJ&&<label><span>CNPJ</span><div className={!access.isOwner?'account-input-icon is-readonly':'account-input-icon'}><Building2 size={16}/><input value={cnpj} onChange={event=>setCnpj(formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" inputMode="numeric" maxLength={18} disabled={!access.isOwner} required={access.isOwner}/></div><small>{access.isOwner?'CNPJ usado para identificar a empresa.':'Somente o titular pode alterar o CNPJ.'}</small></label>}
+          <div className="account-readout"><ShieldCheck size={17}/><div><span>Tipo de conta</span><strong>{isPJ?'Pessoa jurídica':'Pessoa física'}</strong></div></div>
+          <div className="account-readout"><ShieldCheck size={17}/><div><span>Seu perfil</span><strong>{access.isOwner?'Titular':'Usuário'}</strong></div></div>
+          <div className="account-readout"><Building2 size={17}/><div><span>Status do cadastro</span><strong>{currentAccount.status==='active'?'Concluído':currentAccount.status==='suspended'?'Suspenso':'Encerrado'}</strong></div></div>
+        </section>
 
-      <section className="account-security-card">
-        <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Troque sua senha, recupere acesso e gerencie a verificação em duas etapas.</small></span></div>
-        <Link className="ghost small" href="/seguranca">Gerenciar segurança</Link>
-      </section>
+        <section className="account-security-card">
+          <div><KeyRound size={18}/><span><strong>Senha e segurança</strong><small>Troque sua senha, recupere acesso e gerencie a verificação em duas etapas.</small></span></div>
+          <Link className="ghost small" href="/seguranca">Gerenciar segurança</Link>
+        </section>
+      </div>
 
       {(error||message)&&<div className={`account-form-feedback ${error?'is-error':'is-success'}`} role={error?'alert':'status'}>{error||message}</div>}
-      <div className="account-form-actions"><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving?'Salvando…':'Salvar alterações'}</button></div>
+      <div className="account-form-actions"><span>Revise os dados antes de salvar.</span><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving?'Salvando…':'Salvar alterações'}</button></div>
     </form>
   </>;
 }
