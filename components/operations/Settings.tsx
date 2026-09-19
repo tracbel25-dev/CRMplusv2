@@ -297,7 +297,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
           <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
           {sectionSave('dados')}
         </SettingsSection>
-        {app === 'zeus' && <PaymentIntegrationSetting app="zeus" />}
+        {app === 'zeus' && zeusViewHasFeature(w.data.settings, 'billing') && <PaymentIntegrationSetting app="zeus" />}
       </CompactPanel>
 
       <CompactPanel value="campos">
