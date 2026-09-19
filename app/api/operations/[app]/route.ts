@@ -7,11 +7,57 @@ import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
 import { readZeusEntitlements } from '@/lib/server/zeusPlanAccess';
 import { validateZeusPlanTransition } from '@/lib/server/zeusPlanTransition';
 import { zeusHasFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
+import { zeusJobMatchesOwnership } from '@/lib/operations/zeus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ZEUS_TERMINAL_STATUSES = new Set(['Encerrado', 'Cancelado', 'Reprovado']);
+
+
+function validateZeusCustomerOwnership(current: Data | null, next: Data) {
+  const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
+  const currentAppointments = new Map((current?.appointments || []).map(appointment => [appointment.id, appointment]));
+  const currentAssets = new Map((current?.assets || []).map(asset => [asset.id, asset]));
+  const nextAssets = new Map(next.assets.map(asset => [asset.id, asset]));
+
+  for (const job of next.jobs) {
+    const asset = nextAssets.get(job.assetId);
+    const quoteMatches = !job.quote?.customerId || job.quote.customerId === job.customerId;
+    if (zeusJobMatchesOwnership(next, job) && quoteMatches) continue;
+
+    const previous = currentJobs.get(job.id);
+    const previousAsset = previous ? currentAssets.get(previous.assetId) : undefined;
+    const unchangedLegacy = !!previous &&
+      previous.customerId === job.customerId &&
+      previous.assetId === job.assetId &&
+      previous.quote?.customerId === job.quote?.customerId &&
+      previousAsset?.customerId === asset?.customerId;
+
+    if (!unchangedLegacy) {
+      throw new Error('CUSTOMER_RELATION_INVALID: cliente, veículo/equipamento e OS precisam pertencer ao mesmo cadastro.');
+    }
+  }
+
+  for (const appointment of next.appointments) {
+    const asset = nextAssets.get(appointment.assetId);
+    const valid = !!asset &&
+      asset.customerId === appointment.customerId &&
+      next.customers.some(customer => customer.id === appointment.customerId);
+    if (valid) continue;
+
+    const previous = currentAppointments.get(appointment.id);
+    const previousAsset = previous ? currentAssets.get(previous.assetId) : undefined;
+    const unchangedLegacy = !!previous &&
+      previous.customerId === appointment.customerId &&
+      previous.assetId === appointment.assetId &&
+      previousAsset?.customerId === asset?.customerId;
+
+    if (!unchangedLegacy) {
+      throw new Error('CUSTOMER_RELATION_INVALID: o agendamento precisa usar um veículo/equipamento do mesmo cliente.');
+    }
+  }
+}
 
 function cloudApp(value: string): CloudOperationalApp | null {
   return value === 'zeus' || value === 'artemis' ? value : null;
@@ -73,6 +119,7 @@ function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
 }
 
 function validateZeusTransition(current: Data | null, next: Data) {
+  validateZeusCustomerOwnership(current, next);
   const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
   for (const job of next.jobs) {
     const previous = currentJobs.get(job.id);
@@ -172,6 +219,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (message.startsWith('CHECKLIST_REQUIRED:')) return NextResponse.json({ error: message.replace('CHECKLIST_REQUIRED: ', '') }, { status: 409 });
     if (message.startsWith('TERMINAL_JOB_IMMUTABLE:')) return NextResponse.json({ error: message.replace('TERMINAL_JOB_IMMUTABLE: ', '') }, { status: 409 });
     if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
+    if (message.startsWith('CUSTOMER_RELATION_INVALID:')) return NextResponse.json({ error: message.replace('CUSTOMER_RELATION_INVALID: ', '') }, { status: 400 });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
