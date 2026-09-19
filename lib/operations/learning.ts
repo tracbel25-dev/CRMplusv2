@@ -39,6 +39,7 @@ function historicalLines(data: Data, app: AppId): HistoricalLine[] {
 export function learnLineSuggestions(data: Data, app: AppId, customerId = '', query = '', limit = 8): LineSuggestion[] {
   const grouped = new Map<string, LineSuggestion>();
   for (const item of historicalLines(data, app)) {
+    if (customerId && item.customerId !== customerId) continue;
     if (!item.line.description.trim()) continue;
     const key = `${normalize(item.line.description)}|${item.line.kind}|${normalize(item.line.brand || '')}`;
     const current = grouped.get(key);
@@ -82,6 +83,7 @@ export function learnLineSuggestions(data: Data, app: AppId, customerId = '', qu
 export function learnProductSuggestions(data: Data, customerId = '', limit = 8) {
   const usage = new Map<string, { productId: string; occurrences: number; customerOccurrences: number; lastUsedAt: string }>();
   for (const order of data.orders) {
+    if (customerId && order.customerId !== customerId) continue;
     for (const line of order.lines) {
       if (!line.productId) continue;
       const current = usage.get(line.productId) || { productId: line.productId, occurrences: 0, customerOccurrences: 0, lastUsedAt: '' };
