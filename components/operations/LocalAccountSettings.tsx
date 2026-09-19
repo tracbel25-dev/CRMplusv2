@@ -75,7 +75,7 @@ async function detailRequest<T>(payload:Record<string,unknown>):Promise<T>{
   return result;
 }
 
-export function LocalAccountSettings({ w }: { w: Workspace }){
+export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   const access=useStoreAccess();
   const pathname=usePathname();
   const appId=useMemo<AppId>(()=>(pathname.split('/').filter(Boolean)[0] as AppId)||'zeus',[pathname]);
@@ -112,7 +112,7 @@ export function LocalAccountSettings({ w }: { w: Workspace }){
   const seatLimit=Math.max(1,Number(appRow?.seats||1));
   const usedSeats=1+account.members.filter(member=>member.role!=='owner'&&member.apps.some(item=>item.appId===appId)).length;
   const teamFull=usedSeats>=seatLimit;
-  const granularPermissions=appId!=='zeus'||zeusViewHasFeature(w.data.settings,'granular_permissions');
+  const granularPermissions=appId!=='zeus'||!!w&&zeusViewHasFeature(w.data.settings,'granular_permissions');
   const clear=()=>{setError('');setMessage('');};
   const updateLocal=(userId:string,patch:Partial<DetailMember>)=>setMembers(current=>current.map(item=>item.userId===userId?{...item,...patch}:item));
 
