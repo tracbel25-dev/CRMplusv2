@@ -17,6 +17,11 @@ export function ZeusFilterBar({
   definitions: FilterDefinition[];
   active: Record<string, string[]>;
   onActive: (value: Record<string, string[]>) => void;
+  sort?: string;
+  sortOptions?: SortOption[];
+  descending?: boolean;
+  onSort?: (value: string) => void;
+  onDescending?: (value: boolean) => void;
   placeholder?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
