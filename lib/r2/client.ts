@@ -2,6 +2,7 @@
 
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { clientMessage } from '@/lib/clientMessage';
+import { accountScopeHeaders } from '@/lib/account/accountScope';
 import type { R2App } from './server';
 
 export class R2AuthRequiredError extends Error {
@@ -35,7 +36,7 @@ export async function uploadOperationalFile(app: R2App, file: File, options: R2U
   if (options.resourceId) form.set('resourceId', options.resourceId);
   const response = await fetch(`/api/storage/${app}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, ...accountScopeHeaders() },
     body: form,
   });
   if (!response.ok) {
@@ -48,7 +49,7 @@ export async function uploadOperationalFile(app: R2App, file: File, options: R2U
 export async function resolveOperationalFile(app: R2App, key: string) {
   const token = await accessToken();
   const response = await fetch(`/api/storage/${app}?key=${encodeURIComponent(key)}`, {
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, ...accountScopeHeaders() },
     cache: 'no-store',
   });
   if (!response.ok) {
@@ -63,7 +64,7 @@ export async function deleteOperationalFile(app: R2App, key: string) {
   const token = await accessToken();
   const response = await fetch(`/api/storage/${app}`, {
     method: 'DELETE',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: { authorization: `Bearer ${token}`, ...accountScopeHeaders(), 'content-type': 'application/json' },
     body: JSON.stringify({ key }),
   });
   if (!response.ok) {
