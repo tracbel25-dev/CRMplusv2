@@ -7,7 +7,7 @@ import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
 import { readZeusEntitlements } from '@/lib/server/zeusPlanAccess';
 import { validateZeusPlanTransition } from '@/lib/server/zeusPlanTransition';
 import { zeusHasFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
-import { zeusJobMatchesOwnership } from '@/lib/operations/zeus';
+import { sanitizeZeusCustomerScope, zeusJobMatchesOwnership } from '@/lib/operations/zeus';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,46 +15,32 @@ export const dynamic = 'force-dynamic';
 const ZEUS_TERMINAL_STATUSES = new Set(['Encerrado', 'Cancelado', 'Reprovado']);
 
 
-function validateZeusCustomerOwnership(current: Data | null, next: Data) {
-  const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
-  const currentAppointments = new Map((current?.appointments || []).map(appointment => [appointment.id, appointment]));
-  const currentAssets = new Map((current?.assets || []).map(asset => [asset.id, asset]));
-  const nextAssets = new Map(next.assets.map(asset => [asset.id, asset]));
+function validateZeusCustomerOwnership(next: Data) {
+  const assets = new Map(next.assets.map(asset => [asset.id, asset]));
+
+  for (const asset of next.assets) {
+    if (!next.customers.some(customer => customer.id === asset.customerId)) {
+      throw new Error('CUSTOMER_RELATION_INVALID: veículo/equipamento sem cliente válido.');
+    }
+  }
 
   for (const job of next.jobs) {
-    const asset = nextAssets.get(job.assetId);
+    const asset = assets.get(job.assetId);
     const quoteMatches = !job.quote?.customerId || job.quote.customerId === job.customerId;
-    if (zeusJobMatchesOwnership(next, job) && quoteMatches) continue;
-
-    const previous = currentJobs.get(job.id);
-    const previousAsset = previous ? currentAssets.get(previous.assetId) : undefined;
-    const unchangedLegacy = !!previous &&
-      previous.customerId === job.customerId &&
-      previous.assetId === job.assetId &&
-      previous.quote?.customerId === job.quote?.customerId &&
-      previousAsset?.customerId === asset?.customerId;
-
-    if (!unchangedLegacy) {
+    if (!zeusJobMatchesOwnership(next, job) || !quoteMatches || !asset) {
       throw new Error('CUSTOMER_RELATION_INVALID: cliente, veículo/equipamento e OS precisam pertencer ao mesmo cadastro.');
     }
   }
 
+  const jobIds = new Set(next.jobs.map(job => job.id));
   for (const appointment of next.appointments) {
-    const asset = nextAssets.get(appointment.assetId);
+    const asset = assets.get(appointment.assetId);
     const valid = !!asset &&
       asset.customerId === appointment.customerId &&
-      next.customers.some(customer => customer.id === appointment.customerId);
-    if (valid) continue;
-
-    const previous = currentAppointments.get(appointment.id);
-    const previousAsset = previous ? currentAssets.get(previous.assetId) : undefined;
-    const unchangedLegacy = !!previous &&
-      previous.customerId === appointment.customerId &&
-      previous.assetId === appointment.assetId &&
-      previousAsset?.customerId === asset?.customerId;
-
-    if (!unchangedLegacy) {
-      throw new Error('CUSTOMER_RELATION_INVALID: o agendamento precisa usar um veículo/equipamento do mesmo cliente.');
+      next.customers.some(customer => customer.id === appointment.customerId) &&
+      (!appointment.jobId || jobIds.has(appointment.jobId));
+    if (!valid) {
+      throw new Error('CUSTOMER_RELATION_INVALID: o agendamento precisa usar um veículo/equipamento e OS do mesmo cliente.');
     }
   }
 }
@@ -119,7 +105,7 @@ function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
 }
 
 function validateZeusTransition(current: Data | null, next: Data) {
-  validateZeusCustomerOwnership(current, next);
+  validateZeusCustomerOwnership(next);
   const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
   for (const job of next.jobs) {
     const previous = currentJobs.get(job.id);
@@ -165,7 +151,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (app === 'artemis' && validWorkspace(data)) data = await hydrateArtemisProductImages(data, access.accountId);
     if (app === 'zeus' && validWorkspace(data)) {
       const entitlements = await readZeusEntitlements(access.accountId);
-      data = applyZeusPlanView(data, entitlements.plan);
+      data = applyZeusPlanView(sanitizeZeusCustomerScope(data as unknown as Data) as unknown as Record<string, unknown>, entitlements.plan);
     }
     return NextResponse.json({ data, revision: Number(row.revision || 0), updatedAt: row.updated_at });
   } catch (reason) {
