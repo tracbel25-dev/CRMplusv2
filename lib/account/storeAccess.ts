@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import { clientMessage } from '@/lib/clientMessage';
 import type { AppId } from '@/lib/operations/model';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { accountScopeHeaders, readActiveAccountId, writeActiveAccountId } from './accountScope';
 
 export type AppPermissionMap = Record<string, boolean>;
 
@@ -46,6 +47,7 @@ async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${data.session.access_token}`,
+      ...accountScopeHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -63,7 +65,7 @@ function useStoreAccessState(disabled=false) {
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    if(disabled){setUser(null);setAccount(null);setMember(null);setIdentityStatus(null);setError('');setReady(true);return;}
+    if(disabled){writeActiveAccountId('');setUser(null);setAccount(null);setMember(null);setIdentityStatus(null);setError('');setReady(true);return;}
     setError('');
     let supabase;
     try {
@@ -73,18 +75,22 @@ function useStoreAccessState(disabled=false) {
     }
 
     const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) { setUser(null); setAccount(null); setMember(null); setIdentityStatus(null); setReady(true); return; }
+    if (userError || !userData.user) { writeActiveAccountId(''); setUser(null); setAccount(null); setMember(null); setIdentityStatus(null); setReady(true); return; }
     const currentUser = userData.user;
     setUser(currentUser);
 
-    let { data: membership, error: membershipError } = await supabase
+    const preferredAccountId = readActiveAccountId();
+    let membershipRows = await supabase
       .from('account_members')
       .select('account_id, user_id, role, status, created_at')
       .eq('user_id', currentUser.id)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(50);
+    let membershipError = membershipRows.error;
+    let membership = preferredAccountId
+      ? membershipRows.data?.find(item => item.account_id === preferredAccountId) || membershipRows.data?.[0] || null
+      : membershipRows.data?.[0] || null;
 
     if (membershipError) { setError(clientMessage(membershipError, 'Não foi possível carregar sua conta.')); setReady(true); return; }
 
@@ -93,16 +99,15 @@ function useStoreAccessState(disabled=false) {
       if (business) {
         const { error: bootstrapError } = await supabase.rpc('create_account', { account_name: business });
         if (bootstrapError) { setError(clientMessage(bootstrapError, 'Não foi possível concluir sua conta.')); setReady(true); return; }
-        const membershipResult = await supabase
+        membershipRows = await supabase
           .from('account_members')
           .select('account_id, user_id, role, status, created_at')
           .eq('user_id', currentUser.id)
           .eq('status', 'active')
           .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        membership = membershipResult.data;
-        membershipError = membershipResult.error;
+          .limit(50);
+        membership = membershipRows.data?.[0] || null;
+        membershipError = membershipRows.error;
       }
     }
 
@@ -111,6 +116,7 @@ function useStoreAccessState(disabled=false) {
     }
 
     const accountId = membership.account_id as string;
+    writeActiveAccountId(accountId);
     const [accountResult, appsResult, membersResult, appAccessResult, identityResult] = await Promise.all([
       supabase.from('accounts').select('id, name, status, person_type, cnpj').eq('id', accountId).single(),
       supabase.from('account_apps').select('app_id, plan_id, status, seats, current_period_end').eq('account_id', accountId),
@@ -210,7 +216,7 @@ function useStoreAccessState(disabled=false) {
     const row = memberApp(app);
     if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
-    if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return true;
+    if (app === 'zeus' && !['essencial','plus','premium'].includes(String(contracted?.planCode || 'start'))) return true;
     const keys = Object.keys(row.permissions || {});
     if (!keys.length) return true;
     return row.permissions[permission] === true;
@@ -221,7 +227,7 @@ function useStoreAccessState(disabled=false) {
     const row = memberApp(app);
     if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
-    if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return false;
+    if (app === 'zeus' && !['essencial','plus','premium'].includes(String(contracted?.planCode || 'start'))) return false;
     const p = row.permissions || {};
     return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true;
   };
