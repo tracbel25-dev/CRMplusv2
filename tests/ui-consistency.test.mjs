@@ -67,3 +67,31 @@ test('Zeus Start does not expose technician/responsible UI, while Essencial does
   assert.match(zeus, /hasResponsible && <span>/);
   assert.match(zeus, /zeusViewHasFeature\(s, 'responsible'\) \? \[\{ name: 'technician'/);
 });
+
+
+test('Zeus separates commercial modules from operational field visibility', () => {
+  const plans = readFileSync(join(root, 'lib', 'operations', 'zeusPlans.ts'), 'utf8');
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+
+  assert.match(plans, /const START: ZeusFeature\[\] = \[[^\]]*'responsible'/s);
+  assert.match(plans, /const ESSENCIAL: ZeusFeature\[\] = \[[^\]]*'team_management'/s);
+  assert.match(plans, /const PLUS: ZeusFeature\[\] = \[[^\]]*'granular_permissions'/s);
+  assert.doesNotMatch(plans, /'Responsável \/ técnico'/);
+  assert.match(zeus, /key === 'Responsável'\) return operation\.fieldVisible\('technician'\)/);
+  assert.match(zeus, /key === 'Prazo'\) return operation\.fieldVisible\('due'\)/);
+  assert.match(zeus, /key === 'Orçamento'\) return zeusViewHasFeature\(s, 'budgets'\)/);
+});
+
+test('Zeus does not leak checklist or fixed team limits outside plan capabilities', () => {
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+  const detail = readFileSync(join(root, 'components', 'operations', 'LeanZeusJobDetail.tsx'), 'utf8');
+  const team = readFileSync(join(root, 'components', 'operations', 'LocalAccountSettings.tsx'), 'utf8');
+  const server = readFileSync(join(root, 'lib', 'server', 'appAccess.ts'), 'utf8');
+
+  assert.match(zeus, /checklistAllowed && <ZeusChecklistChoicePicker/);
+  assert.match(detail, /zeusViewHasFeature\(w\.data\.settings, 'checklist'\)/);
+  assert.doesNotMatch(team, /TEAM_LIMIT/);
+  assert.match(team, /seatLimit=Math\.max\(1,Number\(appRow\?\.seats\|\|1\)\)/);
+  assert.match(team, /granularPermissions=appId!=='zeus'\|\|zeusViewHasFeature\(w\.data\.settings,'granular_permissions'\)/);
+  assert.match(server, /granularPermissions = zeusHasFeature\(entitlements\.plan, 'granular_permissions'\)/);
+});
