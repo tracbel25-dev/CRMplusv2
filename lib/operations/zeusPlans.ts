@@ -27,9 +27,9 @@ export type ZeusPlanDefinition = {
   features: ReadonlySet<ZeusFeature>;
 };
 
-const START: ZeusFeature[] = ['core_os','customers','assets','history','service_types','responsible','deadlines','status_stages','tasks','notes','related_jobs','basic_filters','ai'];
+const START: ZeusFeature[] = ['core_os','customers','assets','history','service_types','responsible','deadlines','status_stages','tasks','notes','related_jobs','basic_filters','advanced_filters','ai'];
 const ESSENCIAL: ZeusFeature[] = [...START,'scheduling','checklist','diagnosis','budgets','quote_external_approval'];
-const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','advanced_filters','export','team_management','granular_permissions'];
+const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','export','team_management','granular_permissions'];
 const PREMIUM: ZeusFeature[] = [...PLUS,'full_operational_settings'];
 
 const START_COMMERCIAL = [
@@ -46,7 +46,6 @@ const START_COMMERCIAL = [
   'Tarefas da execução',
   'Observações',
   'Retorno e garantia vinculados a OS anterior',
-  'Busca e filtros básicos',
   'Inteligência artificial nas funções disponíveis do plano',
 ] as const;
 
@@ -93,7 +92,6 @@ const PLUS_ADDITIONAL = [
   'Distribuição por status',
   'Valores pendentes',
   'Valores recebidos',
-  'Filtros avançados',
   'Exportação de dados',
   'Gestão da equipe',
   'Controle de permissões por usuário',
