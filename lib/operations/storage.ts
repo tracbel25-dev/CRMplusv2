@@ -140,14 +140,14 @@ async function cloudRequest(app: 'zeus' | 'artemis', method: 'GET' | 'PUT', data
 }
 
 function legacyRawForCloud(app: AppId, accountId: string) {
-  const scoped = localStorage.getItem(storageKey(app, accountId));
-  if (scoped) return scoped;
-  return localStorage.getItem(legacyStorageKey(app));
+  // Dados operacionais só podem migrar quando já estão vinculados à mesma conta.
+  // Nunca reutilizar o storage legado global em uma conta cloud vazia: ele pode
+  // ter sido criado por outro cliente que usou este navegador anteriormente.
+  return localStorage.getItem(storageKey(app, accountId));
 }
 
 function clearLegacyCloudData(app: AppId, accountId: string) {
   localStorage.removeItem(storageKey(app, accountId));
-  localStorage.removeItem(legacyStorageKey(app));
   localStorage.setItem(`crmplus:${app}:cloud-migrated:${accountId}`, new Date().toISOString());
 }
 
