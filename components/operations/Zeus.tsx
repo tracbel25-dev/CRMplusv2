@@ -63,7 +63,8 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
   const findCustomer = (id: string) => d.customers.find(customer => customer.id === id)?.name || 'Cliente';
   const findAsset = (id: string) => d.assets.find(asset => asset.id === id);
-  const searchedJobs = d.jobs.filter(job => matches(query, job.number, findCustomer(job.customerId), findAsset(job.assetId)?.identifier, findAsset(job.assetId)?.model, job.type, job.technician));
+  const hasResponsible = zeusViewHasFeature(s, 'responsible');
+  const searchedJobs = d.jobs.filter(job => matches(query, job.number, findCustomer(job.customerId), findAsset(job.assetId)?.identifier, findAsset(job.assetId)?.model, job.type, hasResponsible ? job.technician : ''));
 
   const definitions = useMemo<FilterDefinition[]>(() => {
     const values: Record<string, string[]> = {
@@ -130,7 +131,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     const waiting = job.status === 'Aguardando checklist' ? 'Checklist de entrada ainda não concluído' : job.status === 'Aguardando aprovação' ? `Aguardando decisão desde ${date(approvalSince(job))}` : job.status === 'Aguardando diagnóstico' ? 'Identificação finalizada · diagnóstico ainda não iniciado' : job.status === 'Aguardando peça' ? 'Serviço parado por peça' : job.status === 'Pausado' ? 'Atendimento pausado' : '';
     return <button key={job.id} className="op-job" onClick={() => setSelected(job.id)}>
       <div className="op-job-identity"><small>OS {String(job.number).padStart(4, '0')} · {job.type}</small><strong>{asset?.identifier}</strong><span>{findCustomer(job.customerId)}</span><small>{asset?.model}</small></div>
-      <div className="op-job-work"><strong>{job.stage}</strong><span>{job.technician || `Sem ${operation.label('technician', 'responsável').toLowerCase()}`}</span>{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter">{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
+      <div className="op-job-work"><strong>{job.stage}</strong>{hasResponsible && <span>{job.technician || `Sem ${operation.label('technician', 'responsável').toLowerCase()}`}</span>}{waiting && <small className="op-overdue">{waiting}</small>}<div className="op-stage-meter">{flow.map(stage => <i key={stage} className={flow.indexOf(stage) <= flow.indexOf(job.stage) ? 'filled' : ''} />)}</div></div>
       <div className="op-job-state"><Badge tone={['Aguardando checklist', 'Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pausado'].includes(job.status) ? 'warning' : ''}>{job.status}</Badge>{job.due && <small>{date(job.due, true)}</small>}<ArrowRight size={18} /></div>
     </button>;
   })}</div> : <Empty icon={<Wrench size={28} />}>{query ? 'Nenhum atendimento encontrado.' : 'As ordens de serviço aparecerão aqui.'}</Empty>;
@@ -151,7 +152,7 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
 
     {(page === 'atendimentos' || page === 'historico') && <>
       <Title eyebrow={page === 'historico' ? 'Arquivo técnico' : 'Operação'} title={page === 'historico' ? 'Histórico de atendimentos' : 'Atendimentos'} action={<>{canExport && <Button variant="secondary" onClick={() => csv('atendimentos.csv', [['OS', s.identifierLabel, 'Cliente', operation.label('type', 'Tipo'), 'Etapa', 'Status', 'Abertura'], ...searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job)).map(job => [job.number, findAsset(job.assetId)?.identifier, findCustomer(job.customerId), job.type, job.stage, job.status, date(job.createdAt)])])}><FileDown size={17} />Exportar</Button>}{page !== 'historico' && canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
-      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} placeholder={`Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS`} />
+      <ZeusFilterBar query={query} onQuery={setQuery} definitions={definitions} active={activeFilters} onActive={setActiveFilters} placeholder={hasResponsible ? `Buscar ${s.identifierLabel.toLowerCase()}, cliente, ${operation.label('technician', 'responsável').toLowerCase()} ou OS` : `Buscar ${s.identifierLabel.toLowerCase()}, cliente ou OS`} />
       {jobList(filteredJobs(searchedJobs.filter(job => page === 'historico' ? !activeJob(job) : activeJob(job))))}
     </>}
 
@@ -214,7 +215,7 @@ function JobForm({ w, appointment, onClose, onCreated }: { w: Workspace; appoint
         { name: 'meter', label: s.meterLabel, configKey: 'meter' }
       ] : []),
       { name: 'type', label: operation.label('type', 'Tipo de atendimento'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
-      { name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' },
+      ...(zeusViewHasFeature(s, 'responsible') ? [{ name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' }] : []),
       { name: 'due', label: operation.label('due', 'Prazo previsto'), type: 'datetime-local', configKey: 'due' },
       { name: 'complaint', label: operation.label('complaint', 'Relato do cliente'), value: appointment?.notes, type: 'textarea', wide: true, required: true, configKey: 'complaint' },
       ...customFieldDefs(operation, customGroups)
@@ -236,7 +237,7 @@ function JobForm({ w, appointment, onClose, onCreated }: { w: Workspace; appoint
           data.assets.push({ id: aid, customerId: cid, identifier: identifier.toUpperCase(), model: form.model.trim(), year: form.year || '', meter: form.meter || '' });
         }
       }
-      const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: form.technician || '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' }, appointment?.id);
+      const id = newJob(data, { assetId: aid, customerId: cid, type: form.type, technician: zeusViewHasFeature(s, 'responsible') ? (form.technician || '') : '', due: form.due || '', complaint: form.complaint, diagnosis: '', notes: '' }, appointment?.id);
       const job = data.jobs.find(item => item.id === id)!;
       setZeusChecklistChoice(data, id, checklistFolder);
       job.status = checklistFolder ? 'Aguardando checklist' : initialJobStatus(data.settings);
@@ -281,7 +282,7 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
       ] : []),
       { name: 'at', label: operation.label('scheduleDate', 'Data e horário'), type: 'datetime-local', required: true, value: appointment?.at, configKey: 'scheduleDate' },
       { name: 'type', label: operation.label('type', 'Tipo de atendimento'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
-      { name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' },
+      ...(zeusViewHasFeature(w.data.settings, 'responsible') ? [{ name: 'technician', label: operation.label('technician', 'Responsável'), value: appointment?.technician, configKey: 'technician' }] : []),
       { name: 'notes', label: operation.label('internalNotes', 'Observações'), type: 'textarea', wide: true, value: appointment?.notes, configKey: 'internalNotes' }
     ]} onClose={onClose} onSave={form => w.mutate(data => {
       let selectedAsset = assetId ? data.assets.find(item => item.id === assetId) : undefined;
@@ -296,7 +297,7 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
           data.assets.push(selectedAsset);
         }
       }
-      const next: Appointment = { id: appointment?.id || uid(), customerId: selectedAsset.customerId, assetId: selectedAsset.id, at: form.at, type: form.type, technician: form.technician || '', notes: form.notes || '', status: 'Agendado' };
+      const next: Appointment = { id: appointment?.id || uid(), customerId: selectedAsset.customerId, assetId: selectedAsset.id, at: form.at, type: form.type, technician: zeusViewHasFeature(w.data.settings, 'responsible') ? (form.technician || '') : '', notes: form.notes || '', status: 'Agendado' };
       const index = data.appointments.findIndex(item => item.id === next.id);
       if (index < 0) data.appointments.push(next); else data.appointments[index] = next;
     }, 'Agendamento salvo.')} />
