@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest, operationalRpc, type CloudOperationalApp } from '@/lib/server/operationalWorkspace';
-import type { Data } from '@/lib/operations/model';
+import { initialData, type Data } from '@/lib/operations/model';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { ZEUS_RELATED_JOB_KEY } from '@/lib/operations/zeusChecklistKeys';
 import { readZeusEntitlements } from '@/lib/server/zeusPlanAccess';
 import { validateZeusPlanTransition } from '@/lib/server/zeusPlanTransition';
-import { zeusHasFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
+import { ZEUS_FEATURES, zeusHasFeature, type ZeusPlanCode } from '@/lib/operations/zeusPlans';
 import { sanitizeZeusCustomerScope, zeusJobMatchesOwnership } from '@/lib/operations/zeus';
 
 export const runtime = 'nodejs';
@@ -87,49 +87,14 @@ async function hydrateArtemisProductImages(data: Record<string, unknown>, accoun
 function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
   const hydrated = structuredClone(data) as Record<string, unknown>;
   const settings = { ...((hydrated.settings || {}) as Record<string, unknown>) };
-
-  const rawPreferences = settings.operationPreferences && typeof settings.operationPreferences === 'object'
-    ? settings.operationPreferences as Record<string, unknown>
-    : {};
-  const preferences = {
-    version: 1,
-    fieldLabels: { ...((rawPreferences.fieldLabels || {}) as Record<string, string>) },
-    fieldVisibility: { ...((rawPreferences.fieldVisibility || {}) as Record<string, boolean>) },
-    fieldHelp: { ...((rawPreferences.fieldHelp || {}) as Record<string, string>) },
-    actionVisibility: { ...((rawPreferences.actionVisibility || {}) as Record<string, boolean>) },
-    customFields: Array.isArray(rawPreferences.customFields) ? rawPreferences.customFields : [],
-  };
-  const visibility = { ...(preferences.actionVisibility as Record<string, boolean>) };
-
-  const planFlags: Array<[string, boolean]> = [
-    ['module:agendamentos', zeusHasFeature(plan, 'scheduling')],
-    ['module:checklist', zeusHasFeature(plan, 'checklist')],
-    ['module:orcamentos', zeusHasFeature(plan, 'budgets')],
-    ['module:faturamento', zeusHasFeature(plan, 'billing')],
-    ['module:dashboard', zeusHasFeature(plan, 'dashboard')],
-    ['diagnosis', zeusHasFeature(plan, 'diagnosis')],
-    ['budget', zeusHasFeature(plan, 'budgets')],
-    ['feature:advanced_filters', zeusHasFeature(plan, 'advanced_filters')],
-    ['feature:export', zeusHasFeature(plan, 'export')],
-    ['feature:team_management', zeusHasFeature(plan, 'team_management')],
-    ['feature:granular_permissions', zeusHasFeature(plan, 'granular_permissions')],
-    ['feature:full_operational_settings', zeusHasFeature(plan, 'full_operational_settings')],
-  ];
-
-  for (const [key, included] of planFlags) {
-    visibility[key] = included && visibility[key] !== false;
-  }
-
-  preferences.actionVisibility = visibility;
-  settings.operationPreferences = preferences;
-
+  settings.planCode = plan;
+  settings.planFeatures = Object.fromEntries(ZEUS_FEATURES.map(feature => [feature, zeusHasFeature(plan, feature)]));
   settings.scheduleEnabled = zeusHasFeature(plan, 'scheduling') && settings.scheduleEnabled !== false;
   settings.budgetEnabled = zeusHasFeature(plan, 'budgets') && settings.budgetEnabled !== false;
   settings.diagnosisEnabled = zeusHasFeature(plan, 'diagnosis') && settings.diagnosisEnabled !== false;
-
   hydrated.settings = settings;
 
-  // Downgrade não apaga dados, mas a visualização ativa precisa seguir o fluxo do plano atual.
+  // Downgrade preserva dados históricos, mas a OS ativa segue apenas as etapas liberadas.
   const jobs = Array.isArray(hydrated.jobs) ? hydrated.jobs as Array<Record<string, unknown>> : [];
   for (const job of jobs) {
     if (['Encerrado', 'Cancelado', 'Reprovado'].includes(String(job.status || ''))) continue;
@@ -147,6 +112,18 @@ function applyZeusPlanView(data: Record<string, unknown>, plan: ZeusPlanCode) {
   }
 
   return hydrated;
+}
+
+function prepareZeusWriteData(input: Data, current: Data | null, plan: ZeusPlanCode) {
+  const next = structuredClone(input);
+  delete next.settings.planCode;
+  delete next.settings.planFeatures;
+
+  // Flags forçadas pela visualização do plano nunca viram preferência persistida.
+  if (!zeusHasFeature(plan, 'scheduling')) next.settings.scheduleEnabled = current?.settings.scheduleEnabled ?? true;
+  if (!zeusHasFeature(plan, 'budgets')) next.settings.budgetEnabled = current?.settings.budgetEnabled ?? true;
+  if (!zeusHasFeature(plan, 'diagnosis')) next.settings.diagnosisEnabled = current?.settings.diagnosisEnabled ?? true;
+  return next;
 }
 
 function validateZeusTransition(current: Data | null, next: Data) {
@@ -190,7 +167,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const rows = await operationalRest(app, `workspace_state?${query({ select: 'revision,data,updated_at', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ revision: number; data: unknown; updated_at: string }>;
     const row = rows?.[0];
-    if (!row) return NextResponse.json({ data: null, revision: 0 });
+    if (!row) {
+      if (app === 'zeus') {
+        const entitlements = await readZeusEntitlements(access.accountId);
+        const empty = initialData();
+        return NextResponse.json({ data: applyZeusPlanView(empty as unknown as Record<string, unknown>, entitlements.plan), revision: 0 });
+      }
+      return NextResponse.json({ data: null, revision: 0 });
+    }
 
     let data = row.data;
     if (app === 'artemis' && validWorkspace(data)) data = await hydrateArtemisProductImages(data, access.accountId);
@@ -219,6 +203,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!validWorkspace(body.data)) return NextResponse.json({ error: 'Os dados operacionais enviados são inválidos.' }, { status: 400 });
   const expectedRevision = Math.max(0, Math.trunc(Number(body.expectedRevision) || 0));
   let zeusResponsePlan: ZeusPlanCode | null = null;
+  let writeData = body.data as unknown as Data;
 
   try {
     if (app === 'zeus') {
@@ -226,14 +211,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
       const entitlements = await readZeusEntitlements(access.accountId);
       zeusResponsePlan = entitlements.plan;
-      validateZeusPlanTransition(current, body.data as unknown as Data, entitlements.plan);
-      validateZeusTransition(current, body.data as unknown as Data);
+      writeData = prepareZeusWriteData(body.data as unknown as Data, current, entitlements.plan);
+      validateZeusPlanTransition(current, writeData, entitlements.plan);
+      validateZeusTransition(current, writeData);
     }
 
     const result = await operationalRpc(app, 'save_workspace_state', {
       p_tenant_key: access.accountId,
       p_expected_revision: expectedRevision,
-      p_data: body.data,
+      p_data: app === 'zeus' ? writeData : body.data,
       p_updated_by: access.userId,
     }) as { ok?: boolean; conflict?: boolean; revision?: number; data?: unknown };
 
