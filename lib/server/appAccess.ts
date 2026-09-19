@@ -48,9 +48,22 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   const user = await userResponse.json().catch(() => null);
   if (!user || typeof user.id !== 'string') return null;
 
-  const memberships = await storeFetch(restPath('account_members', {select:'account_id,role,status',user_id:`eq.${user.id}`,status:'eq.active',order:'created_at.asc',limit:'1'}), token) as Array<{account_id:string;role:string}> | null;
-  const membership = memberships?.[0];
-  if (!membership?.account_id) return null;
+  const requestedAccountId = request.headers.get('x-crmplus-account-id')?.trim() || '';
+  const membershipParams: Record<string, string> = {
+    select:'account_id,role,status',
+    user_id:`eq.${user.id}`,
+    status:'eq.active',
+    order:'created_at.asc',
+    limit: requestedAccountId ? '1' : '2',
+  };
+  if (requestedAccountId) membershipParams.account_id = `eq.${requestedAccountId}`;
+  const memberships = await storeFetch(restPath('account_members', membershipParams), token) as Array<{account_id:string;role:string}> | null;
+  // Nunca adivinhar a empresa quando o usuário possui mais de um vínculo ativo.
+  // O account id vindo do navegador é só contexto: a associação é revalidada
+  // no Store antes que qualquer dado operacional seja liberado.
+  if (!memberships?.length || (!requestedAccountId && memberships.length !== 1)) return null;
+  const membership = memberships[0];
+  if (!membership?.account_id || (requestedAccountId && membership.account_id !== requestedAccountId)) return null;
 
   const accounts = await storeFetch(restPath('accounts', {select:'id',id:`eq.${membership.account_id}`,status:'eq.active'}), token) as Array<{id:string}> | null;
   if (!accounts?.length) return null;
