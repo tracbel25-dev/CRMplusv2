@@ -125,9 +125,10 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
       current.events.push(event(`Transferido para ${data.tables.find(table => table.id === valuesForm.tableId)!.name}`));
     })} /></Modal>}
     {adjust && <Modal title="Adicionar item ao pedido" onClose={() => setAdjust(false)}><LeanOrderAdjustment w={w} order={order} onClose={() => setAdjust(false)} /></Modal>}
-    {dispatch && <Confirm title="Liberar pedido para entrega?" onClose={() => setDispatch(false)} onConfirm={() => {
-      setDispatch(false);
-      void w.mutate(data => advanceDelivery(data, order.id), 'Saída para entrega registrada.');
+    {dispatch && <Confirm title="Liberar pedido para entrega?" onClose={() => setDispatch(false)} onConfirm={async () => {
+      const ok = await w.mutate(data => advanceDelivery(data, order.id), 'Saída para entrega registrada.');
+      if (ok) setDispatch(false);
+      return ok;
     }}>Confirme somente depois de conferir itens, quantidades e observações antes de entregar o pedido ao responsável pela saída.</Confirm>}
   </>;
 }
