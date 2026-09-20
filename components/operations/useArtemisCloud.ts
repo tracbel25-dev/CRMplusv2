@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Event, Line, Order } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -93,18 +93,12 @@ function mapRemoteOrder(remote: RemoteOrder): Order {
   };
 }
 
-function operationSignature(order: Order) {
-  return JSON.stringify({ status: order.status, delivery: order.delivery, lines: order.lines.map(line => [line.id, !!line.done]) });
-}
-
 export function useArtemisCloud(w: Workspace) {
   useArtemisBootstrap('artemis');
   const operation = useOperationPreferences('artemis');
   const [slug, setSlug] = useState('');
   const [connected, setConnected] = useState(false);
   const [cloudError, setCloudError] = useState('');
-  const cloudIds = useRef(new Set<string>());
-  const pushed = useRef(new Map<string, string>());
 
   const publishSignature = useMemo(() => JSON.stringify({
     settings: {
@@ -164,10 +158,6 @@ export function useArtemisCloud(w: Workspace) {
         setConnected(true);
         setCloudError('');
         const incoming = (body.orders || []).map(mapRemoteOrder);
-        for (const order of incoming) {
-          cloudIds.current.add(order.id);
-          pushed.current.set(order.id, operationSignature(order));
-        }
         const newOrders = incoming.filter(order => !w.data.orders.some(local => local.id === order.id));
         if (newOrders.length) {
           await w.mutate(data => {
@@ -183,29 +173,8 @@ export function useArtemisCloud(w: Workspace) {
     return () => { active = false; window.clearInterval(interval); };
   }, [w.ready, w.accountId, w.data.orders.length]);
 
-  useEffect(() => {
-    if (!connected || !cloudIds.current.size) return;
-    const timer = window.setTimeout(async () => {
-      const token = await sessionToken();
-      if (!token) return;
-      for (const order of w.data.orders) {
-        if (!cloudIds.current.has(order.id)) continue;
-        const signature = operationSignature(order);
-        if (pushed.current.get(order.id) === signature) continue;
-        try {
-          const response = await fetch('/api/artemis/cloud', {
-            method: 'PATCH',
-            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ id: order.id, status: order.status, delivery: order.delivery, lines: order.lines.map(line => ({ id: line.id, done: !!line.done })) }),
-          });
-          if (response.ok) pushed.current.set(order.id, signature);
-        } catch {
-          // O próximo ciclo tenta novamente; a interface local não finge que o servidor confirmou.
-        }
-      }
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [connected, w.data.revision, w.data.orders]);
+  // Alterações de pedidos usam somente w.mutate -> save_workspace_state.
+  // O banco projeta status/itens prontos para os pedidos públicos no mesmo caminho revisionado.
 
   return { slug, connected, cloudError };
 }
