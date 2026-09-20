@@ -139,12 +139,49 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
     </button>;
   })}</div> : <Empty icon={<Wrench size={28} />}>{query ? 'Nenhum atendimento encontrado.' : 'As ordens de serviço aparecerão aqui.'}</Empty>;
 
+  const startHomeJobs = [...d.jobs.filter(activeJob)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const startAttention = startHomeJobs.filter(job =>
+    (job.due && job.due.slice(0, 10) < localDay()) ||
+    ['Pausado', 'Aguardando peça'].includes(job.status)
+  );
+  const startAttentionIds = new Set(startAttention.map(job => job.id));
+  const startReady = startHomeJobs.filter(job =>
+    !startAttentionIds.has(job.id) &&
+    (job.status === 'Pronto para retirada' || job.stage === 'Entrega')
+  );
+  const startReadyIds = new Set(startReady.map(job => job.id));
+  const startWaiting = startHomeJobs.filter(job =>
+    !startAttentionIds.has(job.id) &&
+    !startReadyIds.has(job.id) &&
+    /^Aguardando/i.test(job.status)
+  );
+  const startWaitingIds = new Set(startWaiting.map(job => job.id));
+  const startWorking = startHomeJobs.filter(job =>
+    !startAttentionIds.has(job.id) &&
+    !startReadyIds.has(job.id) &&
+    !startWaitingIds.has(job.id)
+  );
+  const startHomeSection = (title: string, list: Job[]) => list.length ? (
+    <Section
+      title={`${title} (${list.length})`}
+      action={<Link href="/zeus/atendimentos" className="op-text-link">Ver todos <ArrowRight size={15} /></Link>}
+    >
+      {jobList(list.slice(0, 4))}
+    </Section>
+  ) : null;
+
   return <>
     {page === 'inicio' && <>
-      <Title eyebrow="Bancada de trabalho" title="Hoje na oficina" action={<>{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />{canManageAppointments ? 'Agendar' : 'Ver agenda'}</Link>}{canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
-      <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>{canViewJobs && <SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${identifierLabel.toLowerCase()}, cliente ou OS`} />}</div>
+      <Title eyebrow={simpleFlow ? 'Resumo da oficina' : 'Bancada de trabalho'} title={simpleFlow ? 'Sua oficina hoje' : 'Hoje na oficina'} action={<>{simpleFlow && canViewJobs && <Link className="op-button secondary" href="/zeus/atendimentos">Ver atendimentos <ArrowRight size={16} /></Link>}{s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Link className="op-button secondary" href="/zeus/agendamentos"><CalendarDays size={17} />{canManageAppointments ? 'Agendar' : 'Ver agenda'}</Link>}{canCreateJobs && <Button onClick={() => setCreate('new')}><Plus size={18} />Novo atendimento</Button>}</>} />
+      <div className="zeus-date-strip"><span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>{canViewJobs && !simpleFlow && <SearchBox value={query} onChange={setQuery} placeholder={`Buscar ${identifierLabel.toLowerCase()}, cliente ou OS`} />}</div>
       {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
-      {canViewJobs && simpleFlow ? <Section title="Atendimentos" action={<span className="op-muted">{d.jobs.filter(activeJob).length} em aberto</span>}>{jobList(searchedJobs.filter(activeJob))}</Section> : <>
+      {canViewJobs && simpleFlow ? <>
+        {!startHomeJobs.length && <Empty icon={<Wrench size={28} />}>Nenhum atendimento em aberto. Use <strong>Novo atendimento</strong> para começar.</Empty>}
+        {startHomeSection('Precisa de atenção', startAttention)}
+        {startHomeSection('Em andamento', startWorking)}
+        {startHomeSection('Aguardando', startWaiting)}
+        {startHomeSection('Prontos para entregar', startReady)}
+      </> : <>
         {zeusViewHasFeature(s, 'checklist') && d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
         {s.budgetEnabled && d.jobs.some(job => job.status === 'Aguardando aprovação') && <Section title="Aguardando aprovação">{jobList(searchedJobs.filter(job => job.status === 'Aguardando aprovação'))}</Section>}
         {d.jobs.some(job => job.status === 'Aguardando diagnóstico') && <Section title="Aguardando diagnóstico">{jobList(searchedJobs.filter(job => job.status === 'Aguardando diagnóstico'))}</Section>}
