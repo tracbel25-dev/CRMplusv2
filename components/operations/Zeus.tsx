@@ -277,15 +277,15 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
   const suggestions = customerSuggestions(w.data);
   const results = search.trim() ? w.data.assets.filter(item => matches(search, item.identifier, item.model, w.data.customers.find(current => current.id === item.customerId)?.name)).slice(0, 8) : [];
   return <>
-    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId && !appointment) setAssetId(''); }} placeholder={`Digite ${w.data.settingassetLabel.toLowerCase()}, identificação ou cliente`} />
+    <SearchBox value={search} onChange={value => { setSearch(value); if (assetId && !appointment) setAssetId(''); }} placeholder={`Digite ${operation.label('asset', w.data.settings.assetLabel || 'Item atendido').toLowerCase()}, identificação ou cliente`} />
     {results.length > 0 && <div className="op-picker-results">{results.map(item => <button type="button" className="op-row" key={item.id} onClick={() => setAssetId(item.id)}><strong>{item.identifier}</strong><span>{item.model} · {w.data.customers.find(current => current.id === item.customerId)?.name}</span></button>)}</div>}
     {asset && <div className="op-callout"><strong>{asset.identifier} · {asset.model}</strong><span>{customer?.name}</span>{!appointment && <button type="button" className="op-text-link" onClick={() => { setAssetId(''); setSearch(''); }}>Trocar</button>}</div>}
     <RecordForm draftKey={`zeus-appointment:${appointment?.id || 'new'}`} fields={[
       ...(!asset ? [
         { name: 'customer', label: operation.label('customer', 'Cliente'), required: true, suggestions, hint: 'Digite e continue. Um cliente novo é criado automaticamente se não existir.', configKey: 'customer' },
         { name: 'phone', label: operation.label('phone', 'Telefone'), type: 'tel', configKey: 'phone' },
-        { name: 'identifier', label: w.data.settingidentifierLabel, required: true, value: search, configKey: 'identifier' },
-        { name: 'model', label: w.data.settingassetLabel, required: true, configKey: 'asset' }
+        { name: 'identifier', label: operation.label('identifier', w.data.settings.identifierLabel || 'Identificação'), required: true, value: search, configKey: 'identifier' },
+        { name: 'model', label: operation.label('asset', w.data.settings.assetLabel || 'Item atendido'), required: true, configKey: 'asset' }
       ] : []),
       { name: 'at', label: operation.label('scheduleDate', 'Data e horário'), type: 'datetime-local', required: true, value: appointment?.at, configKey: 'scheduleDate' },
       { name: 'type', label: operation.label('type', 'Tipo de atendimento'), value: appointment?.type, required: true, options: serviceTypes.map(value => ({ value, label: value })), configKey: 'type' },
@@ -314,5 +314,8 @@ function AppointmentForm({ w, appointment, onClose }: { w: Workspace; appointmen
 function AssetForm({ w, customerId, onClose }: { w: Workspace; customerId: string; onClose: () => void }) {
   const operation = useOperationPreferences('zeus');
   const s = w.data.settings;
-  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: identifierLabel, required: true, configKey: 'identifier' }, { name: 'model', label: assetLabel, required: true, configKey: 'asset' }, { name: 'year', label: operation.label('year', 'Ano'), configKey: 'year' }, { name: 'meter', label: s.meterLabel, configKey: 'meter' }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => assetKey(asset.identifier) === assetKey(form.identifier))) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
+  const identifierLabel = operation.label('identifier', s.identifierLabel || 'Identificação');
+  const assetLabel = operation.label('asset', s.assetLabel || 'Item atendido');
+  const meterLabel = operation.label('meter', s.meterLabel || 'Medição');
+  return <RecordForm draftKey={`zeus-asset:${customerId}:new`} fields={[{ name: 'identifier', label: identifierLabel, required: true, configKey: 'identifier' }, { name: 'model', label: assetLabel, required: true, configKey: 'asset' }, { name: 'year', label: operation.label('year', 'Ano'), configKey: 'year' }, { name: 'meter', label: meterLabel, configKey: 'meter' }]} onClose={onClose} onSave={form => w.mutate(data => { if (data.assets.some(asset => assetKey(asset.identifier) === assetKey(form.identifier))) throw new Error('Esta identificação já está cadastrada.'); data.assets.push({ id: uid(), customerId, identifier: form.identifier, model: form.model, year: form.year || '', meter: form.meter || '' } as Asset); })} />;
 }
