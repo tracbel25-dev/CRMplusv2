@@ -8,6 +8,8 @@ import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
 import { Artemis } from './Artemis';
 import { ArtemisMenuManager } from './ArtemisMenuManager';
+import { ArtemisMenuImport } from './ArtemisMenuImport';
+import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
 import { Badge, Button, Title } from './ui';
 import { useArtemisCloud } from './useArtemisCloud';
 import './artemis-direct.css';
@@ -106,7 +108,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
 
   if (!operationPages.has(page)) {
     if (page === 'cardapio') {
-      return <><SharePanel slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} /><ArtemisMenuManager w={w} /></>;
+      return <><SharePanel slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} /><ArtemisMenuImport w={w} /><ArtemisMenuIntelligence w={w} /><ArtemisMenuManager w={w} /></>;
     }
     return <Artemis w={w} page={page} recordId={recordId} />;
   }
