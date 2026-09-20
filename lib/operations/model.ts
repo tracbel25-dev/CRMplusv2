@@ -61,6 +61,13 @@ export type Appointment = {
   status: 'Agendado' | 'Iniciado' | 'Cancelado';
   jobId?: string;
 };
+export type ProductVariant = {
+  id: string;
+  name: string;
+  price: number;
+  available: boolean;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -73,6 +80,7 @@ export type Product = {
   minimum: number;
   allergens: string;
   preparation: number;
+  variants?: ProductVariant[];
 };
 export type Order = {
   id: string;
@@ -291,6 +299,15 @@ export function reviseQuote(q: Quote) {
 export function reserved(d: Data, productId: string, except?: string) {
   return d.orders.filter(o => o.id !== except && o.reserved && !o.stockConsumed && o.status !== 'Cancelado').reduce((s, o) => s + o.lines.filter(l => l.productId === productId).reduce((a, l) => a + l.quantity, 0), 0);
 }
+export function orderProductQuantities(o: Order) {
+  const quantities = new Map<string, number>();
+  for (const line of o.lines) {
+    if (!line.productId) continue;
+    quantities.set(line.productId, (quantities.get(line.productId) || 0) + line.quantity);
+  }
+  return quantities;
+}
+
 export function advanceOrder(d: Data, id: string, expectedStatus?: string) {
   const o = d.orders.find(x => x.id === id);
   if (o && expectedStatus && o.status !== expectedStatus) return;
@@ -298,21 +315,25 @@ export function advanceOrder(d: Data, id: string, expectedStatus?: string) {
   const flow = ['Novo', 'Aceito', 'Em preparo', 'Pronto', 'Concluído'];
   const index = flow.indexOf(o.status);
   if (index < 0 || index === flow.length - 1) throw new Error('Pedido já finalizado.');
+  const requiredByProduct = orderProductQuantities(o);
   if (index === 0) {
-    for (const l of o.lines) {
-      const p = d.products.find(p => p.id === l.productId);
-      if (p?.stockControlled && p.stock - reserved(d, p.id, o.id) < l.quantity) throw new Error(`Estoque insuficiente: ${p.name}.`);
+    for (const [productId, quantity] of requiredByProduct) {
+      const p = d.products.find(product => product.id === productId);
+      if (p?.stockControlled && p.stock - reserved(d, p.id, o.id) < quantity) throw new Error(`Estoque insuficiente: ${p.name}.`);
     }
     o.reserved = true;
   }
   if (index === 1 && !o.stockConsumed) {
-    for (const l of o.lines) {
-      const p = d.products.find(p => p.id === l.productId);
-      if (p?.stockControlled) {
-        if (p.stock < l.quantity) throw new Error(`Estoque insuficiente: ${p.name}.`);
-        p.stock -= l.quantity;
-        d.stockMovements.push({ id: uid(), productId: p.id, amount: -l.quantity, note: `Consumo do pedido ${o.number}`, at: now() });
-      }
+    for (const [productId, quantity] of requiredByProduct) {
+      const p = d.products.find(product => product.id === productId);
+      if (!p?.stockControlled) continue;
+      if (p.stock < quantity) throw new Error(`Estoque insuficiente: ${p.name}.`);
+    }
+    for (const [productId, quantity] of requiredByProduct) {
+      const p = d.products.find(product => product.id === productId);
+      if (!p?.stockControlled) continue;
+      p.stock -= quantity;
+      d.stockMovements.push({ id: uid(), productId: p.id, amount: -quantity, note: `Consumo do pedido ${o.number}`, at: now() });
     }
     o.stockConsumed = true; o.reserved = false;
   }
