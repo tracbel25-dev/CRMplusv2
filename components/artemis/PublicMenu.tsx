@@ -26,6 +26,8 @@ export type PublicMenuPayload = {
     phone: string;
     address: string;
     onlinePaused: boolean;
+    onlinePausedUntil?: string;
+    display?: { description: boolean; preparation: boolean; ingredients: boolean };
     deliveryFee: number;
     minimumOrder: number;
     deliveryAreas: string;
@@ -223,10 +225,10 @@ export function PublicMenu({ slug, mode, previewPayload, preview = false }: Prop
             const displayedPrice = selectedVariant?.price ?? product.price_cents;
             return <article className="public-product" key={product.id}>
               <ProductMedia product={product} />
-              <div className="public-product-copy"><span>{product.category}</span><h3>{product.name}</h3>{product.description && <p>{product.description}</p>}{product.allergens && <small>{product.allergens}</small>}
+              <div className="public-product-copy"><span>{product.category}</span><h3>{product.name}</h3>{payload.restaurant.display?.description !== false && product.description && <p>{product.description}</p>}{payload.restaurant.display?.ingredients !== false && product.allergens && <small>{product.allergens}</small>}
                 {variants.length > 0 && <label className="public-variant"><span>Escolha uma opção</span><select value={selectedVariantId} onChange={event => setSelectedVariants(current => ({ ...current, [product.id]: event.target.value }))}>{variants.map(variant => <option key={variant.id} value={variant.id}>{variant.name} · {money(variant.price)}</option>)}</select></label>}
                 {(product.variants || []).length > 0 && variants.length === 0 && <small>Nenhuma opção disponível no momento.</small>}
-                <div className="public-product-bottom"><strong>{money(displayedPrice)}</strong>{product.preparation_minutes > 0 && <small>{product.preparation_minutes} min</small>}</div>
+                <div className="public-product-bottom"><strong>{money(displayedPrice)}</strong>{payload.restaurant.display?.preparation !== false && product.preparation_minutes > 0 && <small>{product.preparation_minutes} min</small>}</div>
               </div>
               {canOrder && <div className="public-product-actions">
                 <button className="public-add" disabled={(product.variants || []).length > 0 && variants.length === 0} onClick={() => addLine(product)}>Adicionar ao pedido</button>
@@ -240,6 +242,7 @@ export function PublicMenu({ slug, mode, previewPayload, preview = false }: Prop
     </div>
 
     {mode === 'menu' && !payload.table && <div className="public-info"><Store size={18} /><span>Este é o cardápio público para consulta. Para pedir na mesa, use o QR Code disponibilizado pelo restaurante.</span></div>}
+    {mode === 'delivery' && payload.restaurant.onlinePaused && <div className="public-info"><Bike size={18} /><span>Pedidos online pausados{payload.restaurant.onlinePausedUntil ? ` até ${new Date(payload.restaurant.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}. O cardápio continua disponível para consulta.</span></div>}
 
     {canOrder && selected.length > 0 && <button className="public-cart-bar" onClick={() => setCheckout(true)}><ShoppingBag size={19} /><span>{itemCount} item(ns)</span><strong>{money(total)}</strong></button>}
 
