@@ -36,7 +36,7 @@ export type StoreAccount = {
 
 export type TeamInvitePermission = { appId: AppId; canConfigure: boolean };
 
-async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>): Promise<T> {
+async function teamRequest<T = { ok: boolean }>(accountId: string, payload: Record<string, unknown>): Promise<T> {
   const supabase = createStoreClient();
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session) throw new Error('Entre novamente para continuar.');
@@ -46,6 +46,7 @@ async function teamRequest<T = { ok: boolean }>(payload: Record<string, unknown>
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${data.session.access_token}`,
+      'x-crmplus-account-id': accountId,
     },
     body: JSON.stringify(payload),
   });
@@ -228,26 +229,26 @@ function useStoreAccessState(disabled=false) {
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar acessos.');
-    await teamRequest({ action: 'access', userId, appId: app, enabled, canConfigure });
+    await teamRequest(account.id, { action: 'access', userId, appId: app, enabled, canConfigure });
     await refresh();
   };
 
   const setMemberCanConfigure = async (userId: string, app: AppId, canConfigure: boolean) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode alterar permissões.');
-    await teamRequest({ action: 'configure', userId, appId: app, enabled: canConfigure });
+    await teamRequest(account.id, { action: 'configure', userId, appId: app, enabled: canConfigure });
     await refresh();
   };
 
   const inviteMember = async (name: string, email: string, permissions: TeamInvitePermission[]) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode adicionar pessoas à equipe.');
-    const result = await teamRequest<{ ok: boolean; mode: 'invited' | 'existing' }>({ action: 'invite', name, email, apps: permissions });
+    const result = await teamRequest<{ ok: boolean; mode: 'invited' | 'existing' }>(account.id, { action: 'invite', name, email, apps: permissions });
     await refresh();
     return result;
   };
 
   const removeMember = async (userId: string) => {
     if (!account || !isOwner) throw new Error('Somente o titular pode remover pessoas da equipe.');
-    await teamRequest({ action: 'remove', userId });
+    await teamRequest(account.id, { action: 'remove', userId });
     await refresh();
   };
 

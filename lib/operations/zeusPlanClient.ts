@@ -6,28 +6,19 @@ import { ZEUS_PLANS, type ZeusFeature, type ZeusPlanCode } from './zeusPlans';
 
 type Payload = { plan: ZeusPlanCode; planName: string; seatLimit: number; aiEnabled: true; aiMonthlyLimit: number|null; features: ZeusFeature[] };
 
-let cache: Payload | null = null;
-let inflight: Promise<Payload> | null = null;
-
 async function load(): Promise<Payload> {
-  if (cache) return cache;
-  if (inflight) return inflight;
-  inflight = (async () => {
-    const { data } = await createStoreClient().auth.getSession();
-    if (!data.session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
-    const response = await fetch('/api/zeus/entitlements', { headers:{ authorization:`Bearer ${data.session.access_token}` }, cache:'no-store' });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o plano do Zeus.');
-    cache = payload as Payload;
-    return cache;
-  })().finally(() => { inflight = null; });
-  return inflight;
+  const { data } = await createStoreClient().auth.getSession();
+  if (!data.session?.access_token) throw new Error('Sua sessão expirou. Entre novamente.');
+  const response = await fetch('/api/zeus/entitlements', { headers:{ authorization:`Bearer ${data.session.access_token}` }, cache:'no-store' });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o plano do Zeus.');
+  return payload as Payload;
 }
 
-export function clearZeusEntitlementsCache() { cache = null; }
+export function clearZeusEntitlementsCache() { /* sem cache global entre contas ou sessões */ }
 
 export function useZeusEntitlements(enabled = true) {
-  const [value, setValue] = useState<Payload|null>(() => enabled ? cache : null);
+  const [value, setValue] = useState<Payload|null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
     if (!enabled) return;
