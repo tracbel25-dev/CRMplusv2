@@ -22,7 +22,7 @@ async function caller(request:NextRequest){
   const user=await response.json() as {id?:string};
   return user.id||null;
 }
-async async function ownerAccount(service:SupabaseClient,userId:string,requestedAccountId:string){
+async function ownerAccount(service:SupabaseClient,userId:string,requestedAccountId:string){
   if(!requestedAccountId) return null;
   const {data,error}=await service.from('account_members')
     .select('account_id')
