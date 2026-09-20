@@ -224,7 +224,7 @@ function useStoreAccessState(disabled=false) {
     if (isOwner) return true;
     if (!activeApps.has(app) || !seatEligible(app)) return false;
     const row = memberApp(app);
-    if (!row || !seatEligible(app)) return false;
+    if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
     if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return true;
     const keys = Object.keys(row.permissions || {});
@@ -234,6 +234,7 @@ function useStoreAccessState(disabled=false) {
   const canConfigureApp = (app: AppId) => {
     if (!account || account.status !== 'active' || !activeApps.has(app)) return false;
     if (isOwner) return true;
+    if (!seatEligible(app)) return false;
     const row = memberApp(app);
     if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
