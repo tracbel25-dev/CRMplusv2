@@ -9,12 +9,14 @@ const order: ZeusPlanCode[] = ['start','essencial','plus','premium'];
 const comparisonFeatures: { label:string; feature:ZeusFeature }[] = [
   { label:'Abertura de OS', feature:'core_os' },
   { label:'Histórico', feature:'history' },
+  { label:'Pagamentos e cobranças', feature:'payments' },
   { label:'Inteligência artificial', feature:'ai' },
   { label:'Agendamentos', feature:'scheduling' },
   { label:'Checklist de entrada', feature:'checklist' },
   { label:'Diagnóstico', feature:'diagnosis' },
   { label:'Orçamentos', feature:'budgets' },
-  { label:'Faturamento', feature:'billing' },
+  { label:'Gestão da equipe', feature:'team_management' },
+  { label:'Faturamento gerencial', feature:'billing' },
   { label:'Dashboard gerencial', feature:'dashboard' },
   { label:'Controle de permissões por usuário', feature:'granular_permissions' },
 ];
