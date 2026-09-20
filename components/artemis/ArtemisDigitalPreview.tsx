@@ -20,6 +20,12 @@ export function ArtemisDigitalPreview() {
       phone: workspace.data.settings.phone || '',
       address: workspace.data.settings.address || '',
       onlinePaused: workspace.data.settings.onlinePaused,
+      onlinePausedUntil: workspace.data.settings.onlinePausedUntil || '',
+      display: {
+        description: operation.fieldVisible('productDescription'),
+        preparation: operation.fieldVisible('prepTime'),
+        ingredients: operation.fieldVisible('ingredients'),
+      },
       deliveryFee: workspace.data.settings.deliveryFee,
       minimumOrder: workspace.data.settings.minimumOrder,
       deliveryAreas: workspace.data.settings.deliveryAreas,
