@@ -52,7 +52,7 @@ function textFromPdf(buffer: Buffer) {
 }
 
 function parseJson(raw: string): ImportedProduct[] {
-  const cleaned = raw.trim().replace(/^```(?:json)?s*/i, '').replace(/s*```$/i, '');
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start < 0 || end <= start) throw new Error('A IA não retornou uma importação válida.');
@@ -63,7 +63,7 @@ function parseJson(raw: string): ImportedProduct[] {
     const row = item as Record<string, unknown>;
     const name = cleanText(row.name, 140);
     const category = cleanText(row.category, 100) || 'Outros';
-    const price = cleanText(row.price, 30).replace(/[^d,.-]/g, '').replace('.', ',');
+    const price = cleanText(row.price, 30).replace(/[^\d,.-]/g, '').replace('.', ',');
     if (!name) return [];
     return [{
       name,
