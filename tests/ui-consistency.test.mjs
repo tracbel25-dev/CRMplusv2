@@ -111,3 +111,17 @@ test('Zeus enforces purchased seat limits after downgrades', () => {
   assert.match(server, /const seatLimitFromStore = Math\.max\(1, Number\(accountApps\[0\]\?\.seats \|\| 1\)\)/);
   assert.match(server, /\.slice\(0, slots\)[\s\S]*\.some\(row => row\.user_id === user\.id\)/);
 });
+
+
+test('Zeus Start home organizes current work by status instead of duplicating the full attendance list', () => {
+  const zeus = readFileSync(join(root, 'components', 'operations', 'Zeus.tsx'), 'utf8');
+
+  assert.match(zeus, /startHomeSection\('Precisa de atenção', startAttention\)/);
+  assert.match(zeus, /startHomeSection\('Em andamento', startWorking\)/);
+  assert.match(zeus, /startHomeSection\('Aguardando', startWaiting\)/);
+  assert.match(zeus, /startHomeSection\('Prontos para entregar', startReady\)/);
+  assert.match(zeus, /jobList\(list\.slice\(0, 4\)\)/);
+  assert.match(zeus, /simpleFlow && canViewJobs && <Link className="op-button secondary" href="\/zeus\/atendimentos">Ver atendimentos/);
+  assert.match(zeus, /canViewJobs && !simpleFlow && <SearchBox/);
+  assert.doesNotMatch(zeus, /simpleFlow \? <Section title="Atendimentos"/);
+});
