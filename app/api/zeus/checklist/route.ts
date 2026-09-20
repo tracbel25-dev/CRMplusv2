@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Data } from '@/lib/operations/model';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest } from '@/lib/server/operationalWorkspace';
+import { requireZeusFeature, planFeatureError } from '@/lib/server/zeusPlanAccess';
 import { ZEUS_CHECKLIST_SEGMENT_BY_FOLDER, ZEUS_CHECKLIST_FOLDER_LABELS, zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { isZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_CHECKLIST_TEMPLATES } from '@/lib/operations/checklistTemplates';
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   const jobId = request.nextUrl.searchParams.get('jobId') || '';
   if (jobId && !uuid.test(jobId)) return NextResponse.json({ error: 'OS inválida.' }, { status: 400 });
   try {
+    await requireZeusFeature(access.accountId, 'checklist');
     const responseParams: Record<string, string> = {
       select: 'id,link_id,job_id,response,meter_value,completed_by,created_at',
       tenant_key: `eq.${access.accountId}`,
@@ -39,7 +41,8 @@ export async function GET(request: NextRequest) {
     ]);
     return NextResponse.json({ responses: responses || [], links: links || [] });
   } catch (reason) {
-    return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível consultar os checklists.' }, { status: 503 });
+    const blocked = reason instanceof Error && reason.message.startsWith('PLAN_FEATURE_REQUIRED:');
+    return NextResponse.json({ error: blocked ? planFeatureError(reason, 'Checklist está disponível a partir do Zeus Essencial.') : reason instanceof Error ? reason.message : 'Não foi possível consultar os checklists.' }, { status: blocked ? 403 : 503 });
   }
 }
 
@@ -58,6 +61,7 @@ export async function POST(request: NextRequest) {
   const requireSignature = body?.requireSignature !== false;
 
   try {
+    await requireZeusFeature(access.accountId, 'checklist');
     const [jobs, workspaces] = await Promise.all([
       operationalRest('zeus', `jobs?${query({
         select: 'id,number,customer_id,asset_id,stage,status',
@@ -139,6 +143,7 @@ export async function POST(request: NextRequest) {
     }) as Array<{ token: string }>;
     return NextResponse.json({ token: rows?.[0]?.token || token, reused: false, refreshed: false });
   } catch (reason) {
-    return NextResponse.json({ error: reason instanceof Error ? reason.message : 'Não foi possível preparar o checklist.' }, { status: 503 });
+    const blocked = reason instanceof Error && reason.message.startsWith('PLAN_FEATURE_REQUIRED:');
+    return NextResponse.json({ error: blocked ? planFeatureError(reason, 'Checklist está disponível a partir do Zeus Essencial.') : reason instanceof Error ? reason.message : 'Não foi possível preparar o checklist.' }, { status: blocked ? 403 : 503 });
   }
 }
