@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         physical_enabled: actions.dineIn !== false || actions.counter !== false,
         delivery_enabled: actions.delivery !== false,
         pickup_enabled: actions.pickup !== false,
-        loyalty_enabled: actions.loyalty !== false,
+        loyalty_enabled: false,
         new_order_sound_enabled: actions.newOrderSound !== false,
         updated_at: new Date().toISOString(),
       }),
