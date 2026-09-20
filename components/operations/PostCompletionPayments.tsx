@@ -240,7 +240,7 @@ function ZeusCompletedPayment({ w, recordId }: { w: Workspace; recordId: string 
   }
 
   const items: MercadoPagoChargeItem[] = job.quote?.lines?.map(line => ({ description: line.description, kind: line.kind, quantity: line.quantity, lineTotalCents: Math.round(line.price * line.quantity) })) || [];
-  if (job.quote?.discount > 0) items.push({ description: 'Desconto', kind: 'Desconto', quantity: 1, lineTotalCents: -job.quote.discount });
+  if ((job.quote?.discount || 0) > 0) items.push({ description: 'Desconto', kind: 'Desconto', quantity: 1, lineTotalCents: -(job.quote?.discount || 0) });
   const reference = `OS ${String(job.number).padStart(4, '0')} · ${customer?.name || 'Cliente'}`;
 
   return <MercadoPagoChargePanel accountId={w.accountId} appId="zeus" sourceId={`os:${job.id}`} reference={reference} amountCents={amountCents} items={items} allowManualAmount={amountCents <= 0} phone={customer?.phone} onApproved={approvedAmountCents => w.mutate(data => {
