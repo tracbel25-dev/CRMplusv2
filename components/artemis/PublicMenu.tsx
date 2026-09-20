@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { OperationalR2Image } from '@/components/operations/OperationalR2Image';
 import './public-menu.css';
 
-type ProductVariant = { id: string; name: string; price: number; available: boolean };
+type ProductVariant = { id: string; name: string; price: number; available: boolean; soldOutUntil?: string };
 export type PublicMenuProduct = {
   id: string;
   name: string;
@@ -44,7 +44,7 @@ type CartLine = { id: string; productId: string; quantity: number; note: string;
 type Props = { slug: string; mode: 'menu' | 'delivery'; previewPayload?: PublicMenuPayload; preview?: boolean };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const variantsOf = (product: PublicMenuProduct) => (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && item.id && item.name && Number.isFinite(Number(item.price)));
+const variantsOf = (product: PublicMenuProduct) => { const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Belem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); return (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && (!item.soldOutUntil || item.soldOutUntil < today) && item.id && item.name && Number.isFinite(Number(item.price))); };
 
 function ProductMedia({ product }: { product: PublicMenuProduct }) {
   if (product.image_url) return <div className="public-product-media"><img src={product.image_url} alt={product.name} /></div>;
