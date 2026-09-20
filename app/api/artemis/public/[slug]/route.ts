@@ -28,6 +28,10 @@ function rateLimit(key: string) {
   return true;
 }
 
+function belemDay() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Belem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
 function publicImageUrl(value: unknown, tenantKey: string, productId: string, r2Ready: boolean) {
   if (!r2Ready) return '';
   const key = text(value, 700);
@@ -44,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const settings = await artemisRest(`tenant_settings?${query({
-      select: 'tenant_key,business,phone,address,online_paused,delivery_fee_cents,minimum_order_cents,delivery_areas,hours,physical_enabled,delivery_enabled,pickup_enabled',
+      select: 'tenant_key,business,phone,address,online_paused,online_paused_until,delivery_fee_cents,minimum_order_cents,delivery_areas,hours,physical_enabled,delivery_enabled,pickup_enabled,field_visibility',
       public_slug: `eq.${safeSlug}`,
       limit: '1',
     })}`) as Array<Record<string, unknown>>;
@@ -53,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const tenantKey = String(restaurant.tenant_key || '');
 
     const rows = await artemisRest(`products?${query({
-      select: 'id,name,description,category,price_cents,allergens,preparation_minutes,image_object_key,variants',
+      select: 'id,name,description,category,price_cents,allergens,preparation_minutes,image_object_key,variants,sold_out_until,daily_limit,daily_stock_date,stock,stock_controlled',
       tenant_key: `eq.${tenantKey}`,
       available: 'eq.true',
       order: 'category.asc,name.asc',
@@ -61,7 +65,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     let r2Ready = true;
     try { readR2Config('artemis'); } catch { r2Ready = false; }
-    const products = (rows || []).map(product => ({
+    const today = belemDay();
+    const products = (rows || []).filter(product => !product.sold_out_until || String(product.sold_out_until) < today).map(product => ({
       ...product,
       image_object_key: undefined,
       image_url: publicImageUrl(product.image_object_key, tenantKey, String(product.id || ''), r2Ready),
@@ -81,7 +86,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         name: String(restaurant.business || ''),
         phone: String(restaurant.phone || ''),
         address: String(restaurant.address || ''),
-        onlinePaused: restaurant.online_paused === true,
+        onlinePaused: restaurant.online_paused === true && (!restaurant.online_paused_until || new Date(String(restaurant.online_paused_until)).getTime() > Date.now()),
+        onlinePausedUntil: String(restaurant.online_paused_until || ''),
+        display: {
+          description: (restaurant.field_visibility as Record<string, unknown> | null)?.productDescription !== false,
+          preparation: (restaurant.field_visibility as Record<string, unknown> | null)?.prepTime !== false,
+          ingredients: (restaurant.field_visibility as Record<string, unknown> | null)?.ingredients !== false,
+        },
         deliveryFee: Number(restaurant.delivery_fee_cents || 0),
         minimumOrder: Number(restaurant.minimum_order_cents || 0),
         deliveryAreas: String(restaurant.delivery_areas || ''),
