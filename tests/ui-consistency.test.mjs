@@ -150,3 +150,19 @@ test('Zeus Start has no AI, trial watermark text is invisible, and photos are hi
   assert.match(aiApi, /requireZeusFeature\(access\.accountId, 'ai'\)/);
   assert.match(trialCss, /\.trial-watermark\{[^}]*opacity:0/s);
 });
+
+
+test('Zeus exposes payment collection inside the OS for every plan, including Start without budgets', () => {
+  const plans = readFileSync(join(root, 'lib', 'operations', 'zeusPlans.ts'), 'utf8');
+  const detail = readFileSync(join(root, 'components', 'operations', 'LeanZeusJobDetailBase.tsx'), 'utf8');
+  const payments = readFileSync(join(root, 'components', 'operations', 'PostCompletionPayments.tsx'), 'utf8');
+
+  const startBlock = plans.match(/const START: ZeusFeature\[\] = \[([\s\S]*?)\];/)?.[1] || '';
+  assert.match(startBlock, /'payments'/);
+  assert.match(detail, /zeusViewHasFeature\(s, 'payments'\) && <PostCompletionPayments/);
+  assert.match(detail, /cobrança pode ser feita diretamente nesta OS/);
+  assert.match(payments, /allowManualAmount=\{amountCents <= 0\}/);
+  assert.match(payments, /Valor a cobrar \(R\$\)/);
+  assert.match(payments, /amountCents: manualAmountCents, items: effectiveItems/);
+  assert.match(payments, /onApproved\?\.\(charge\.amount_cents\)/);
+});
