@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
           const variantName = text(variant.name, 100);
           const price = Math.max(0, Math.round(Number(variant.price) || 0));
           if (!uuidPattern.test(variantId) || !variantName) return [];
-          return [{ id: variantId, name: variantName, price, available: variant.available !== false }];
+          return [{ id: variantId, name: variantName, price, available: variant.available !== false, soldOutUntil: text(variant.soldOutUntil, 10) || undefined }];
         }) : [],
         sold_out_until: text(product.soldOutUntil, 10) || null,
         daily_limit: Number(product.dailyLimit) > 0 ? Math.round(Number(product.dailyLimit)) : null,
