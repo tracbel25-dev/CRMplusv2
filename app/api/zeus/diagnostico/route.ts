@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
+import { requireZeusFeature, planFeatureError } from '@/lib/server/zeusPlanAccess';
 import {
   DEFAULT_GROQ_MODEL,
   findRelevantLessons,
@@ -52,6 +53,8 @@ function parseSuggestions(raw: string): Suggestion[] {
 export async function POST(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'zeus', 'ai_use');
   if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para usar a IA do Zeus.' }, { status: 403 });
+  try { await requireZeusFeature(access.accountId, 'diagnosis'); }
+  catch (reason) { return NextResponse.json({ error: planFeatureError(reason, 'Diagnóstico está disponível a partir do Zeus Essencial.') }, { status: 403 }); }
   if (!rateLimit(access.userId)) return NextResponse.json({ error: 'Limite temporário de assistência atingido. Tente novamente em um minuto.' }, { status: 429 });
 
   const body = await request.json().catch(() => ({}));
