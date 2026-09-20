@@ -278,13 +278,12 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
   };
 
   const cloudCanonical = (app === 'zeus' || app === 'artemis') && w.accountId !== 'guest';
-  const fullOperationalSettings = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'full_operational_settings');
   const teamSettings = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'team_management');
   const dataExport = app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'export');
   const settingsTabs = [
     { id:'dados', label:'Dados' },
     { id:'campos', label:'Personalização' },
-    ...(fullOperationalSettings ? [{ id:'operacao', label:'Fluxo do processo' }] : []),
+    { id:'operacao', label:'Fluxo do processo' },
     ...(teamSettings ? [{ id:'acessos', label:'Acessos' }] : []),
     ...(dataExport ? [{ id:'backup', label:'Cópias de dados' }] : []),
   ];
@@ -298,7 +297,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
           <div className="op-fields">{field('business', 'Nome do negócio')}{field('operator', 'Seu nome')}{field('phone', 'Telefone', 'tel')}{field('email', 'E-mail', 'email')}<div className="span-full">{field('address', 'Endereço')}</div></div>
           {sectionSave('dados')}
         </SettingsSection>
-        {app === 'zeus' && zeusViewHasFeature(w.data.settings, 'billing') && <PaymentIntegrationSetting app="zeus" />}
+        {app === 'zeus' && <PaymentIntegrationSetting app="zeus" />}
       </CompactPanel>
 
       <CompactPanel value="campos">
@@ -343,7 +342,15 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
       </SettingsSection>}
       <SettingsSection title="Etapas, recursos e ações do processo" description="Escolha o que faz parte do fluxo real da operação e o que fica fora dele.">
         <div className="op-config-groups op-flow-groups">{actionGroups.map(group => {
-          const groupActions = definition.actions.filter(action => action.group === group);
+          const groupActions = definition.actions.filter(action => {
+            if (action.group !== group) return false;
+            if (app !== 'zeus') return true;
+            if (action.key === 'module:agendamentos') return zeusViewHasFeature(w.data.settings, 'scheduling');
+            if (action.key === 'diagnosis') return zeusViewHasFeature(w.data.settings, 'diagnosis');
+            if (action.key === 'budget') return zeusViewHasFeature(w.data.settings, 'budgets');
+            return true;
+          });
+          if (!groupActions.length) return null;
           const activeCount = groupActions.filter(action => action.required || preferences.actionVisibility[action.key] !== false).length;
           return <details className="op-config-group op-flow-group" key={group}>
             <summary><span><strong>{group}</strong><small>Toque para consultar</small></span><Badge>{activeCount}/{groupActions.length} ativos</Badge></summary>
