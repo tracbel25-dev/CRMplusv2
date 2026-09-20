@@ -100,3 +100,14 @@ test('Zeus keeps configuration and payments universal while plan tiers gate busi
   assert.match(configuration, /actionVisibility\.manualStatus = false/);
   assert.match(configuration, /\['year','meter','technician','due','internalNotes','partBrand','finalNotes'\]/);
 });
+
+
+test('Zeus enforces purchased seat limits after downgrades', () => {
+  const client = readFileSync(join(root, 'lib', 'account', 'storeAccess.ts'), 'utf8');
+  const server = readFileSync(join(root, 'lib', 'server', 'appAccess.ts'), 'utf8');
+
+  assert.match(client, /const seatEligible = \(app: AppId\)/);
+  assert.match(client, /Math\.max\(0, Math\.max\(1, Number\(entitlement\.seats \|\| 1\)\) - ownerCount\)/);
+  assert.match(server, /const seatLimitFromStore = Math\.max\(1, Number\(accountApps\[0\]\?\.seats \|\| 1\)\)/);
+  assert.match(server, /\.slice\(0, slots\)[\s\S]*\.some\(row => row\.user_id === user\.id\)/);
+});
