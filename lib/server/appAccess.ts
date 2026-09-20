@@ -71,6 +71,33 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   const accountApps = await storeFetch(restPath('account_apps', {select:'app_id,plan_id,status,current_period_end,seats',account_id:`eq.${membership.account_id}`,app_id:`eq.${app}`,status:'in.(trialing,active)',or:`(and(status.eq.active,current_period_end.is.null),current_period_end.gt.${new Date().toISOString()})`,limit:'1'}), token) as Array<{app_id:string;plan_id?:string|null;seats?:number}> | null;
   if (!accountApps?.length) return null;
 
+  const seatLimitFromStore = Math.max(1, Number(accountApps[0]?.seats || 1));
+  if (membership.role !== 'owner') {
+    const [members, appAccessRows] = await Promise.all([
+      storeFetch(restPath('account_members', {
+        select:'user_id,role,created_at',
+        account_id:`eq.${membership.account_id}`,
+        status:'eq.active',
+        order:'created_at.asc',
+      }), token) as Promise<Array<{user_id:string;role:string;created_at?:string}> | null>,
+      storeFetch(restPath('member_app_access', {
+        select:'user_id',
+        account_id:`eq.${membership.account_id}`,
+        app_id:`eq.${app}`,
+      }), token) as Promise<Array<{user_id:string}> | null>,
+    ]);
+    if (!members || !appAccessRows) return null;
+    const owners = members.filter(row => row.role === 'owner').length;
+    const slots = Math.max(0, seatLimitFromStore - owners);
+    const enabled = new Set(appAccessRows.map(row => row.user_id));
+    const eligible = members
+      .filter(row => row.role !== 'owner' && enabled.has(row.user_id))
+      .sort((a,b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || a.user_id.localeCompare(b.user_id))
+      .slice(0, slots)
+      .some(row => row.user_id === user.id);
+    if (!eligible) return null;
+  }
+
   let permissions: ServerPermissionMap = {};
   let canConfigure = false;
   if (membership.role !== 'owner') {
@@ -82,7 +109,7 @@ export async function authorizeAppRequest(request: NextRequest, app: ServerApp, 
   }
 
   let plan: string | undefined;
-  let seatLimit = Math.max(1, Number(accountApps[0]?.seats || 1));
+  let seatLimit = seatLimitFromStore;
   if (app === 'zeus') {
     try {
       let entitlements = await readZeusEntitlements(membership.account_id);
