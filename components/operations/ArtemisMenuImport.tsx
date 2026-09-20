@@ -48,7 +48,7 @@ export function ArtemisMenuImport({ w }: { w: Workspace }) {
       const base64 = await fileBase64(file);
       const response = await fetch('/api/ai/artemis/menu-import', {
         method: 'POST',
-        headers: { authorization: \`Bearer \${accessToken}\`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
         body: JSON.stringify({ name: file.name, mime: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : ''), base64 }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -79,9 +79,9 @@ export function ArtemisMenuImport({ w }: { w: Workspace }) {
     if (!selected.length) { w.setError('Selecione pelo menos um produto para importar.'); return; }
     for (const row of selected) {
       if (!row.name.trim() || !row.category.trim()) { w.setError('Todos os itens selecionados precisam de nome e categoria.'); return; }
-      if (!row.price.trim()) { w.setError(\`Revise o preço de “\${row.name}”. Preço vazio não será salvo como zero.\`); return; }
+      if (!row.price.trim()) { w.setError(`Revise o preço de “${row.name}”. Preço vazio não será salvo como zero.`); return; }
       const price = Number(row.price.replace(',', '.'));
-      if (!Number.isFinite(price) || price < 0) { w.setError(\`Preço inválido em “\${row.name}”.\`); return; }
+      if (!Number.isFinite(price) || price < 0) { w.setError(`Preço inválido em “${row.name}”.`); return; }
     }
 
     const duplicates = selected.filter(row => w.data.products.some(product =>
@@ -89,7 +89,7 @@ export function ArtemisMenuImport({ w }: { w: Workspace }) {
       product.category.trim().toLocaleLowerCase('pt-BR') === row.category.trim().toLocaleLowerCase('pt-BR')
     ));
     if (duplicates.length) {
-      w.setError(\`Já existem itens com o mesmo nome/categoria: \${duplicates.slice(0, 3).map(row => row.name).join(', ')}. Desmarque ou edite antes de importar.\`);
+      w.setError(`Já existem itens com o mesmo nome/categoria: ${duplicates.slice(0, 3).map(row => row.name).join(', ')}. Desmarque ou edite antes de importar.`);
       return;
     }
 
@@ -108,14 +108,14 @@ export function ArtemisMenuImport({ w }: { w: Workspace }) {
         minimum: 0,
         variants: [],
       });
-    }, \`\${selected.length} produto(s) importado(s) após revisão.\`);
+    }, `${selected.length} produto(s) importado(s) após revisão.`);
     if (ok) { setRows([]); setSource(''); }
   };
 
   return <section className="artemis-menu-import">
     <div className="artemis-menu-import-head">
       <div><span className="op-kicker">Entrada rápida</span><h2>Importar cardápio por foto ou PDF</h2><p>A IA extrai nome, categoria e preço para uma revisão. Nada é salvo ou publicado sem sua confirmação.</p></div>
-      <label className={\`op-button secondary \${busy ? 'disabled' : ''}\`}><Upload size={17} />{busy ? 'Analisando…' : 'Selecionar arquivo'}<input type="file" hidden disabled={busy} accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" onChange={analyze} /></label>
+      <label className={`op-button secondary ${busy ? 'disabled' : ''}`}><Upload size={17} />{busy ? 'Analisando…' : 'Selecionar arquivo'}<input type="file" hidden disabled={busy} accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" onChange={analyze} /></label>
     </div>
 
     {rows.length > 0 && <div className="artemis-import-review">
@@ -133,6 +133,6 @@ export function ArtemisMenuImport({ w }: { w: Workspace }) {
       <div className="op-form-footer"><Button onClick={() => void save()}>Confirmar e importar selecionados</Button></div>
     </div>}
 
-    <style jsx>{\`.artemis-menu-import{display:grid;gap:14px;margin-bottom:18px;padding:18px;border:1px solid var(--op-line);border-radius:16px;background:var(--op-paper)}.artemis-menu-import-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.artemis-menu-import-head h2{margin:4px 0 6px}.artemis-menu-import-head p{margin:0;color:var(--op-muted);max-width:720px}.artemis-import-review{display:grid;gap:12px}.artemis-import-review-title{display:flex;align-items:center;gap:10px}.artemis-import-review-title>div{display:grid}.artemis-import-review-title small{color:var(--op-muted)}.artemis-import-review-title :global(button){margin-left:auto}.artemis-import-grid{display:grid;gap:10px;max-height:560px;overflow:auto}.artemis-import-grid article{display:grid;grid-template-columns:auto minmax(180px,1.2fr) minmax(150px,.8fr) 130px;gap:10px;padding:12px;border:1px solid var(--op-line);border-radius:12px}.artemis-import-grid article.is-off{opacity:.55}.artemis-import-grid label{display:grid;gap:5px}.artemis-import-grid label>span{font-size:12px;color:var(--op-muted)}.artemis-import-grid .artemis-import-select{display:flex;align-items:center;gap:6px}.artemis-import-grid .wide,.artemis-import-grid .op-callout{grid-column:2/-1}.disabled{pointer-events:none;opacity:.55}@media(max-width:800px){.artemis-menu-import-head{display:grid}.artemis-import-grid article{grid-template-columns:1fr 1fr}.artemis-import-grid .wide,.artemis-import-grid .op-callout{grid-column:1/-1}}\`}</style>
+    <style jsx>{`.artemis-menu-import{display:grid;gap:14px;margin-bottom:18px;padding:18px;border:1px solid var(--op-line);border-radius:16px;background:var(--op-paper)}.artemis-menu-import-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.artemis-menu-import-head h2{margin:4px 0 6px}.artemis-menu-import-head p{margin:0;color:var(--op-muted);max-width:720px}.artemis-import-review{display:grid;gap:12px}.artemis-import-review-title{display:flex;align-items:center;gap:10px}.artemis-import-review-title>div{display:grid}.artemis-import-review-title small{color:var(--op-muted)}.artemis-import-review-title :global(button){margin-left:auto}.artemis-import-grid{display:grid;gap:10px;max-height:560px;overflow:auto}.artemis-import-grid article{display:grid;grid-template-columns:auto minmax(180px,1.2fr) minmax(150px,.8fr) 130px;gap:10px;padding:12px;border:1px solid var(--op-line);border-radius:12px}.artemis-import-grid article.is-off{opacity:.55}.artemis-import-grid label{display:grid;gap:5px}.artemis-import-grid label>span{font-size:12px;color:var(--op-muted)}.artemis-import-grid .artemis-import-select{display:flex;align-items:center;gap:6px}.artemis-import-grid .wide,.artemis-import-grid .op-callout{grid-column:2/-1}.disabled{pointer-events:none;opacity:.55}@media(max-width:800px){.artemis-menu-import-head{display:grid}.artemis-import-grid article{grid-template-columns:1fr 1fr}.artemis-import-grid .wide,.artemis-import-grid .op-callout{grid-column:1/-1}}`}</style>
   </section>;
 }
