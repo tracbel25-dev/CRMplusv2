@@ -43,8 +43,6 @@ type Props = { slug: string; mode: 'menu' | 'delivery'; previewPayload?: PublicM
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 const variantsOf = (product: PublicMenuProduct) => (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && item.id && item.name && Number.isFinite(Number(item.price)));
-const variantFor = (product: PublicMenuProduct, line?: CartLine) => variantsOf(product).find(item => item.id === line?.variantId) || variantsOf(product)[0];
-const priceFor = (product: PublicMenuProduct, line?: CartLine) => variantFor(product, line)?.price ?? product.price_cents;
 
 function ProductMedia({ product }: { product: PublicMenuProduct }) {
   if (product.image_url) return <div className="public-product-media"><img src={product.image_url} alt={product.name} /></div>;
