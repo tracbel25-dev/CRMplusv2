@@ -108,6 +108,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!body) return NextResponse.json({ error: 'Pedido inválido.' }, { status: 400 });
   const channel = text(body.channel, 20);
   const tableId = text(body.tableId, 64);
+  const requestKey = text(body.requestKey, 64);
+  if (!uuidPattern.test(requestKey)) return NextResponse.json({ error: 'Identificador do pedido inválido.' }, { status: 400 });
   const items = Array.isArray(body.items) ? body.items.slice(0, 50).map(item => {
     const value = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     const variantId = text(value.variantId, 64);
@@ -130,6 +132,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       p_payment_method: text(body.paymentMethod, 80),
       p_notes: text(body.notes, 1000),
       p_items: items,
+      p_request_key: requestKey,
     });
     return NextResponse.json(result);
   } catch (error) {
