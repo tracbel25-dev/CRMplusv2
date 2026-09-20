@@ -67,6 +67,7 @@ export type ProductVariant = {
   name: string;
   price: number;
   available: boolean;
+  soldOutUntil?: string;
 };
 
 export type Product = {
@@ -228,6 +229,12 @@ export function orderingPaused(settings: Settings, at = new Date()) {
 }
 export function productSoldOutToday(product: Product, day = localDay()) {
   return !!product.soldOutUntil && product.soldOutUntil >= day;
+}
+export function variantSoldOutToday(variant: ProductVariant, day = localDay()) {
+  return !!variant.soldOutUntil && variant.soldOutUntil >= day;
+}
+export function variantAvailableForSale(variant: ProductVariant, day = localDay()) {
+  return variant.available !== false && !variantSoldOutToday(variant, day);
 }
 export function productAvailableForSale(product: Product, day = localDay()) {
   return product.available && !productSoldOutToday(product, day);
