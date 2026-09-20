@@ -117,7 +117,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
         <Choice checked={enabled('module:caixa')} onChange={value => setEnabled('module:caixa', value)} title="Caixa" description="Recebimentos, abertura e fechamento de caixa." icon={<Wallet size={19} />} />
         <Choice checked={enabled('module:estoque')} onChange={value => setEnabled('module:estoque', value)} title="Estoque" description="Só aparece para restaurantes que realmente controlam saldo e reposição." icon={<Box size={19} />} />
         <Choice checked={enabled('module:clientes')} onChange={value => setEnabled('module:clientes', value)} title="Clientes" description="Histórico de consumidores e relacionamento." icon={<Users size={19} />} />
-        <Choice checked={enabled('loyalty')} onChange={value => setEnabled('loyalty', value)} title="Fidelidade por pontos" description="Reserva a fidelidade como recurso da operação; regras de pontuação e resgate ficam separadas da rotina de pedidos." icon={<Users size={19} />} />
         <Choice checked={enabled('module:relatorios')} onChange={value => setEnabled('module:relatorios', value)} title="Relatórios" description="Mantém relatórios fora da rotina de quem não precisa deles." icon={<Users size={19} />} />
       </div></div>
     </Section>
