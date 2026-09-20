@@ -35,7 +35,7 @@ jobs:
             npm test
             node --test tests/billing.test.mjs
             node --experimental-strip-types --experimental-loader ./tests/ts-loader.mjs --test \
-              --test-name-pattern='^(money preserves|each app starts|progressive customer resolver|opening an appointment|OS rejects|diagnosis and approval|disabled optional modules|quote decisions require|quote revision preserves)' \
+              --test-name-pattern='^(money preserves|each app starts|progressive customer resolver|opening an appointment|OS rejects|diagnosis and approval|disabled optional modules|quote decisions require|quote revision preserves|acceptance reserves|stock is consumed|cancel before cooking|delivery must|Artemis keeps|payments require|cash drawer|a transferred|cancelled paid|Artemis aggregates|Artemis consumes)' \
               tests/operations.test.mjs
           } 2>&1 | tee test.log
       - name: Build
