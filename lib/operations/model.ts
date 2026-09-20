@@ -13,6 +13,7 @@ export type Line = {
   productId?: string;
   note?: string;
   prepMinutes?: number;
+  variantId?: string;
 };
 export type Quote = {
   id: string;
@@ -81,6 +82,9 @@ export type Product = {
   allergens: string;
   preparation: number;
   variants?: ProductVariant[];
+  soldOutUntil?: string;
+  dailyLimit?: number;
+  dailyStockDate?: string;
 };
 export type Order = {
   id: string;
@@ -103,6 +107,9 @@ export type Order = {
   stockConsumed: boolean;
   reserved: boolean;
   cancelReason?: string;
+  priorityAt?: string;
+  priorityReason?: string;
+  testMode?: boolean;
 };
 export type Table = { id: string; name: string; seats: number; openedAt: string; closedAt: string };
 export type Payment = { id: string; orderId: string; shiftId: string; amount: number; method: string; at: string; refunded: number };
@@ -152,6 +159,7 @@ export type Settings = {
   scheduleEnabled: boolean;
   diagnosisEnabled: boolean;
   onlinePaused: boolean;
+  onlinePausedUntil?: string;
   deliveryFee: number;
   minimumOrder: number;
   deliveryAreas: string;
@@ -190,7 +198,7 @@ export const initialData = (): Data => ({
   settings: {
     business: '', phone: '', email: '', address: '', operator: '', theme: 'light', collapsed: false,
     identifierLabel: 'Placa', assetLabel: 'Veículo', meterLabel: 'Quilometragem', budgetEnabled: true,
-    scheduleEnabled: true, diagnosisEnabled: true, onlinePaused: false, deliveryFee: 0, minimumOrder: 0,
+    scheduleEnabled: true, diagnosisEnabled: true, onlinePaused: false, onlinePausedUntil: '', deliveryFee: 0, minimumOrder: 0,
     deliveryAreas: '', hours: '', salesStages: ['Novo contato', 'Contato realizado', 'Proposta', 'Negociação']
   },
   customers: [], assets: [], jobs: [], appointments: [], products: [], orders: [], tables: [], payments: [],
@@ -212,6 +220,26 @@ export const date = (value: string, time = false) => value
   ? new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleString('pt-BR', time ? { dateStyle: 'short', timeStyle: 'short' } : { dateStyle: 'short' })
   : 'Sem data';
 export const localDay = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+export function orderingPaused(settings: Settings, at = new Date()) {
+  if (!settings.onlinePaused) return false;
+  if (!settings.onlinePausedUntil) return true;
+  const until = new Date(settings.onlinePausedUntil);
+  return Number.isNaN(until.getTime()) || until.getTime() > at.getTime();
+}
+export function productSoldOutToday(product: Product, day = localDay()) {
+  return !!product.soldOutUntil && product.soldOutUntil >= day;
+}
+export function productAvailableForSale(product: Product, day = localDay()) {
+  return product.available && !productSoldOutToday(product, day);
+}
+export function normalizeDailyStock(product: Product, day = localDay()) {
+  if (!product.dailyLimit || product.dailyLimit <= 0) return;
+  if (product.dailyStockDate !== day) {
+    product.stockControlled = true;
+    product.stock = product.dailyLimit;
+    product.dailyStockDate = day;
+  }
+}
 export const normalize = (v: string) => v.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export const matches = (q: string, ...values: unknown[]) => normalize(values.join(' ')).includes(normalize(q));
 export const activeJob = (j: Job) => !['Encerrado', 'Cancelado', 'Reprovado'].includes(j.status);
@@ -316,6 +344,10 @@ export function advanceOrder(d: Data, id: string, expectedStatus?: string) {
   const index = flow.indexOf(o.status);
   if (index < 0 || index === flow.length - 1) throw new Error('Pedido já finalizado.');
   const requiredByProduct = orderProductQuantities(o);
+  for (const productId of requiredByProduct.keys()) {
+    const product = d.products.find(item => item.id === productId);
+    if (product) normalizeDailyStock(product);
+  }
   if (index === 0) {
     for (const [productId, quantity] of requiredByProduct) {
       const p = d.products.find(product => product.id === productId);
