@@ -23,6 +23,7 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   const [refund, setRefund] = useState(false);
   const [transfer, setTransfer] = useState(false);
   const [adjust, setAdjust] = useState(false);
+  const [dispatch, setDispatch] = useState(false);
   const d = w.data;
   const order = d.orders.find(item => item.id === recordId);
 
@@ -43,8 +44,10 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   let onNext: (() => void) | undefined;
   if (active) {
     if (order.status === 'Pronto' && order.channel === 'Delivery') {
-      nextLabel = order.delivery === 'Aguardando saída' ? 'Registrar saída para entrega' : order.delivery === 'Saiu para entrega' ? 'Confirmar entrega e concluir' : 'Concluir pedido';
-      onNext = () => { void w.mutate(data => advanceDelivery(data, order.id), order.delivery === 'Saiu para entrega' ? 'Entrega confirmada e pedido concluído.' : 'Entrega atualizada.'); };
+      nextLabel = order.delivery === 'Aguardando saída' ? 'Conferir saída para entrega' : order.delivery === 'Saiu para entrega' ? 'Confirmar entrega e concluir' : 'Concluir pedido';
+      onNext = order.delivery === 'Aguardando saída'
+        ? () => setDispatch(true)
+        : () => { void w.mutate(data => advanceDelivery(data, order.id), order.delivery === 'Saiu para entrega' ? 'Entrega confirmada e pedido concluído.' : 'Entrega atualizada.'); };
     } else if (order.status === 'Em preparo' && pendingItems.length) {
       nextLabel = `Concluir ${pendingItems.length} item(ns) abaixo`;
       onNext = () => document.getElementById('artemis-current-work')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -122,6 +125,10 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
       current.events.push(event(`Transferido para ${data.tables.find(table => table.id === valuesForm.tableId)!.name}`));
     })} /></Modal>}
     {adjust && <Modal title="Adicionar item ao pedido" onClose={() => setAdjust(false)}><LeanOrderAdjustment w={w} order={order} onClose={() => setAdjust(false)} /></Modal>}
+    {dispatch && <Confirm title="Liberar pedido para entrega?" onClose={() => setDispatch(false)} onConfirm={() => {
+      setDispatch(false);
+      void w.mutate(data => advanceDelivery(data, order.id), 'Saída para entrega registrada.');
+    }}>Confirme somente depois de conferir itens, quantidades e observações antes de entregar o pedido ao responsável pela saída.</Confirm>}
   </>;
 }
 
