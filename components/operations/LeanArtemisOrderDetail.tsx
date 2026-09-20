@@ -191,15 +191,15 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
       const unitPrice = variant?.price ?? product.price;
       if (product.stockControlled) {
         const available = product.stock - reserved(data, product.id, current.id);
-        if (available < qty) throw new Error(\`Estoque insuficiente: \${product.name}.\`);
+        if (available < qty) throw new Error(`Estoque insuficiente: ${product.name}.`);
         if (current.status === 'Em preparo') {
           product.stock -= qty;
-          data.stockMovements.push({ id: uid(), productId: product.id, amount: -qty, note: \`Acréscimo no pedido \${current.number}\`, at: now() });
+          data.stockMovements.push({ id: uid(), productId: product.id, amount: -qty, note: `Acréscimo no pedido ${current.number}`, at: now() });
         }
       }
-      const description = variant ? \`\${product.name} · \${variant.name}\` : product.name;
+      const description = variant ? `${product.name} · ${variant.name}` : product.name;
       current.lines.push({ id: uid(), kind: 'Produto', description, brand: '', quantity: qty, price: unitPrice, productId: product.id, variantId: variant?.id, done: false, note: note.trim(), prepMinutes: product.preparation || 0 });
-      current.events.push(event(\`\${current.status === 'Em preparo' ? 'Acréscimo durante o preparo' : 'Acréscimo antes do preparo'}: \${qty}× \${description}\${note.trim() ? \` · \${note.trim()}\` : ''}\`));
+      current.events.push(event(`${current.status === 'Em preparo' ? 'Acréscimo durante o preparo' : 'Acréscimo antes do preparo'}: ${qty}× ${description}${note.trim() ? ` · ${note.trim()}` : ''}`));
     }, 'Item adicionado e sinalizado para a cozinha.');
     if (ok) onClose();
   };
