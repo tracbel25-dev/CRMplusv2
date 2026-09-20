@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
 import {
   Order, advanceDelivery, advanceOrder, balance, cancelOrder, cents, customValues,
-  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid
+  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid, variantAvailableForSale
 } from '@/lib/operations/model';
 import { learnProductSuggestions } from '@/lib/operations/learning';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -168,13 +168,13 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
   const [quantity, setQuantity] = useState('1');
   const [note, setNote] = useState('');
   const selectedProduct = orderedProducts.find(item => item?.id === productId);
-  const variants = (selectedProduct?.variants || []).filter(item => item.available !== false);
+  const variants = (selectedProduct?.variants || []).filter(item => variantAvailableForSale(item));
   const selectedVariant = variants.find(item => item.id === variantId) || variants[0];
 
   const chooseProduct = (id: string) => {
     setProductId(id);
     const product = orderedProducts.find(item => item?.id === id);
-    setVariantId((product?.variants || []).find(item => item.available !== false)?.id || '');
+    setVariantId((product?.variants || []).find(item => variantAvailableForSale(item))?.id || '');
   };
 
   const save = async () => {
@@ -185,7 +185,7 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
       if (!['Aceito', 'Em preparo'].includes(current.status)) throw new Error('Acréscimos são permitidos apenas antes de o pedido ficar pronto.');
       const product = data.products.find(item => item.id === productId && item.available);
       if (!product) throw new Error('Produto indisponível.');
-      const availableVariants = (product.variants || []).filter(item => item.available !== false);
+      const availableVariants = (product.variants || []).filter(item => variantAvailableForSale(item));
       const variant = availableVariants.length ? availableVariants.find(item => item.id === (variantId || selectedVariant?.id)) : undefined;
       if ((product.variants || []).length && !variant) throw new Error('Selecione uma opção disponível para este produto.');
       const unitPrice = variant?.price ?? product.price;
