@@ -218,6 +218,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
     const ok = await w.mutate(data => {
       const previous = data.products.find(item => item.id === draft.id);
       const value = {
+        ...(previous || {}),
         id: draft.id,
         name,
         category,
@@ -229,6 +230,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
         stock: previous?.stock || 0,
         minimum: Math.max(0, Number(draft.minimum) || 0),
         available: previous?.available ?? true,
+        variants: previous?.variants || [],
         imageObjectKey: draft.imageObjectKey || undefined,
       } as ArtemisProduct;
       const index = data.products.findIndex(item => item.id === value.id);
