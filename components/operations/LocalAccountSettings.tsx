@@ -66,10 +66,10 @@ const permissionCount=(value:Record<PermissionKey,boolean>)=>ALL_KEYS.filter(key
 const samePermissions=(a:Record<PermissionKey,boolean>,b:Record<PermissionKey,boolean>)=>ALL_KEYS.every(key=>!!a[key]===!!b[key]);
 const presetFor=(value:Record<PermissionKey,boolean>)=>Object.entries(presets).find(([,preset])=>samePermissions(value,preset))?.[0]||'Personalizado';
 
-async function detailRequest<T>(payload:Record<string,unknown>):Promise<T>{
+async function detailRequest<T>(accountId:string,payload:Record<string,unknown>):Promise<T>{
   const {data}=await createStoreClient().auth.getSession();
   if(!data.session) throw new Error('Sua sessão expirou. Entre novamente.');
-  const response=await fetch('/api/team/detail',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${data.session.access_token}`},body:JSON.stringify(payload)});
+  const response=await fetch('/api/team/detail',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${data.session.access_token}`,'x-crmplus-account-id':accountId},body:JSON.stringify(payload)});
   const result=await response.json().catch(()=>({})) as {error?:string}&T;
   if(!response.ok) throw new Error(result.error||'Não foi possível concluir a alteração.');
   return result;
@@ -96,7 +96,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   const load=async()=>{
     if(!access.ready||!access.user||!access.account||!access.isOwner) return;
     try{
-      const result=await detailRequest<{members:DetailMember[]}>({action:'list',appId});
+      const result=await detailRequest<{members:DetailMember[]}>(access.account.id,{action:'list',appId});
       setMembers(result.members||[]);
     }catch(reason){setError((reason as Error).message);}
   };
@@ -119,7 +119,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   const saveMember=async(member:DetailMember)=>{
     setBusy(`${member.userId}:save`);clear();
     try{
-      await detailRequest({action:'update',appId,targetUserId:member.userId,jobTitle:member.jobTitle,permissions:member.permissions});
+      await detailRequest(access.account!.id,{action:'update',appId,targetUserId:member.userId,jobTitle:member.jobTitle,permissions:member.permissions});
       await access.refresh();
       setMessage(`Permissões de ${member.displayName} atualizadas.`);
       await load();
@@ -143,7 +143,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
     try{
       const canConfigure=granularPermissions&&(invitePermissions.settings_fields||invitePermissions.settings_operation||invitePermissions.settings_access||invitePermissions.customers_manage);
       await access.inviteMember(inviteName.trim(),inviteEmail.trim(),[{appId,canConfigure}]);
-      if(granularPermissions||inviteTitle.trim()) await detailRequest({action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:granularPermissions?invitePermissions:blankPermissions()});
+      if(granularPermissions||inviteTitle.trim()) await detailRequest(access.account!.id,{action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:granularPermissions?invitePermissions:blankPermissions()});
       setInviteName('');setInviteEmail('');setInviteTitle('');setInvitePreset('Atendimento');setInvitePermissions({...presets.Atendimento});setInviteOpen(false);
       setMessage(granularPermissions?'Convite enviado com cargo e permissões definidos.':'Convite enviado. O acesso usa as funções disponíveis no plano atual.');
       await access.refresh();await load();
