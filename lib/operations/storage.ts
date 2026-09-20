@@ -181,7 +181,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
   }, [publish]);
 
   const flushCloudQueue = useCallback(async () => {
-    if (savingCloud.current || !cloudApp(app) || accountId === 'guest') return;
+    if (savingCloud.current || !cloudApp(app) || !accountId || accountId === 'guest') return;
     savingCloud.current = true;
     try {
       while (pendingCloud.current.length) {
