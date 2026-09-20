@@ -22,9 +22,18 @@ async function caller(request:NextRequest){
   const user=await response.json() as {id?:string};
   return user.id||null;
 }
-async function ownerAccount(service:SupabaseClient,userId:string){
-  const {data}=await service.from('account_members').select('account_id').eq('user_id',userId).eq('role','owner').eq('status','active').limit(1).maybeSingle();
-  return data?.account_id?String(data.account_id):null;
+async function ownerAccount(service:SupabaseClient,userId:string,requestedAccountId:string){
+  if(!requestedAccountId) return null;
+  const {data,error}=await service.from('account_members')
+    .select('account_id')
+    .eq('user_id',userId)
+    .eq('account_id',requestedAccountId)
+    .eq('role','owner')
+    .eq('status','active')
+    .limit(1)
+    .maybeSingle();
+  if(error||!data?.account_id||String(data.account_id)!==requestedAccountId) return null;
+  return requestedAccountId;
 }
 async function findUserByEmail(service:SupabaseClient,email:string){
   for(let page=1;page<=25;page+=1){
@@ -76,8 +85,9 @@ export async function POST(request:NextRequest){
   if(!userId) return fail(401,'Sua sessão expirou. Entre novamente.');
   const service=serviceClient();
   if(!service) return fail(503,'A gestão de acessos está indisponível no momento.');
-  const accountId=await ownerAccount(service,userId);
-  if(!accountId) return fail(403,'Somente o titular pode gerenciar permissões detalhadas.');
+  const requestedAccountId=request.headers.get('x-crmplus-account-id')?.trim()||'';
+  const accountId=await ownerAccount(service,userId,requestedAccountId);
+  if(!accountId) return fail(403,'Somente o titular pode gerenciar permissões detalhadas desta empresa.');
   const body=await request.json().catch(()=>null) as null|{action?:'list'|'update';appId?:string;targetUserId?:string;email?:string;jobTitle?:string;permissions?:Record<string,boolean>};
   if(!body?.action||!body.appId) return fail(400,'Dados incompletos.');
 

@@ -2,17 +2,15 @@ export type ZeusPlanCode = 'start' | 'essencial' | 'plus' | 'premium';
 
 export type ZeusFeature =
   | 'core_os' | 'customers' | 'assets' | 'history' | 'service_types' | 'responsible' | 'deadlines'
-  | 'status_stages' | 'tasks' | 'notes' | 'related_jobs' | 'basic_filters' | 'ai'
+  | 'status_stages' | 'tasks' | 'notes' | 'related_jobs' | 'ai' | 'payments'
   | 'scheduling' | 'checklist' | 'diagnosis' | 'budgets' | 'quote_external_approval'
-  | 'billing' | 'dashboard' | 'advanced_filters' | 'export' | 'team_management' | 'granular_permissions'
-  | 'full_operational_settings';
+  | 'billing' | 'dashboard' | 'export' | 'team_management' | 'granular_permissions';
 
 export const ZEUS_FEATURES: ZeusFeature[] = [
   'core_os','customers','assets','history','service_types','responsible','deadlines',
-  'status_stages','tasks','notes','related_jobs','basic_filters','ai',
+  'status_stages','tasks','notes','related_jobs','ai','payments',
   'scheduling','checklist','diagnosis','budgets','quote_external_approval',
-  'billing','dashboard','advanced_filters','export','team_management','granular_permissions',
-  'full_operational_settings'
+  'billing','dashboard','export','team_management','granular_permissions'
 ];
 
 export type ZeusPlanDefinition = {
@@ -27,80 +25,70 @@ export type ZeusPlanDefinition = {
   features: ReadonlySet<ZeusFeature>;
 };
 
-const START: ZeusFeature[] = ['core_os','customers','assets','history','service_types','responsible','deadlines','status_stages','tasks','notes','related_jobs','basic_filters','advanced_filters','ai'];
+const START: ZeusFeature[] = [
+  'core_os','customers','assets','history','service_types','responsible','deadlines',
+  'status_stages','tasks','notes','related_jobs','ai','payments'
+];
 const ESSENCIAL: ZeusFeature[] = [...START,'scheduling','checklist','diagnosis','budgets','quote_external_approval','team_management'];
 const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','export','granular_permissions'];
-const PREMIUM: ZeusFeature[] = [...PLUS,'full_operational_settings'];
+const PREMIUM: ZeusFeature[] = [...PLUS];
 
 const START_COMMERCIAL = [
-  'Abertura de OS',
-  'Atendimentos',
+  'Abertura e gestão de OS',
+  'Atendimentos e histórico',
   'Clientes',
-  'Veículos e equipamentos',
-  'Histórico de OS',
-  'Histórico por cliente e veículo/equipamento',
+  'Veículos, equipamentos e item atendido',
   'Tipos de atendimento',
-  'Prazos',
-  'Status e etapas da OS',
-  'Tarefas da execução',
-  'Observações',
+  'Prazos, status e etapas da OS',
+  'Tarefas da execução e observações',
   'Retorno e garantia vinculados a OS anterior',
+  'Busca, filtros e ordenação',
+  'Personalização de campos, nomes, dicas e fluxo',
+  'Campos personalizados',
+  'Pagamentos e cobranças pelo Mercado Pago',
   'Inteligência artificial nas funções disponíveis do plano',
 ] as const;
 
 const ESSENCIAL_ADDITIONAL = [
   'Agendamentos',
-  'Agenda diária',
-  'Agenda semanal',
+  'Agenda diária e semanal',
   'Reagendamento',
   'Checklist de entrada',
-  'Modelos de checklist',
-  'Personalização dos itens do checklist',
+  'Modelos e personalização do checklist',
   'Assinatura no checklist',
   'Diagnóstico',
   'Orçamento dentro da OS',
   'Orçamento de balcão',
   'Serviços e peças no orçamento',
   'Quantidade, marca e valor dos itens',
-  'Desconto',
-  'Validade do orçamento',
-  'Versionamento de orçamento',
-  'Histórico das versões',
-  'PDF do orçamento',
-  'Compartilhamento do orçamento',
+  'Desconto e validade do orçamento',
+  'Versionamento e histórico das versões',
+  'PDF e compartilhamento do orçamento',
   'Compartilhamento por WhatsApp',
   'Link externo para cliente aprovar ou reprovar orçamento',
+  'Gestão básica da equipe',
 ] as const;
 
 const PLUS_ADDITIONAL = [
-  'Faturamento',
+  'Faturamento gerencial',
   'OS pendentes de recebimento',
-  'Pagamentos recebidos',
-  'Baixa manual',
+  'Pagamentos recebidos e baixa manual',
   'Situação Pendente / Pago / Baixado / Cancelado',
-  'Formas de pagamento',
-  'Cobrança',
   'Dashboard gerencial',
   'Quantidade de OS',
   'OS abertas e encerradas',
-  'Lead time',
-  'Lead time médio',
-  'Tempo por etapa',
-  'OS atrasadas',
-  'OS vencendo hoje',
+  'Lead time e tempo por etapa',
+  'OS atrasadas e vencendo hoje',
   'Distribuição por status',
-  'Valores pendentes',
-  'Valores recebidos',
+  'Valores pendentes e recebidos',
   'Exportação de dados',
-  'Gestão da equipe',
-  'Controle de permissões por usuário',
+  'Permissões individuais por usuário',
+  'Perfis de acesso personalizados',
 ] as const;
 
 const PREMIUM_ADDITIONAL = [
   'Até 10 acessos',
-  'Gestão completa de usuários',
-  'Permissões individuais por usuário',
-  'Configurações operacionais completas',
+  'Mesmos recursos do Plus para uma equipe maior',
 ] as const;
 
 const START_COMMERCIAL_FULL = [...START_COMMERCIAL];
@@ -114,8 +102,8 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     name:'Zeus Start',
     rank:0,
     seats:1,
-    summary:'Controle essencial da oficina e das ordens de serviço.',
-    highlights:['Ordens de serviço','Clientes e veículos','Inteligência artificial'],
+    summary:'OS simples e pronta para o pequeno empreendedor começar sem configurar tudo do zero.',
+    highlights:['OS pronta para usar','Personalização e filtros','Pagamentos'],
     commercialFeatures:START_COMMERCIAL_FULL,
     features:new Set(START),
   },
@@ -135,8 +123,8 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     rank:2,
     seats:4,
     recommended:true,
-    summary:'Gestão da oficina com faturamento, indicadores e equipe.',
-    highlights:['Faturamento e dashboard','Equipe e permissões','4 acessos'],
+    summary:'Gestão da oficina com faturamento, indicadores e controle de equipe.',
+    highlights:['Faturamento e dashboard','Permissões individuais','4 acessos'],
     commercialFeatures:PLUS_COMMERCIAL_FULL,
     features:new Set(PLUS),
   },
@@ -145,8 +133,8 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     name:'Zeus Premium',
     rank:3,
     seats:10,
-    summary:'Operação máxima do Zeus para equipes maiores.',
-    highlights:['10 acessos','Gestão completa de usuários','Configurações completas'],
+    summary:'Todos os recursos do Plus com capacidade para uma equipe maior.',
+    highlights:['10 acessos','Todos os recursos do Plus','Escala para equipe maior'],
     commercialFeatures:PREMIUM_COMMERCIAL_FULL,
     features:new Set(PREMIUM),
   },
@@ -171,7 +159,6 @@ export const ZEUS_MODULES_BY_PLAN: Record<ZeusPlanCode, string[]> = {
   plus: [...PLUS_COMMERCIAL_FULL],
   premium: [...PREMIUM_COMMERCIAL_FULL],
 };
-
 
 export function zeusViewHasFeature(settings: { planCode?: unknown; planFeatures?: Record<string, boolean> } | null | undefined, feature: ZeusFeature) {
   const flags = settings?.planFeatures;

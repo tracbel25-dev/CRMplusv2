@@ -211,12 +211,22 @@ function legacyAliases(app: AppId, values: Record<string, string>) {
 
 export function defaultOperationPreferences(app: AppId): OperationPreferences {
   const definition = segmentDefinitions[app];
+  const fieldVisibility = Object.fromEntries(definition.fields.map(field => [field.key, true]));
+  const actionVisibility = Object.fromEntries(definition.actions.map(action => [action.key, true]));
+
+  // O Zeus nasce pronto para uma oficina pequena: só o necessário aparece de cara.
+  // O titular continua podendo ativar qualquer ajuste operacional disponível no plano.
+  if (app === 'zeus') {
+    for (const key of ['year','meter','technician','due','internalNotes','partBrand','finalNotes']) fieldVisibility[key] = false;
+    actionVisibility.manualStatus = false;
+  }
+
   return {
     version: 1,
     fieldLabels: Object.fromEntries(definition.fields.map(field => [field.key, field.label])),
-    fieldVisibility: Object.fromEntries(definition.fields.map(field => [field.key, true])),
+    fieldVisibility,
     fieldHelp: Object.fromEntries(definition.fields.map(field => [field.key, field.description])),
-    actionVisibility: Object.fromEntries(definition.actions.map(action => [action.key, true])),
+    actionVisibility,
     customFields: []
   };
 }

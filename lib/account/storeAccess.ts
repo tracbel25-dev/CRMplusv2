@@ -15,6 +15,7 @@ export type StoreMember = {
   status: 'active' | 'suspended';
   displayName: string;
   jobTitle: string;
+  createdAt: string;
   apps: { appId: AppId; canConfigure: boolean; permissions: AppPermissionMap }[];
 };
 
@@ -115,7 +116,7 @@ function useStoreAccessState(disabled=false) {
     const [accountResult, appsResult, membersResult, appAccessResult, identityResult] = await Promise.all([
       supabase.from('accounts').select('id, name, status, person_type, cnpj').eq('id', accountId).single(),
       supabase.from('account_apps').select('app_id, plan_id, status, seats, current_period_end').eq('account_id', accountId),
-      supabase.from('account_members').select('account_id, user_id, role, status, job_title').eq('account_id', accountId).eq('status', 'active'),
+      supabase.from('account_members').select('account_id, user_id, role, status, job_title, created_at').eq('account_id', accountId).eq('status', 'active'),
       supabase.from('member_app_access').select('user_id, app_id, can_configure, permissions').eq('account_id', accountId),
       supabase.rpc('current_identity_summary')
     ]);
@@ -145,6 +146,7 @@ function useStoreAccessState(disabled=false) {
       status: raw.status as 'active' | 'suspended',
       displayName: profileNames.get(raw.user_id as string) || (raw.user_id === currentUser.id ? (currentUser.user_metadata?.name || currentUser.email || 'Usuário') : 'Usuário'),
       jobTitle: String(raw.job_title || ''),
+      createdAt: String(raw.created_at || ''),
       apps: accessRows
         .filter(row => row.user_id === raw.user_id)
         .map(row => ({
@@ -203,11 +205,24 @@ function useStoreAccessState(disabled=false) {
 
   const activeApps = useMemo(() => new Set(account?.apps.filter(item => ['trialing', 'active'].includes(item.status) && ((item.status === 'active' && !item.currentPeriodEnd) || (!!item.currentPeriodEnd && Date.parse(item.currentPeriodEnd) > Date.now()))).map(item => item.appId) || []), [account]);
   const memberApp = (app: AppId) => member?.apps.find(item => item.appId === app);
-  const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || !!memberApp(app));
+  const seatEligible = (app: AppId) => {
+    if (!account || !member) return false;
+    if (isOwner) return true;
+    const entitlement = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
+    if (!entitlement) return false;
+    const ownerCount = account.members.filter(item => item.role === 'owner').length;
+    const slots = Math.max(0, Math.max(1, Number(entitlement.seats || 1)) - ownerCount);
+    return account.members
+      .filter(item => item.role !== 'owner' && item.apps.some(current => current.appId === app))
+      .sort((a,b) => a.createdAt.localeCompare(b.createdAt) || a.userId.localeCompare(b.userId))
+      .slice(0, slots)
+      .some(item => item.userId === member.userId);
+  };
+  const hasApp = (app: AppId) => !!account && account.status === 'active' && activeApps.has(app) && (isOwner || (!!memberApp(app) && seatEligible(app)));
   const hasPermission = (app: AppId, permission: string) => {
     if (!account) return true;
     if (isOwner) return true;
-    if (!activeApps.has(app)) return false;
+    if (!activeApps.has(app) || !seatEligible(app)) return false;
     const row = memberApp(app);
     if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
@@ -219,6 +234,7 @@ function useStoreAccessState(disabled=false) {
   const canConfigureApp = (app: AppId) => {
     if (!account || account.status !== 'active' || !activeApps.has(app)) return false;
     if (isOwner) return true;
+    if (!seatEligible(app)) return false;
     const row = memberApp(app);
     if (!row) return false;
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));

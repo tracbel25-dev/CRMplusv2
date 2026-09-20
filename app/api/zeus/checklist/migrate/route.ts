@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
 import { operationalRest, operationalRpc } from '@/lib/server/operationalWorkspace';
+import { requireZeusFeature, planFeatureError } from '@/lib/server/zeusPlanAccess';
 import { isZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { ZEUS_CHECKLIST_SEGMENT_BY_FOLDER } from '@/lib/operations/zeusChecklist';
 
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'zeus', 'jobs_edit');
   if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para migrar checklists.' }, { status: 403 });
   try {
+    await requireZeusFeature(access.accountId, 'checklist');
     const [links, responses] = await Promise.all([
       storeRows<{ token: string; record_id: string; title: string; payload: Record<string, unknown>; created_at: string }>(`external_links?${query({ select: 'token,record_id,title,payload,created_at', account_id: `eq.${access.accountId}`, app_id: 'eq.zeus', kind: 'eq.zeus-checkin', order: 'created_at.asc' })}`, access.token),
       storeRows<{ record_id: string; response: Record<string, unknown>; created_at: string }>(`external_link_responses?${query({ select: 'record_id,response,created_at', account_id: `eq.${access.accountId}`, app_id: 'eq.zeus', kind: 'eq.zeus-checkin', order: 'created_at.asc' })}`, access.token),
