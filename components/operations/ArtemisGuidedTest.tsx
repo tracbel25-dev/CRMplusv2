@@ -39,7 +39,7 @@ export function ArtemisGuidedTest({ w }: { w: Workspace }) {
         <div className="artemis-test-ticket">
           <div><span className="op-kicker">PEDIDO TESTE</span><Badge>Não será salvo</Badge></div>
           <strong>#TESTE-001 · {operation.actionVisible('delivery') ? 'Delivery' : operation.actionVisible('pickup') ? 'Retirada' : operation.actionVisible('dineIn') ? 'Mesa' : 'Balcão'}</strong>
-          {product ? <p>1× {product.name}{variant ? \` · \${variant.name}\` : ''} · {money(unitPrice)}</p> : <p>Nenhum produto disponível para simular.</p>}
+          {product ? <p>1× {product.name}{variant ? ` · ${variant.name}` : ''} · {money(unitPrice)}</p> : <p>Nenhum produto disponível para simular.</p>}
         </div>
 
         <div className="artemis-test-progress">
@@ -58,7 +58,7 @@ export function ArtemisGuidedTest({ w }: { w: Workspace }) {
           {step < steps.length - 1 ? <Button disabled={issues.length > 0 || !product} onClick={() => setStep(value => Math.min(steps.length - 1, value + 1))}>Avançar teste</Button> : <Button onClick={() => { setOpen(false); restart(); }}>Finalizar teste</Button>}
         </div>
       </div>
-      <style jsx>{\`.artemis-guided-test{display:grid;gap:16px}.artemis-test-issues,.artemis-test-ready,.artemis-test-ticket{padding:14px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-soft)}.artemis-test-issues>div,.artemis-test-ready,.artemis-test-ticket>div{display:flex;align-items:center;gap:8px}.artemis-test-issues p{margin:6px 0 0}.artemis-test-ticket{display:grid;gap:8px}.artemis-test-ticket>div{justify-content:space-between}.artemis-test-ticket p{margin:0}.artemis-test-progress{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}.artemis-test-progress div{display:grid;gap:6px;padding:10px;border:1px solid var(--op-line);border-radius:10px;color:var(--op-muted)}.artemis-test-progress span{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--op-soft)}.artemis-test-progress .current{border-color:var(--op-accent);color:var(--op-ink)}.artemis-test-progress .done{opacity:.75}.artemis-test-progress strong{font-size:11px}@media(max-width:800px){.artemis-test-progress{grid-template-columns:repeat(2,1fr)}}\`}</style>
+      <style jsx>{`.artemis-guided-test{display:grid;gap:16px}.artemis-test-issues,.artemis-test-ready,.artemis-test-ticket{padding:14px;border:1px solid var(--op-line);border-radius:12px;background:var(--op-soft)}.artemis-test-issues>div,.artemis-test-ready,.artemis-test-ticket>div{display:flex;align-items:center;gap:8px}.artemis-test-issues p{margin:6px 0 0}.artemis-test-ticket{display:grid;gap:8px}.artemis-test-ticket>div{justify-content:space-between}.artemis-test-ticket p{margin:0}.artemis-test-progress{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}.artemis-test-progress div{display:grid;gap:6px;padding:10px;border:1px solid var(--op-line);border-radius:10px;color:var(--op-muted)}.artemis-test-progress span{width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--op-soft)}.artemis-test-progress .current{border-color:var(--op-accent);color:var(--op-ink)}.artemis-test-progress .done{opacity:.75}.artemis-test-progress strong{font-size:11px}@media(max-width:800px){.artemis-test-progress{grid-template-columns:repeat(2,1fr)}}`}</style>
     </Modal>}
   </>;
 }
