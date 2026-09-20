@@ -7,7 +7,7 @@ import {
   Line, Order, Product, advanceDelivery, advanceOrder, balance, cancelOrder, cashExpected,
   cents, closeTable, customValues, date, event, localDay, money, nextNumber, now,
   orderTotal, paid, receivePayment, receiveTablePayment, reserved, setCustomValues,
-  tableBalance, tableOrders, uid
+  tableBalance, tableOrders, uid, variantAvailableForSale
 } from '@/lib/operations/model';
 import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -216,7 +216,7 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
   const [table, setTable] = useState(tableId);
   const [query, setQuery] = useState('');
 
-  const variantsFor = (productItem: Product) => (productItem.variants || []).filter(variant => variant && variant.available !== false && variant.id && variant.name);
+  const variantsFor = (productItem: Product) => (productItem.variants || []).filter(variant => variant && variantAvailableForSale(variant) && variant.id && variant.name);
   const variantFor = (productItem: Product, variantId: string) => variantsFor(productItem).find(variant => variant.id === variantId);
   const unitPrice = (productItem: Product, variantId: string) => variantFor(productItem, variantId)?.price ?? productItem.price;
   const lineLabel = (productItem: Product, variantId: string) => {
@@ -290,8 +290,8 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
         const currentProduct = data.products.find(item => item.id === cartLine.productId);
         const visibleProduct = w.data.products.find(item => item.id === cartLine.productId);
         if (!currentProduct?.available || !visibleProduct?.available) throw new Error('O cardápio mudou. Reabra o pedido e confira os itens.');
-        const currentVariants = (currentProduct.variants || []).filter(variant => variant && variant.available !== false);
-        const visibleVariants = (visibleProduct.variants || []).filter(variant => variant && variant.available !== false);
+        const currentVariants = (currentProduct.variants || []).filter(variant => variant && variantAvailableForSale(variant));
+        const visibleVariants = (visibleProduct.variants || []).filter(variant => variant && variantAvailableForSale(variant));
         const currentVariant = cartLine.variantId ? currentVariants.find(variant => variant.id === cartLine.variantId) : undefined;
         const visibleVariant = cartLine.variantId ? visibleVariants.find(variant => variant.id === cartLine.variantId) : undefined;
         if ((currentProduct.variants || []).length > 0 && !currentVariant) throw new Error(`A opção escolhida de ${currentProduct.name} não está mais disponível.`);
@@ -300,7 +300,7 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
         const visiblePrice = visibleVariant?.price ?? visibleProduct.price;
         if (currentPrice !== visiblePrice) throw new Error('O cardápio mudou. Reabra o pedido e confira os valores.');
         const description = currentVariant ? `${currentProduct.name} · ${currentVariant.name}` : currentProduct.name;
-        return { id: uid(), kind: 'Produto', description, brand: '', quantity: cartLine.quantity, price: currentPrice, productId: currentProduct.id, done: false, note: cartLine.note.trim(), prepMinutes: currentProduct.preparation || 0 };
+        return { id: uid(), kind: 'Produto', description, brand: '', quantity: cartLine.quantity, price: currentPrice, productId: currentProduct.id, variantId: currentVariant?.id, done: false, note: cartLine.note.trim(), prepMinutes: currentProduct.preparation || 0 };
       });
       const subtotal = lines.reduce((totalValue, line) => totalValue + line.price * line.quantity, 0);
       if (channel === 'Delivery' && subtotal < data.settings.minimumOrder) throw new Error(`Pedido mínimo: ${money(data.settings.minimumOrder)}.`);
