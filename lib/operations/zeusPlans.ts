@@ -25,11 +25,10 @@ export type ZeusPlanDefinition = {
   features: ReadonlySet<ZeusFeature>;
 };
 
-const BASE: ZeusFeature[] = [
+const START: ZeusFeature[] = [
   'core_os','customers','assets','history','service_types','responsible','deadlines',
   'status_stages','tasks','notes','related_jobs','ai','payments'
 ];
-const START: ZeusFeature[] = [...BASE];
 const ESSENCIAL: ZeusFeature[] = [...START,'scheduling','checklist','diagnosis','budgets','quote_external_approval','team_management'];
 const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','export','granular_permissions'];
 const PREMIUM: ZeusFeature[] = [...PLUS];
