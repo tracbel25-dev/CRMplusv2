@@ -10,6 +10,7 @@ import { Artemis } from './Artemis';
 import { ArtemisMenuManager } from './ArtemisMenuManager';
 import { ArtemisMenuImport } from './ArtemisMenuImport';
 import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
+import { ArtemisGuidedTest } from './ArtemisGuidedTest';
 import { Badge, Button, Title } from './ui';
 import { useArtemisCloud } from './useArtemisCloud';
 import './artemis-direct.css';
@@ -168,7 +169,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   };
 
   return <>
-    <Title eyebrow={rushMode ? 'Modo movimento intenso' : 'Operação'} title={rushMode ? 'Foco no que precisa sair agora' : 'Pedidos em andamento'} action={<div className="op-actions"><Button variant={rushMode ? 'primary' : 'secondary'} onClick={() => setRushMode(value => !value)}><Flame size={16} />{rushMode ? 'Sair do modo intenso' : 'Modo intenso'}</Button>{kitchenEnabled && <Button variant="secondary" onClick={() => void fullscreenKitchen()}><Maximize2 size={16} />Cozinha em tela cheia</Button>}{!rushMode && <><Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link><Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link></>}</div>}>
+    <Title eyebrow={rushMode ? 'Modo movimento intenso' : 'Operação'} title={rushMode ? 'Foco no que precisa sair agora' : 'Pedidos em andamento'} action={<div className="op-actions"><ArtemisGuidedTest w={w} /><Button variant={rushMode ? 'primary' : 'secondary'} onClick={() => setRushMode(value => !value)}><Flame size={16} />{rushMode ? 'Sair do modo intenso' : 'Modo intenso'}</Button>{kitchenEnabled && <Button variant="secondary" onClick={() => void fullscreenKitchen()}><Maximize2 size={16} />Cozinha em tela cheia</Button>}{!rushMode && <><Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link><Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link></>}</div>}>
       {rushMode ? 'Aguardando, atrasados e prontos ficam em primeiro plano. Controles administrativos são reduzidos.' : 'Um fluxo para receber, confirmar, preparar e concluir pedidos — sem espalhar a rotina em várias telas.'}
     </Title>
 
