@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, Bike, ChefHat, Copy, Link2, QrCode, Store, Volume2, VolumeX } from 'lucide-react';
-import { advanceOrder, cancelOrder, money, orderTotal } from '@/lib/operations/model';
+import { BellRing, Bike, ChefHat, Copy, Flame, Link2, Maximize2, QrCode, Store, Volume2, VolumeX } from 'lucide-react';
+import { advanceOrder, cancelOrder, money, orderTotal, orderingPaused } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
 import { Artemis } from './Artemis';
@@ -38,7 +38,7 @@ function tryOrderSound() {
   }
 }
 
-function SharePanel({ w, slug, cloudError, deliveryEnabled, pickupEnabled }: { w: Workspace; slug: string; cloudError: string; deliveryEnabled: boolean; pickupEnabled: boolean }) {
+function SharePanel({ slug, cloudError, deliveryEnabled, pickupEnabled }: { slug: string; cloudError: string; deliveryEnabled: boolean; pickupEnabled: boolean }) {
   const [origin, setOrigin] = useState('');
   const [copied, setCopied] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
@@ -56,7 +56,6 @@ function SharePanel({ w, slug, cloudError, deliveryEnabled, pickupEnabled }: { w
     {slug && menuUrl ? <div className="artemis-share-links">
       <div><Link2 size={18} /><span><strong>Cardápio público</strong><small>{menuUrl}</small></span><button className="op-icon" onClick={() => void copy('menu', menuUrl)} aria-label="Copiar link do cardápio"><Copy size={17} /></button></div>
       {(deliveryEnabled || pickupEnabled) && <div><Bike size={18} /><span><strong>Delivery / retirada</strong><small>{deliveryUrl}</small></span><button className="op-icon" onClick={() => void copy('delivery', deliveryUrl)} aria-label="Copiar link de delivery"><Copy size={17} /></button></div>}
-      {w.data.tables.map(table => <div key={table.id}><QrCode size={18} /><span><strong>{table.name}</strong><small>{`${menuUrl}?mesa=${table.id}`}</small></span><button className="op-icon" onClick={() => void copy(table.id, `${menuUrl}?mesa=${table.id}`)} aria-label={`Copiar link de QR Code da ${table.name}`}><Copy size={17} /></button></div>)}
       {copied && <p className="artemis-copy-notice">Link copiado.</p>}
     </div> : <p className="op-callout">{cloudError || 'Entre com a conta do restaurante para publicar o cardápio em outros dispositivos.'}</p>}
   </section>;
@@ -67,16 +66,26 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   const cloud = useArtemisCloud(w);
   const initialView: OperationView = page === 'mesas' ? 'mesas' : page === 'cozinha' ? 'cozinha' : 'pedidos';
   const [view, setView] = useState<OperationView>(initialView);
+  const [rushMode, setRushMode] = useState(false);
+  const [pauseMinutes, setPauseMinutes] = useState('30');
   const lastAlerted = useRef('');
 
   const activeOrders = useMemo(
     () => w.data.orders.filter(order => !['Concluído', 'Cancelado'].includes(order.status)),
     [w.data.orders]
   );
-  const newest = useMemo(
-    () => [...activeOrders].filter(order => order.status === 'Novo').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0],
-    [activeOrders]
-  );
+  const waiting = useMemo(() => [...activeOrders].filter(order => order.status === 'Novo').sort((a, b) => {
+    if (!!a.priorityAt !== !!b.priorityAt) return a.priorityAt ? -1 : 1;
+    if (a.priorityAt && b.priorityAt && a.priorityAt !== b.priorityAt) return b.priorityAt.localeCompare(a.priorityAt);
+    return a.createdAt.localeCompare(b.createdAt);
+  }), [activeOrders]);
+  const nextWaiting = waiting[0];
+  const oldestWaiting = useMemo(() => [...waiting].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0], [waiting]);
+  const age = (createdAt?: string) => {
+    if (!createdAt) return '0 min';
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
+    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}min`;
+  };
 
   const physicalEnabled = operation.actionVisible('dineIn') || operation.actionVisible('counter');
   const deliveryEnabled = operation.actionVisible('delivery');
@@ -85,10 +94,10 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   const soundEnabled = operation.actionVisible('newOrderSound');
 
   useEffect(() => {
-    if (!newest || !soundEnabled || newest.id === lastAlerted.current) return;
-    lastAlerted.current = newest.id;
+    if (!nextWaiting || !soundEnabled || nextWaiting.id === lastAlerted.current) return;
+    lastAlerted.current = nextWaiting.id;
     tryOrderSound();
-  }, [newest, soundEnabled]);
+  }, [nextWaiting, soundEnabled]);
 
   useEffect(() => {
     if (view === 'mesas' && !physicalEnabled) setView('pedidos');
@@ -97,7 +106,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
 
   if (!operationPages.has(page)) {
     if (page === 'cardapio') {
-      return <><SharePanel w={w} slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} /><ArtemisMenuManager w={w} /></>;
+      return <><SharePanel slug={cloud.slug} cloudError={cloud.cloudError} deliveryEnabled={deliveryEnabled} pickupEnabled={pickupEnabled} /><ArtemisMenuManager w={w} /></>;
     }
     return <Artemis w={w} page={page} recordId={recordId} />;
   }
