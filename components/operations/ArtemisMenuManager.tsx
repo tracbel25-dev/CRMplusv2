@@ -10,6 +10,7 @@ import { buildOperationalFormMass } from '@/lib/ai/formMass';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { deleteOperationalFile, uploadOperationalFile } from '@/lib/r2/client';
 import { OperationalR2Image } from './OperationalR2Image';
+import { useOperationPreferences } from '@/lib/operations/configuration';
 import { Badge, Button, Empty, Modal, SearchBox, Title } from './ui';
 
 export type ArtemisProduct = Product & { imageObjectKey?: string };
@@ -373,6 +374,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
 }
 
 export function ArtemisMenuManager({ w }: { w: Workspace }) {
+  const operation = useOperationPreferences('artemis');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
@@ -385,8 +387,8 @@ export function ArtemisMenuManager({ w }: { w: Workspace }) {
     <div className="op-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Buscar produto ou ingrediente" /><div className="op-tabs">{categories.map(item => <button key={item} className={item === category ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
     <div className="artemis-menu">{visible.map(item => { const soldOut = productSoldOutToday(item); return <article key={item.id} className={`artemis-menu-item ${!item.available || soldOut ? 'unavailable' : ''}`}>
       <div className="artemis-catalog-image"><ImagePreview objectKey={item.imageObjectKey || ''} preview="" name={item.name} /></div>
-      <span className="op-kicker">{item.category}</span><h2>{item.name}</h2><p>{item.description || 'Sem descrição cadastrada.'}</p>{item.allergens && <small>Ingredientes / alergênicos: {item.allergens}</small>}
-      <div><strong>{money(item.price)}</strong><span className="op-muted">{item.preparation > 0 ? `${item.preparation} min` : ''}</span></div>
+      <span className="op-kicker">{item.category}</span><h2>{item.name}</h2>{operation.fieldVisible('productDescription') && <p>{item.description || 'Sem descrição cadastrada.'}</p>}{operation.fieldVisible('ingredients') && item.allergens && <small>Ingredientes / alergênicos: {item.allergens}</small>}
+      <div><strong>{money(item.price)}</strong><span className="op-muted">{operation.fieldVisible('prepTime') && item.preparation > 0 ? `${item.preparation} min` : ''}</span></div>
       {item.dailyLimit ? <small className="op-muted">Hoje: {Math.max(0, item.stock)} de {item.dailyLimit} disponível(is)</small> : null}
       <footer><Button variant="secondary" onClick={() => setEditing(item)}>Editar</Button><Button variant="text" onClick={() => w.mutate(data => { const current = data.products.find(product => product.id === item.id)!; current.soldOutUntil = soldOut ? '' : localDay(); }, soldOut ? 'Produto liberado novamente.' : 'Produto marcado como esgotado por hoje.')}>{soldOut ? 'Liberar hoje' : 'Esgotado por hoje'}</Button><button className="op-toggle" aria-pressed={item.available} onClick={() => w.mutate(data => { const product = data.products.find(current => current.id === item.id)!; product.available = !product.available; })}><i />{item.available ? 'Disponível' : 'Indisponível'}</button></footer>
     </article>; })}</div>
