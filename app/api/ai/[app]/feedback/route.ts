@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest, type ServerApp } from '@/lib/server/appAccess';
+import { planFeatureError, requireZeusFeature } from '@/lib/server/zeusPlanAccess';
 import { persistLearningFeedback } from '@/lib/ai/server';
 
 export const runtime = 'nodejs';
@@ -14,6 +15,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const access = await authorizeAppRequest(request, app);
   if (!access) return NextResponse.json({ error: 'Entre com uma conta que tenha acesso a este aplicativo.' }, { status: 401 });
+
+  if (app === 'zeus') {
+    try { await requireZeusFeature(access.accountId, 'ai'); }
+    catch (reason) { return NextResponse.json({ error: planFeatureError(reason, 'Sugestões de IA não estão incluídas no Zeus Start.') }, { status: 403 }); }
+  }
 
   const body = await request.json().catch(() => ({}));
   const interactionId = typeof body?.interactionId === 'string' ? body.interactionId.trim() : '';
