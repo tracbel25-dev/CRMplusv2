@@ -24,6 +24,8 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   const [transfer, setTransfer] = useState(false);
   const [adjust, setAdjust] = useState(false);
   const [dispatch, setDispatch] = useState(false);
+  const [dispatchChecks, setDispatchChecks] = useState<string[]>([]);
+  const [priority, setPriority] = useState(false);
   const d = w.data;
   const order = d.orders.find(item => item.id === recordId);
 
@@ -39,6 +41,17 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   const pendingItems = order.lines.filter(line => !line.done);
   const received = paid(d, order.id);
   const remaining = order.status === 'Cancelado' ? received : balance(d, order);
+  const dispatchCategory = (line: Order['lines'][number]) => {
+    const product = line.productId ? d.products.find(item => item.id === line.productId) : undefined;
+    const text = `${product?.category || ''} ${line.description}`.toLocaleLowerCase('pt-BR');
+    if (/bebida|refrigerante|suco|água|agua|cerveja|vinho|drink/.test(text)) return 'Bebidas';
+    if (/adicional|complemento|molho|acompanhamento|extra/.test(text)) return 'Complementos';
+    return 'Comidas';
+  };
+  const dispatchGroups = ['Comidas', 'Bebidas', 'Complementos'].map(label => ({
+    label,
+    lines: order.lines.filter(line => dispatchCategory(line) === label),
+  })).filter(group => group.lines.length);
 
   let nextLabel: string | undefined;
   let onNext: (() => void) | undefined;
@@ -104,7 +117,11 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
       {order.channel === 'Mesa' && order.status !== 'Cancelado' && operation.actionVisible('transferTable') && <details><summary>Trocar mesa / comanda</summary><div><Button variant="secondary" onClick={() => setTransfer(true)}>Transferir pedido</Button></div></details>}
     </div>
 
-    {active && operation.actionVisible('cancel') && <div className="op-record-secondary-actions"><Button variant="danger" onClick={() => setCancel(true)}>Cancelar pedido</Button></div>}
+    {active && <div className="op-record-secondary-actions">
+      {order.status === 'Novo' && <Button variant="secondary" onClick={() => setPriority(true)}>{order.priorityAt ? 'Alterar prioridade' : 'Priorizar pedido'}</Button>}
+      {order.priorityAt && <Button variant="text" onClick={() => void w.mutate(data => { const current = data.orders.find(item => item.id === order.id)!; current.priorityAt = ''; current.priorityReason = ''; current.events.push(event('Prioridade manual removida')); }, 'Prioridade removida.')}>Remover prioridade</Button>}
+      {operation.actionVisible('cancel') && <Button variant="danger" onClick={() => setCancel(true)}>Cancelar pedido</Button>}
+    </div>}
 
     {cancel && <Modal title="Cancelar pedido" onClose={() => setCancel(false)}><RecordForm draftKey={`artemis-cancel:${order.id}`} fields={[{ name: 'reason', label: 'Motivo', required: true, type: 'textarea', wide: true }]} onClose={() => setCancel(false)} submit="Confirmar cancelamento" onSave={valuesForm => w.mutate(data => cancelOrder(data, order.id, valuesForm.reason))} /></Modal>}
     {payment && <Modal title="Confirmar recebimento" onClose={() => setPayment(false)}><p>Saldo: <strong>{money(balance(d, order))}</strong>.</p><RecordForm draftKey={`artemis-payment:${order.id}`} fields={[{ name: 'amount', label: 'Valor efetivamente recebido (R$)', type: 'number', min: 0.01, step: 0.01, required: true, value: balance(d, order) / 100 }, { name: 'method', label: 'Forma de pagamento', required: true, options: paymentMethods.map(value => ({ value, label: value })) }]} submit="Confirmar recebimento" onClose={() => setPayment(false)} onSave={valuesForm => w.mutate(data => receivePayment(data, order.id, cents(valuesForm.amount), valuesForm.method), 'Recebimento registrado.')} /></Modal>}
@@ -125,11 +142,18 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
       current.events.push(event(`Transferido para ${data.tables.find(table => table.id === valuesForm.tableId)!.name}`));
     })} /></Modal>}
     {adjust && <Modal title="Adicionar item ao pedido" onClose={() => setAdjust(false)}><LeanOrderAdjustment w={w} order={order} onClose={() => setAdjust(false)} /></Modal>}
-    {dispatch && <Confirm title="Liberar pedido para entrega?" onClose={() => setDispatch(false)} onConfirm={async () => {
+    {priority && <Modal title="Priorizar pedido" onClose={() => setPriority(false)}><RecordForm draftKey={`artemis-priority:${order.id}`} fields={[{ name: 'reason', label: 'Motivo da prioridade', required: true, type: 'textarea', wide: true, value: order.priorityReason || '' }]} submit="Priorizar" onClose={() => setPriority(false)} onSave={values => w.mutate(data => {
+      const current = data.orders.find(item => item.id === order.id)!;
+      current.priorityAt = now();
+      current.priorityReason = values.reason.trim();
+      current.events.push(event(`Prioridade manual: ${current.priorityReason}`));
+    }, 'Pedido priorizado.')} /></Modal>}
+    {dispatch && <Confirm title="Conferência de saída" onClose={() => { setDispatch(false); setDispatchChecks([]); }} onConfirm={async () => {
+      if (dispatchChecks.length !== order.lines.length) { w.setError('Confira todos os itens antes de liberar a saída.'); return false; }
       const ok = await w.mutate(data => advanceDelivery(data, order.id), 'Saída para entrega registrada.');
-      if (ok) setDispatch(false);
+      if (ok) { setDispatch(false); setDispatchChecks([]); }
       return ok;
-    }}>Confirme somente depois de conferir itens, quantidades e observações antes de entregar o pedido ao responsável pela saída.</Confirm>}
+    }}><p>Marque cada item embalado antes de entregar o pedido ao responsável pela saída.</p>{dispatchGroups.map(group => <div className="artemis-dispatch-group" key={group.label}><strong>{group.label}</strong>{group.lines.map(line => <label key={line.id}><input type="checkbox" checked={dispatchChecks.includes(line.id)} onChange={event => setDispatchChecks(current => event.target.checked ? [...current, line.id] : current.filter(id => id !== line.id))} /><span>{line.quantity}× {line.description}{line.note ? ` · ${line.note}` : ''}</span></label>)}</div>)}</Confirm>}
   </>;
 }
 
@@ -138,27 +162,56 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
   const orderedProducts = [
     ...learned.map(item => item.product).filter(Boolean),
     ...w.data.products.filter(product => product.available && !learned.some(item => item.productId === product.id))
-  ];
-  return <RecordForm draftKey={`artemis-adjust:${order.id}`} fields={[
-    { name: 'productId', label: learned.length ? 'Produto — recorrentes primeiro' : 'Produto', required: true, options: orderedProducts.map(product => ({ value: product!.id, label: `${product!.name} · ${money(product!.price)}` })) },
-    { name: 'quantity', label: 'Quantidade', type: 'number', min: 1, step: 1, required: true, value: 1 },
-    { name: 'note', label: 'Observação deste item / alteração', type: 'textarea', wide: true }
-  ]} onClose={onClose} submit="Adicionar e avisar cozinha" onSave={values => w.mutate(data => {
-    const current = data.orders.find(item => item.id === order.id)!;
-    if (!['Aceito', 'Em preparo'].includes(current.status)) throw new Error('Acréscimos são permitidos apenas antes de o pedido ficar pronto.');
-    const product = data.products.find(item => item.id === values.productId && item.available);
-    if (!product) throw new Error('Produto indisponível.');
-    const quantity = Number(values.quantity);
-    if (!Number.isInteger(quantity) || quantity <= 0) throw new Error('Informe uma quantidade válida.');
-    if (product.stockControlled) {
-      const available = product.stock - reserved(data, product.id, current.id);
-      if (available < quantity) throw new Error(`Estoque insuficiente: ${product.name}.`);
-      if (current.status === 'Em preparo') {
-        product.stock -= quantity;
-        data.stockMovements.push({ id: uid(), productId: product.id, amount: -quantity, note: `Acréscimo no pedido ${current.number}`, at: now() });
+  ].filter((product, index, list) => product && list.findIndex(item => item?.id === product.id) === index);
+  const [productId, setProductId] = useState(orderedProducts[0]?.id || '');
+  const [variantId, setVariantId] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [note, setNote] = useState('');
+  const selectedProduct = orderedProducts.find(item => item?.id === productId);
+  const variants = (selectedProduct?.variants || []).filter(item => item.available !== false);
+  const selectedVariant = variants.find(item => item.id === variantId) || variants[0];
+
+  const chooseProduct = (id: string) => {
+    setProductId(id);
+    const product = orderedProducts.find(item => item?.id === id);
+    setVariantId((product?.variants || []).find(item => item.available !== false)?.id || '');
+  };
+
+  const save = async () => {
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty <= 0) { w.setError('Informe uma quantidade válida.'); return; }
+    const ok = await w.mutate(data => {
+      const current = data.orders.find(item => item.id === order.id)!;
+      if (!['Aceito', 'Em preparo'].includes(current.status)) throw new Error('Acréscimos são permitidos apenas antes de o pedido ficar pronto.');
+      const product = data.products.find(item => item.id === productId && item.available);
+      if (!product) throw new Error('Produto indisponível.');
+      const availableVariants = (product.variants || []).filter(item => item.available !== false);
+      const variant = availableVariants.length ? availableVariants.find(item => item.id === (variantId || selectedVariant?.id)) : undefined;
+      if ((product.variants || []).length && !variant) throw new Error('Selecione uma opção disponível para este produto.');
+      const unitPrice = variant?.price ?? product.price;
+      if (product.stockControlled) {
+        const available = product.stock - reserved(data, product.id, current.id);
+        if (available < qty) throw new Error(\`Estoque insuficiente: \${product.name}.\`);
+        if (current.status === 'Em preparo') {
+          product.stock -= qty;
+          data.stockMovements.push({ id: uid(), productId: product.id, amount: -qty, note: \`Acréscimo no pedido \${current.number}\`, at: now() });
+        }
       }
-    }
-    current.lines.push({ id: uid(), kind: 'Produto', description: product.name, brand: '', quantity, price: product.price, productId: product.id, done: false, note: values.note?.trim() || '', prepMinutes: product.preparation || 0 });
-    current.events.push(event(`${current.status === 'Em preparo' ? 'Acréscimo durante o preparo' : 'Acréscimo antes do preparo'}: ${quantity}× ${product.name}${values.note ? ` · ${values.note}` : ''}`));
-  }, 'Item adicionado e sinalizado para a cozinha.')} />;
+      const description = variant ? \`\${product.name} · \${variant.name}\` : product.name;
+      current.lines.push({ id: uid(), kind: 'Produto', description, brand: '', quantity: qty, price: unitPrice, productId: product.id, variantId: variant?.id, done: false, note: note.trim(), prepMinutes: product.preparation || 0 });
+      current.events.push(event(\`\${current.status === 'Em preparo' ? 'Acréscimo durante o preparo' : 'Acréscimo antes do preparo'}: \${qty}× \${description}\${note.trim() ? \` · \${note.trim()}\` : ''}\`));
+    }, 'Item adicionado e sinalizado para a cozinha.');
+    if (ok) onClose();
+  };
+
+  if (!orderedProducts.length) return <Empty>Nenhum produto disponível para acrescentar.</Empty>;
+
+  return <div className="artemis-adjust-product">
+    <label className="op-field"><span>Produto</span><select value={productId} onChange={event => chooseProduct(event.target.value)}>{orderedProducts.map(product => <option key={product!.id} value={product!.id}>{product!.name}</option>)}</select></label>
+    {variants.length > 0 && <label className="op-field"><span>Tamanho / opção</span><select value={variantId || variants[0].id} onChange={event => setVariantId(event.target.value)}>{variants.map(variant => <option key={variant.id} value={variant.id}>{variant.name} · {money(variant.price)}</option>)}</select></label>}
+    {(selectedProduct?.variants || []).length > 0 && !variants.length && <p className="op-callout">Este produto não possui opção disponível.</p>}
+    <label className="op-field"><span>Quantidade</span><input type="number" min="1" step="1" value={quantity} onChange={event => setQuantity(event.target.value)} /></label>
+    <label className="op-field"><span>Observação deste item / alteração</span><textarea rows={3} value={note} onChange={event => setNote(event.target.value)} /></label>
+    <div className="op-form-footer"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button disabled={(selectedProduct?.variants || []).length > 0 && !variants.length} onClick={() => void save()}>Adicionar e avisar cozinha</Button></div>
+  </div>;
 }
