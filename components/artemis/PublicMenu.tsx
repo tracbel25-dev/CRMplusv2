@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bike, CheckCircle2, Minus, Plus, Search, ShoppingBag, Store, UtensilsCrossed } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { OperationalR2Image } from '@/components/operations/OperationalR2Image';
 import './public-menu.css';
 
 type ProductVariant = { id: string; name: string; price: number; available: boolean };
-type Product = {
+export type PublicMenuProduct = {
   id: string;
   name: string;
   description: string;
@@ -15,10 +16,11 @@ type Product = {
   allergens: string;
   preparation_minutes: number;
   image_url?: string;
+  imageObjectKey?: string;
   variants?: ProductVariant[];
 };
 
-type MenuPayload = {
+export type PublicMenuPayload = {
   restaurant: {
     name: string;
     phone: string;
@@ -33,28 +35,29 @@ type MenuPayload = {
     pickupEnabled: boolean;
   };
   table: { id: string; name: string } | null;
-  products: Product[];
+  products: PublicMenuProduct[];
 };
 
 type CartLine = { id: string; productId: string; quantity: number; note: string; variantId: string };
-type Props = { slug: string; mode: 'menu' | 'delivery' };
+type Props = { slug: string; mode: 'menu' | 'delivery'; previewPayload?: PublicMenuPayload; preview?: boolean };
 
 const money = (cents: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
-const variantsOf = (product: Product) => (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && item.id && item.name && Number.isFinite(Number(item.price)));
-const variantFor = (product: Product, line?: CartLine) => variantsOf(product).find(item => item.id === line?.variantId) || variantsOf(product)[0];
-const priceFor = (product: Product, line?: CartLine) => variantFor(product, line)?.price ?? product.price_cents;
+const variantsOf = (product: PublicMenuProduct) => (Array.isArray(product.variants) ? product.variants : []).filter(item => item && item.available !== false && item.id && item.name && Number.isFinite(Number(item.price)));
+const variantFor = (product: PublicMenuProduct, line?: CartLine) => variantsOf(product).find(item => item.id === line?.variantId) || variantsOf(product)[0];
+const priceFor = (product: PublicMenuProduct, line?: CartLine) => variantFor(product, line)?.price ?? product.price_cents;
 
-function ProductMedia({ product }: { product: Product }) {
+function ProductMedia({ product }: { product: PublicMenuProduct }) {
   if (product.image_url) return <div className="public-product-media"><img src={product.image_url} alt={product.name} /></div>;
+  if (product.imageObjectKey) return <div className="public-product-media"><OperationalR2Image app="artemis" storedData={`r2:${product.imageObjectKey}`} alt={product.name} /></div>;
   const initials = product.name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
   return <div className="public-product-media is-placeholder" aria-hidden="true"><span>{initials || 'AR'}</span></div>;
 }
 
-export function PublicMenu({ slug, mode }: Props) {
+export function PublicMenu({ slug, mode, previewPayload, preview = false }: Props) {
   const searchParams = useSearchParams();
   const tableId = searchParams.get('mesa') || '';
-  const [payload, setPayload] = useState<MenuPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [payload, setPayload] = useState<PublicMenuPayload | null>(previewPayload || null);
+  const [loading, setLoading] = useState(!previewPayload);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
@@ -67,6 +70,12 @@ export function PublicMenu({ slug, mode }: Props) {
   const [success, setSuccess] = useState<{ number: number; total_cents: number } | null>(null);
 
   useEffect(() => {
+    if (previewPayload) {
+      setPayload(previewPayload);
+      setLoading(false);
+      setError('');
+      return;
+    }
     let active = true;
     setLoading(true);
     const qs = tableId ? `?mesa=${encodeURIComponent(tableId)}` : '';
@@ -74,7 +83,7 @@ export function PublicMenu({ slug, mode }: Props) {
       .then(async response => {
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || 'Cardápio indisponível.');
-        return body as MenuPayload;
+        return body as PublicMenuPayload;
       })
       .then(body => {
         if (!active) return;
@@ -86,7 +95,7 @@ export function PublicMenu({ slug, mode }: Props) {
       .catch(reason => active && setError(reason instanceof Error ? reason.message : 'Cardápio indisponível.'))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [slug, tableId, mode]);
+  }, [slug, tableId, mode, previewPayload]);
 
   const categories = useMemo(() => ['Todos', ...Array.from(new Set((payload?.products || []).map(product => product.category)))], [payload]);
   const visible = useMemo(() => (payload?.products || []).filter(product => {
@@ -106,9 +115,9 @@ export function PublicMenu({ slug, mode }: Props) {
   const total = subtotal + fee;
   const canOrderAtTable = mode === 'menu' && !!payload?.table;
   const canOrderOnline = mode === 'delivery' && !!payload && !payload.restaurant.onlinePaused && (payload.restaurant.deliveryEnabled || payload.restaurant.pickupEnabled);
-  const canOrder = canOrderAtTable || canOrderOnline;
+  const canOrder = preview || canOrderAtTable || canOrderOnline;
 
-  const addLine = (product: Product) => {
+  const addLine = (product: PublicMenuProduct) => {
     const variants = variantsOf(product);
     const variantId = variants.length ? (selectedVariants[product.id] || variants[0].id) : '';
     if ((product.variants || []).length > 0 && !variantId) {
@@ -137,6 +146,13 @@ export function PublicMenu({ slug, mode }: Props) {
     const currentRequestKey = requestKey || crypto.randomUUID();
     if (!requestKey) setRequestKey(currentRequestKey);
     try {
+      if (preview) {
+        setSuccess({ number: 0, total_cents: total });
+        setCart([]);
+        setRequestKey('');
+        setCheckout(false);
+        return;
+      }
       const response = await fetch(`/api/artemis/public/${encodeURIComponent(slug)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -184,7 +200,7 @@ export function PublicMenu({ slug, mode }: Props) {
       </div>
     </header>
 
-    {success && <div className="public-success"><CheckCircle2 size={24} /><div><strong>Pedido #{String(success.number).padStart(3, '0')} recebido</strong><span>Total: {money(success.total_cents)}. O restaurante agora confirma e prepara seu pedido.</span></div></div>}
+    {success && <div className="public-success"><CheckCircle2 size={24} /><div><strong>{preview ? 'Simulação concluída' : `Pedido #${String(success.number).padStart(3, '0')} recebido`}</strong><span>{preview ? `Total simulado: ${money(success.total_cents)}. Nenhum pedido, venda ou baixa de estoque foi gravado.` : `Total: ${money(success.total_cents)}. O restaurante agora confirma e prepara seu pedido.`}</span></div></div>}
 
     {mode === 'delivery' && <section className="public-delivery-intro">
       <div><Bike size={21} /><strong>Pedido online</strong><span>{payload.restaurant.hours || 'Confira o horário de atendimento com o restaurante.'}</span></div>
@@ -253,7 +269,7 @@ export function PublicMenu({ slug, mode }: Props) {
       </form>
     </section></div>}
 
-    <footer className="public-footer">Cardápio por <strong>CRM PLUS · Artemis</strong></footer>
+    <footer className="public-footer">{preview ? 'Prévia operacional — nenhum pedido é gravado · ' : 'Cardápio por '}<strong>CRM PLUS · Artemis</strong></footer>
     <style jsx global>{`.public-variant{display:grid;gap:6px;margin-top:12px}.public-variant>span{font-size:12px;color:var(--public-muted,#94a3b8)}.public-variant select{width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,.25);border-radius:10px;background:#111827;color:inherit}.public-product-actions>small{display:block;margin-top:8px;color:var(--public-muted,#94a3b8);font-size:12px}.public-order-line{display:grid!important;gap:10px;padding:14px 0}.public-order-line-main{display:flex;justify-content:space-between;gap:14px}.public-order-line-controls{display:flex;align-items:center;gap:10px}.public-order-line-controls button{width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(148,163,184,.25);border-radius:8px;background:transparent;color:inherit}.public-order-line label{display:grid;gap:6px}.public-order-line label span{font-size:12px;color:var(--public-muted,#94a3b8)}.public-order-line input{width:100%}`}</style>
   </main>;
 }
