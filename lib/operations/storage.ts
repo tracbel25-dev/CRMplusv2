@@ -323,6 +323,31 @@ export function useWorkspace(app: AppId, accountId?: string) {
   }, [key, accountId, app, publish]);
 
   useEffect(() => {
+    if (!cloudApp(app) || !accountId || accountId === 'guest' || !ready) return;
+    let active = true;
+    const refresh = async () => {
+      if (!active || savingCloud.current || pendingCloud.current.length) return;
+      try {
+        const remote = await cloudRequest(app, accountId, 'GET');
+        if (!active || !remote.data) return;
+        const latest = decodeData(JSON.stringify(remote.data));
+        if (latest.revision <= confirmedRef.current.revision) return;
+        confirmedRef.current = latest;
+        publish(latest);
+        blocked.current = false;
+        setError('');
+        setSyncState('confirmed');
+      } catch (reason) {
+        if (!active) return;
+        setError(clientMessage(reason, 'Não foi possível atualizar as alterações de outro dispositivo.'));
+        setSyncState('failed');
+      }
+    };
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [app, accountId, ready, publish]);
+
+  useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(''), 4000);
     return () => clearTimeout(id);
