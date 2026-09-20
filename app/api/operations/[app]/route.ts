@@ -126,7 +126,7 @@ function prepareZeusWriteData(input: Data, current: Data | null, plan: ZeusPlanC
   return next;
 }
 
-function validateZeusTransition(current: Data | null, next: Data) {
+function validateZeusTransition(current: Data | null, next: Data, plan: ZeusPlanCode) {
   validateZeusCustomerOwnership(next);
   const currentJobs = new Map((current?.jobs || []).map(job => [job.id, job]));
   for (const job of next.jobs) {
@@ -136,7 +136,7 @@ function validateZeusTransition(current: Data | null, next: Data) {
       throw new Error('TERMINAL_JOB_IMMUTABLE: atendimentos encerrados, cancelados ou reprovados são somente leitura.');
     }
 
-    if (previous?.stage === 'Identificação' && job.stage !== 'Identificação') {
+    if (zeusHasFeature(plan, 'checklist') && previous?.stage === 'Identificação' && job.stage !== 'Identificação') {
       const nextChecklist = zeusChecklistState(next, job.id);
       const currentChecklist = current ? zeusChecklistState(current, job.id) : null;
       if ((nextChecklist.enabled || currentChecklist?.enabled) && !nextChecklist.completed && !currentChecklist?.completed) {
@@ -213,7 +213,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       zeusResponsePlan = entitlements.plan;
       writeData = prepareZeusWriteData(body.data as unknown as Data, current, entitlements.plan);
       validateZeusPlanTransition(current, writeData, entitlements.plan);
-      validateZeusTransition(current, writeData);
+      validateZeusTransition(current, writeData, entitlements.plan);
     }
 
     const result = await operationalRpc(app, 'save_workspace_state', {
