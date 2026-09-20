@@ -83,3 +83,20 @@ test('Zeus does not leak checklist or fixed team limits outside plan capabilitie
   assert.match(team, /granularPermissions=appId!=='zeus'\|\|!!w&&zeusViewHasFeature\(w\.data\.settings,'granular_permissions'\)/);
   assert.match(server, /granularPermissions = zeusHasFeature\(entitlements\.plan, 'granular_permissions'\)/);
 });
+
+
+test('Zeus keeps configuration and payments universal while plan tiers gate business modules', () => {
+  const plans = readFileSync(join(root, 'lib', 'operations', 'zeusPlans.ts'), 'utf8');
+  const settings = readFileSync(join(root, 'components', 'operations', 'Settings.tsx'), 'utf8');
+  const configuration = readFileSync(join(root, 'lib', 'operations', 'configuration.ts'), 'utf8');
+
+  assert.match(plans, /const START: ZeusFeature\[\] = \[[^\]]*'payments'/s);
+  assert.match(plans, /const ESSENCIAL: ZeusFeature\[\] = \[[^\]]*'team_management'/s);
+  assert.match(plans, /const PLUS: ZeusFeature\[\] = \[[^\]]*'billing'[^\]]*'dashboard'[^\]]*'granular_permissions'/s);
+  assert.doesNotMatch(plans, /basic_filters|advanced_filters|full_operational_settings/);
+  assert.match(settings, /\{ id:'operacao', label:'Fluxo do processo' \}/);
+  assert.match(settings, /app === 'zeus' && <PaymentIntegrationSetting app="zeus" \/>/);
+  assert.doesNotMatch(settings, /zeusViewHasFeature\(w\.data\.settings, 'full_operational_settings'\)/);
+  assert.match(configuration, /actionVisibility\.manualStatus = false/);
+  assert.match(configuration, /\['year','meter','technician','due','internalNotes','partBrand','finalNotes'\]/);
+});
