@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
         address: text(settings.address, 300),
         operator_name: text(settings.operator, 120),
         online_paused: Boolean(settings.onlinePaused),
+        online_paused_until: text(settings.onlinePausedUntil, 64) || null,
         delivery_fee_cents: Math.max(0, Math.round(Number(settings.deliveryFee) || 0)),
         minimum_order_cents: Math.max(0, Math.round(Number(settings.minimumOrder) || 0)),
         delivery_areas: text(settings.deliveryAreas, 2000),
@@ -134,6 +135,18 @@ export async function POST(request: NextRequest) {
         minimum_stock: Math.max(0, Number(product.minimum) || 0),
         allergens: text(product.allergens, 2000),
         preparation_minutes: Math.max(0, Math.round(Number(product.preparation) || 0)),
+        variants: Array.isArray(product.variants) ? product.variants.slice(0, 30).flatMap(item => {
+          if (!item || typeof item !== 'object') return [];
+          const variant = item as Record<string, unknown>;
+          const variantId = text(variant.id, 64);
+          const variantName = text(variant.name, 100);
+          const price = Math.max(0, Math.round(Number(variant.price) || 0));
+          if (!uuidPattern.test(variantId) || !variantName) return [];
+          return [{ id: variantId, name: variantName, price, available: variant.available !== false }];
+        }) : [],
+        sold_out_until: text(product.soldOutUntil, 10) || null,
+        daily_limit: Number(product.dailyLimit) > 0 ? Math.round(Number(product.dailyLimit)) : null,
+        daily_stock_date: text(product.dailyStockDate, 10) || null,
         image_object_key: productImageKey(product.imageObjectKey, access.accountId, id),
         updated_at: new Date().toISOString(),
       }];
