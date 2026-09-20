@@ -190,94 +190,7 @@ begin
         and (
           coalesce(value->>'soldOutUntil','') = ''
           or (
-            value->>'soldOutUntil' ~ '^\\d{4}-\\d{2}-\\d{2}
-      if v_variant is null then raise exception 'Uma opção escolhida não está mais disponível.'; end if;
-      v_unit_price := greatest(0, coalesce((v_variant->>'price')::bigint, v_product.price_cents));
-    end if;
-    v_subtotal := v_subtotal + round(v_unit_price * v_quantity)::bigint;
-  end loop;
-
-  if p_channel = 'Delivery' and v_subtotal < v_settings.minimum_order_cents then
-    raise exception 'Pedido abaixo do valor mínimo.';
-  end if;
-  v_total := v_subtotal + v_fee;
-
-  perform pg_advisory_xact_lock(hashtextextended(v_tenant, 0));
-  select coalesce(max(number), 0) + 1 into v_order_number
-  from public.orders
-  where tenant_key = v_tenant;
-
-  insert into public.orders (
-    id, tenant_key, number, customer_name, phone, address, channel, table_id,
-    table_session_started_at, notes, status, delivery_status, fee_cents,
-    discount_cents, stock_consumed, reserved, requested_payment_method, request_key
-  ) values (
-    v_order_id, v_tenant, v_order_number, trim(p_customer_name), trim(p_phone), trim(p_address), p_channel,
-    case when p_channel = 'Mesa' then p_table_id else null end,
-    v_table_session, trim(p_notes), 'Novo', case when p_channel = 'Delivery' then 'Aguardando saída' else '' end,
-    v_fee, 0, false, v_any_reserved, trim(p_payment_method), p_request_key
-  );
-
-  -- Reserva pública não baixa o estoque. A quantidade fica reservada pelo pedido
-  -- e é liberada automaticamente em cancelamento. A baixa real ocorre no início do preparo.
-
-  for v_item in select value from jsonb_array_elements(p_items)
-  loop
-    v_product_id := (v_item->>'product_id')::uuid;
-    v_quantity := (v_item->>'quantity')::numeric;
-    v_variant_id := case when nullif(v_item->>'variant_id','') is null then null else (v_item->>'variant_id')::uuid end;
-    select * into v_product from public.products where tenant_key = v_tenant and id = v_product_id limit 1;
-    v_variant := null;
-    v_unit_price := v_product.price_cents;
-    v_variant_name := '';
-
-    if v_variant_id is not null then
-      select value into v_variant
-      from jsonb_array_elements(coalesce(v_product.variants,'[]'::jsonb))
-      where value->>'id' = v_variant_id::text
-      limit 1;
-      if v_variant is not null then
-        v_unit_price := greatest(0, coalesce((v_variant->>'price')::bigint, v_product.price_cents));
-        v_variant_name := left(trim(coalesce(v_variant->>'name','')),80);
-      end if;
-    end if;
-
-    insert into public.order_lines (
-      id, tenant_key, order_id, product_id, position, description, quantity,
-      price_cents, done, note, prep_minutes
-    ) values (
-      gen_random_uuid(), v_tenant, v_order_id, v_product.id,
-      (select count(*) from public.order_lines where tenant_key = v_tenant and order_id = v_order_id),
-      case when v_variant_name <> '' then v_product.name || ' · ' || v_variant_name else v_product.name end,
-      v_quantity, v_unit_price, false,
-      left(coalesce(v_item->>'note', ''), 500), v_product.preparation_minutes
-    );
-  end loop;
-
-  insert into public.order_events (tenant_key, order_id, text, event_type, metadata)
-  values (
-    v_tenant,
-    v_order_id,
-    'Pedido recebido pelo cardápio público',
-    'public_order',
-    jsonb_build_object('channel', p_channel, 'requested_payment_method', trim(p_payment_method), 'request_key', p_request_key)
-  );
-
-  return jsonb_build_object(
-    'id', v_order_id,
-    'number', v_order_number,
-    'status', 'Novo',
-    'subtotal_cents', v_subtotal,
-    'fee_cents', v_fee,
-    'total_cents', v_total,
-    'duplicate', false
-  );
-end;
-$$;
-
-revoke execute on function public.create_public_order(text,text,uuid,text,text,text,text,text,jsonb,uuid) from public, anon, authenticated;
-grant execute on function public.create_public_order(text,text,uuid,text,text,text,text,text,jsonb,uuid) to service_role;
-
+            (value->>'soldOutUntil') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
             and (value->>'soldOutUntil')::date < current_date
           )
         )
@@ -309,20 +222,8 @@ grant execute on function public.create_public_order(text,text,uuid,text,text,te
     v_fee, 0, false, v_any_reserved, trim(p_payment_method), p_request_key
   );
 
-  for v_stock in
-    select
-      (item->>'product_id')::uuid as product_id,
-      sum((item->>'quantity')::numeric) as quantity
-    from jsonb_array_elements(p_items) as item
-    group by (item->>'product_id')::uuid
-  loop
-    update public.products
-    set stock = stock - v_stock.quantity,
-        updated_at = now()
-    where tenant_key = v_tenant
-      and id = v_stock.product_id
-      and stock_controlled = true;
-  end loop;
+  -- Reserva pública não baixa o estoque. A quantidade fica reservada pelo pedido
+  -- e é liberada automaticamente em cancelamento. A baixa real ocorre no início do preparo.
 
   for v_item in select value from jsonb_array_elements(p_items)
   loop
