@@ -106,7 +106,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
         <label className="op-field span-full"><span>Bairros / áreas atendidas</span><textarea rows={3} value={deliveryAreas} onChange={event => { setDeliveryAreas(event.target.value); setSaved(false); }} placeholder="Ex.: Centro, Umarizal, Marco" /></label>
         <label className="op-field span-full"><span>Horários de atendimento</span><textarea rows={3} value={hours} onChange={event => { setHours(event.target.value); setSaved(false); }} placeholder="Ex.: Seg–Sáb 18h às 23h" /></label>
       </div>
-      <label className="op-module-choice"><input type="checkbox" checked={onlinePaused} onChange={event => { setOnlinePaused(event.target.checked); setSaved(false); }} /><span><strong>Pausar pedidos online</strong><small>Use quando o restaurante precisar parar temporariamente de receber delivery/retirada.</small></span><Badge>{onlinePaused ? 'Pausado' : 'Recebendo'}</Badge></label>
     </Section>}
     </CompactPanel><CompactPanel value="operacao"><Section title="Como a equipe opera?">
       <div className="op-config-groups"><div className="op-config-group">
