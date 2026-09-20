@@ -5,6 +5,7 @@ import { ZEUS_CHECKLIST_TEMPLATES, type ZeusChecklistSegment } from '@/lib/opera
 import { isZeusChecklistAssetFolder } from '@/lib/operations/checklistAssets';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
 import { operationalRest, operationalRpc } from '@/lib/server/operationalWorkspace';
+import { requireZeusFeature } from '@/lib/server/zeusPlanAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -86,6 +87,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ token:
   try {
     const link = await loadLink(token);
     if (!link) return NextResponse.json({ error: 'Este checklist não está disponível.' }, { status: 404 });
+    await requireZeusFeature(link.tenant_key, 'checklist');
     if (link.status === 'cancelled') return NextResponse.json({ error: 'Este checklist não está mais ativo.' }, { status: 410 });
 
     let response: unknown = null;
@@ -119,6 +121,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const link = await loadLink(token);
     if (!link) return NextResponse.json({ error: 'Este checklist não está disponível.' }, { status: 404 });
+    await requireZeusFeature(link.tenant_key, 'checklist');
     if (link.status === 'completed') return NextResponse.json({ error: 'Este checklist já foi concluído.', completed: true }, { status: 409 });
     if (link.status !== 'open') return NextResponse.json({ error: 'Este checklist não está mais ativo.' }, { status: 410 });
 
