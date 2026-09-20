@@ -55,6 +55,8 @@ export async function POST(request: NextRequest) {
   if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para usar a IA do Zeus.' }, { status: 403 });
   try { await requireZeusFeature(access.accountId, 'diagnosis'); }
   catch (reason) { return NextResponse.json({ error: planFeatureError(reason, 'Diagnóstico está disponível a partir do Zeus Essencial.') }, { status: 403 }); }
+  try { await requireZeusFeature(access.accountId, 'ai'); }
+  catch (reason) { return NextResponse.json({ error: planFeatureError(reason, 'Sugestões de IA não estão incluídas no Zeus Start.') }, { status: 403 }); }
   if (!rateLimit(access.userId)) return NextResponse.json({ error: 'Limite temporário de assistência atingido. Tente novamente em um minuto.' }, { status: 429 });
 
   const body = await request.json().catch(() => ({}));

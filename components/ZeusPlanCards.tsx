@@ -9,6 +9,7 @@ const order: ZeusPlanCode[] = ['start','essencial','plus','premium'];
 const comparisonFeatures: { label:string; feature:ZeusFeature }[] = [
   { label:'Abertura de OS', feature:'core_os' },
   { label:'Histórico', feature:'history' },
+  { label:'Fotos nos atendimentos', feature:'core_os' },
   { label:'Pagamentos e cobranças', feature:'payments' },
   { label:'Inteligência artificial', feature:'ai' },
   { label:'Agendamentos', feature:'scheduling' },

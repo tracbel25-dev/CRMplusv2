@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import type { Workspace } from '@/lib/operations/storage';
 import type { Job } from '@/lib/operations/model';
+import { zeusViewHasFeature } from '@/lib/operations/zeusPlans';
 import { Button, Modal } from './ui';
 
 type Suggestion = { title: string; reason: string };
@@ -14,6 +15,7 @@ export function ZeusStageAssistant({ w, job }: { w: Workspace; job: Job }) {
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const asset = w.data.assets.find(item => item.id === job.assetId);
+  if (!zeusViewHasFeature(w.data.settings, 'ai')) return null;
 
   const load = async () => {
     setOpen(true);

@@ -126,3 +126,27 @@ test('Zeus Start home organizes current work by status instead of duplicating th
   assert.match(zeus, /canViewJobs && !simpleFlow && <SearchBox/);
   assert.doesNotMatch(zeus, /simpleFlow \? <Section title="Atendimentos"/);
 });
+
+
+test('Zeus Start has no AI, trial watermark text is invisible, and photos are highlighted on every plan', () => {
+  const plans = readFileSync(join(root, 'lib', 'operations', 'zeusPlans.ts'), 'utf8');
+  const cards = readFileSync(join(root, 'components', 'ZeusPlanCards.tsx'), 'utf8');
+  const detail = readFileSync(join(root, 'components', 'operations', 'LeanZeusJobDetailBase.tsx'), 'utf8');
+  const assistant = readFileSync(join(root, 'components', 'operations', 'ZeusStageAssistant.tsx'), 'utf8');
+  const settings = readFileSync(join(root, 'components', 'operations', 'Settings.tsx'), 'utf8');
+  const trialCss = readFileSync(join(root, 'components', 'operations', 'trial-protection.css'), 'utf8');
+  const aiApi = readFileSync(join(root, 'app', 'api', 'zeus', 'assistente', 'route.ts'), 'utf8');
+
+  const startBlock = plans.match(/const START: ZeusFeature\[\] = \[([\s\S]*?)\];/)?.[1] || '';
+  const essencialBlock = plans.match(/const ESSENCIAL: ZeusFeature\[\] = \[([\s\S]*?)\];/)?.[1] || '';
+  assert.doesNotMatch(startBlock, /'ai'/);
+  assert.match(essencialBlock, /'ai'/);
+  assert.match(plans, /'Fotos nos atendimentos'/);
+  assert.match(plans, /highlights:\['OS pronta para usar','Personalização e filtros','Pagamentos','Fotos nos atendimentos'\]/);
+  assert.match(cards, /\{ label:'Fotos nos atendimentos', feature:'core_os' \}/);
+  assert.match(detail, /access\.hasPermission\('zeus', 'ai_use'\) && zeusViewHasFeature\(w\.data\.settings, 'ai'\)/);
+  assert.match(assistant, /if \(!zeusViewHasFeature\(w\.data\.settings, 'ai'\)\) return null/);
+  assert.match(settings, /app !== 'zeus' \|\| zeusViewHasFeature\(w\.data\.settings, 'ai'\)/);
+  assert.match(aiApi, /requireZeusFeature\(access\.accountId, 'ai'\)/);
+  assert.match(trialCss, /\.trial-watermark\{[^}]*opacity:0/s);
+});

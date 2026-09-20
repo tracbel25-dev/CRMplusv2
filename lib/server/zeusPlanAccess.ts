@@ -7,7 +7,7 @@ export type ZeusEntitlements = {
   plan: ZeusPlanCode;
   planName: string;
   seatLimit: number;
-  aiEnabled: true;
+  aiEnabled: boolean;
   aiMonthlyLimit: number | null;
 };
 
@@ -16,7 +16,7 @@ export async function readZeusEntitlements(tenantKey: string): Promise<ZeusEntit
   const row = rows?.[0];
   const plan = normalizeZeusPlan(row?.plan_code || 'start');
   const definition = zeusPlan(plan);
-  return { plan, planName: definition.name, seatLimit: Number(row?.seat_limit || definition.seats), aiEnabled: true, aiMonthlyLimit: row?.ai_monthly_limit ?? null };
+  return { plan, planName: definition.name, seatLimit: Number(row?.seat_limit || definition.seats), aiEnabled: zeusHasFeature(plan, 'ai') && row?.ai_enabled !== false, aiMonthlyLimit: row?.ai_monthly_limit ?? null };
 }
 
 export async function requireZeusFeature(tenantKey: string, feature: ZeusFeature) {

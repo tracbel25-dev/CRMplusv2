@@ -314,7 +314,7 @@ export function AppSettings({ w, app }: { w: Workspace; app: AppId }) {
                 <div className="op-config-name-stack">
                   <div className="op-field op-config-name"><span>Nome no aplicativo</span><ConfigFieldNameSelect app={app} fieldKey={configField.key} fallback={configField.label} value={currentLabel} onChange={value => setFieldLabel(configField.key, value)} /></div>
                   <div className="op-field op-config-help">
-                    <div className="op-config-help-head"><span><HelpCircle size={14} /> Personalizar dica</span><FieldHelpAISuggestions app={app} fieldKey={configField.key} label={currentLabel} description={configField.description} currentHelp={currentHelp} onApply={value => setFieldHelp(configField.key, value)} /></div>
+                    <div className="op-config-help-head"><span><HelpCircle size={14} /> Personalizar dica</span>{(app !== 'zeus' || zeusViewHasFeature(w.data.settings, 'ai')) && <FieldHelpAISuggestions app={app} fieldKey={configField.key} label={currentLabel} description={configField.description} currentHelp={currentHelp} onApply={value => setFieldHelp(configField.key, value)} />}</div>
                     <input value={currentHelp} onChange={event => setFieldHelp(configField.key, event.target.value)} maxLength={240} />
                     <small>Essa dica orienta o preenchimento e não altera o nome do campo.</small>
                   </div>

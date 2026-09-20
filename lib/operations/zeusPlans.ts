@@ -27,9 +27,9 @@ export type ZeusPlanDefinition = {
 
 const START: ZeusFeature[] = [
   'core_os','customers','assets','history','service_types','responsible','deadlines',
-  'status_stages','tasks','notes','related_jobs','ai','payments'
+  'status_stages','tasks','notes','related_jobs','payments'
 ];
-const ESSENCIAL: ZeusFeature[] = [...START,'scheduling','checklist','diagnosis','budgets','quote_external_approval','team_management'];
+const ESSENCIAL: ZeusFeature[] = [...START,'ai','scheduling','checklist','diagnosis','budgets','quote_external_approval','team_management'];
 const PLUS: ZeusFeature[] = [...ESSENCIAL,'billing','dashboard','export','granular_permissions'];
 const PREMIUM: ZeusFeature[] = [...PLUS];
 
@@ -46,7 +46,7 @@ const START_COMMERCIAL = [
   'Personalização de campos, nomes, dicas e fluxo',
   'Campos personalizados',
   'Pagamentos e cobranças pelo Mercado Pago',
-  'Inteligência artificial nas funções disponíveis do plano',
+  'Fotos nos atendimentos',
 ] as const;
 
 const ESSENCIAL_ADDITIONAL = [
@@ -57,6 +57,7 @@ const ESSENCIAL_ADDITIONAL = [
   'Modelos e personalização do checklist',
   'Assinatura no checklist',
   'Diagnóstico',
+  'Sugestões de inteligência artificial',
   'Orçamento dentro da OS',
   'Orçamento de balcão',
   'Serviços e peças no orçamento',
@@ -103,7 +104,7 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     rank:0,
     seats:1,
     summary:'OS simples e pronta para o pequeno empreendedor começar sem configurar tudo do zero.',
-    highlights:['OS pronta para usar','Personalização e filtros','Pagamentos'],
+    highlights:['OS pronta para usar','Personalização e filtros','Pagamentos','Fotos nos atendimentos'],
     commercialFeatures:START_COMMERCIAL_FULL,
     features:new Set(START),
   },
@@ -113,7 +114,7 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     rank:1,
     seats:2,
     summary:'Operação completa da OS, da agenda ao orçamento.',
-    highlights:['Agenda e checklist','Diagnóstico e orçamentos','2 acessos'],
+    highlights:['Agenda e checklist','Diagnóstico, IA e orçamentos','2 acessos','Fotos nos atendimentos'],
     commercialFeatures:ESSENCIAL_COMMERCIAL_FULL,
     features:new Set(ESSENCIAL),
   },
@@ -124,7 +125,7 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     seats:4,
     recommended:true,
     summary:'Gestão da oficina com faturamento, indicadores e controle de equipe.',
-    highlights:['Faturamento e dashboard','Permissões individuais','4 acessos'],
+    highlights:['Faturamento e dashboard','Permissões individuais','4 acessos','Fotos nos atendimentos'],
     commercialFeatures:PLUS_COMMERCIAL_FULL,
     features:new Set(PLUS),
   },
@@ -134,7 +135,7 @@ export const ZEUS_PLANS: Record<ZeusPlanCode, ZeusPlanDefinition> = {
     rank:3,
     seats:10,
     summary:'Todos os recursos do Plus com capacidade para uma equipe maior.',
-    highlights:['10 acessos','Todos os recursos do Plus','Escala para equipe maior'],
+    highlights:['10 acessos','Todos os recursos do Plus','Escala para equipe maior','Fotos nos atendimentos'],
     commercialFeatures:PREMIUM_COMMERCIAL_FULL,
     features:new Set(PREMIUM),
   },
