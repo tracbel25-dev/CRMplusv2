@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeAppRequest } from '@/lib/server/appAccess';
+import { planFeatureError, requireZeusFeature } from '@/lib/server/zeusPlanAccess';
 import { DEFAULT_GROQ_MODEL, findRelevantLessons, groqResponse, lessonsForPrompt, recordAIInteraction } from '@/lib/ai/server';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,8 @@ function parse(raw: string): Suggestion[] {
 export async function POST(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'zeus', 'ai_use');
   if (!access) return NextResponse.json({ error: 'Sessão inválida ou sem permissão para usar a IA do Zeus.' }, { status: 403 });
+  try { await requireZeusFeature(access.accountId, 'ai'); }
+  catch (reason) { return NextResponse.json({ error: planFeatureError(reason, 'Sugestões de IA não estão incluídas no Zeus Start.') }, { status: 403 }); }
   const body = await request.json().catch(() => ({}));
   const stage = clean(body.stage, 80);
   const context = clean(body.context, 4500);
