@@ -108,6 +108,7 @@ export function useArtemisCloud(w: Workspace) {
       address: w.data.settings.address,
       operator: w.data.settings.operator,
       onlinePaused: w.data.settings.onlinePaused,
+      onlinePausedUntil: w.data.settings.onlinePausedUntil || '',
       deliveryFee: w.data.settings.deliveryFee,
       minimumOrder: w.data.settings.minimumOrder,
       deliveryAreas: w.data.settings.deliveryAreas,
@@ -158,11 +159,38 @@ export function useArtemisCloud(w: Workspace) {
         setConnected(true);
         setCloudError('');
         const incoming = (body.orders || []).map(mapRemoteOrder);
-        const newOrders = incoming.filter(order => !w.data.orders.some(local => local.id === order.id));
-        if (newOrders.length) {
+        const signature = (order: Order) => JSON.stringify({
+          status: order.status,
+          delivery: order.delivery,
+          reserved: order.reserved,
+          stockConsumed: order.stockConsumed,
+          lines: order.lines.map(line => [line.id, line.quantity, line.price, !!line.done, line.note, line.description]),
+          events: order.events.map(item => [item.id, item.at, item.text]),
+        });
+        const changed = incoming.filter(remote => {
+          const local = w.data.orders.find(item => item.id === remote.id);
+          return !local || signature(local) !== signature(remote);
+        });
+        if (changed.length) {
+          const newCount = changed.filter(remote => !w.data.orders.some(local => local.id === remote.id)).length;
           await w.mutate(data => {
-            for (const order of newOrders) if (!data.orders.some(local => local.id === order.id)) data.orders.push(order);
-          }, newOrders.length === 1 ? 'Novo pedido recebido.' : `${newOrders.length} novos pedidos recebidos.`);
+            for (const remote of changed) {
+              const index = data.orders.findIndex(local => local.id === remote.id);
+              if (index < 0) {
+                data.orders.push(remote);
+                continue;
+              }
+              const local = data.orders[index];
+              data.orders[index] = {
+                ...local,
+                ...remote,
+                customerId: local.customerId,
+                priorityAt: local.priorityAt,
+                priorityReason: local.priorityReason,
+                testMode: local.testMode,
+              };
+            }
+          }, newCount === 1 ? 'Novo pedido recebido.' : newCount > 1 ? `${newCount} novos pedidos recebidos.` : '');
         }
       } catch (error) {
         if (active) setCloudError(error instanceof Error ? error.message : 'Falha ao buscar pedidos públicos.');
