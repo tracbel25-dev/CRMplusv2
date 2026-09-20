@@ -131,47 +131,75 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     </>;
   }
 
-  const acceptNewest = () => {
-    if (!newest) return;
-    void w.mutate(data => advanceOrder(data, newest.id, 'Novo'), `Pedido #${newest.number} confirmado.`);
+  const acceptNext = () => {
+    if (!nextWaiting) return;
+    void w.mutate(data => advanceOrder(data, nextWaiting.id, 'Novo'), \`Pedido #\${nextWaiting.number} confirmado.\`);
   };
 
-  const rejectNewest = () => {
-    if (!newest) return;
+  const rejectNext = () => {
+    if (!nextWaiting) return;
     const reason = window.prompt('Motivo da recusa do pedido:')?.trim() || '';
     if (!reason) return;
-    void w.mutate(data => cancelOrder(data, newest.id, reason), `Pedido #${newest.number} recusado.`);
+    void w.mutate(data => cancelOrder(data, nextWaiting.id, reason), \`Pedido #\${nextWaiting.number} recusado.\`);
+  };
+
+  const paused = orderingPaused(w.data.settings);
+  const pauseOrders = () => {
+    const minutes = Number(pauseMinutes);
+    void w.mutate(data => {
+      data.settings.onlinePaused = true;
+      data.settings.onlinePausedUntil = Number.isFinite(minutes) && minutes > 0 ? new Date(Date.now() + minutes * 60000).toISOString() : '';
+    }, Number.isFinite(minutes) && minutes > 0 ? \`Pedidos pausados por \${minutes} minutos.\` : 'Pedidos pausados até retomada manual.');
+  };
+  const resumeOrders = () => void w.mutate(data => {
+    data.settings.onlinePaused = false;
+    data.settings.onlinePausedUntil = '';
+  }, 'Pedidos online retomados.');
+  const fullscreenKitchen = async () => {
+    setView('cozinha');
+    setRushMode(true);
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    } catch {
+      w.setNotice('A cozinha foi focada. O navegador não liberou tela cheia.');
+    }
   };
 
   return <>
-    <Title eyebrow="Operação" title="Pedidos em andamento" action={<div className="op-actions"><Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link><Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link></div>}>
-      Um fluxo para receber, confirmar, preparar e concluir pedidos — sem espalhar a rotina em várias telas.
+    <Title eyebrow={rushMode ? 'Modo movimento intenso' : 'Operação'} title={rushMode ? 'Foco no que precisa sair agora' : 'Pedidos em andamento'} action={<div className="op-actions"><Button variant={rushMode ? 'primary' : 'secondary'} onClick={() => setRushMode(value => !value)}><Flame size={16} />{rushMode ? 'Sair do modo intenso' : 'Modo intenso'}</Button>{kitchenEnabled && <Button variant="secondary" onClick={() => void fullscreenKitchen()}><Maximize2 size={16} />Cozinha em tela cheia</Button>}{!rushMode && <><Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link><Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link></>}</div>}>
+      {rushMode ? 'Aguardando, atrasados e prontos ficam em primeiro plano. Controles administrativos são reduzidos.' : 'Um fluxo para receber, confirmar, preparar e concluir pedidos — sem espalhar a rotina em várias telas.'}
     </Title>
 
     <div className="artemis-channel-strip" aria-label="Canais ativos">
-      {physicalEnabled && <span><Store size={16} />Loja física</span>}
-      {deliveryEnabled && <span><Bike size={16} />Delivery</span>}
-      {pickupEnabled && <span><QrCode size={16} />Retirada</span>}
-      <span className={soundEnabled ? 'is-on' : ''}>{soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}{soundEnabled ? 'Alerta sonoro ativo' : 'Alerta sonoro desativado'}</span>
-      {cloud.connected && <span className="is-on"><Link2 size={16} />Pedidos online conectados</span>}
+      {!rushMode && physicalEnabled && <span><Store size={16} />Loja física</span>}
+      {!rushMode && deliveryEnabled && <span><Bike size={16} />Delivery</span>}
+      {!rushMode && pickupEnabled && <span><QrCode size={16} />Retirada</span>}
+      {!rushMode && <span className={soundEnabled ? 'is-on' : ''}>{soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}{soundEnabled ? 'Alerta sonoro ativo' : 'Alerta sonoro desativado'}</span>}
+      {cloud.connected && <span className="is-on"><Link2 size={16} />Online conectado</span>}
+      <span className={w.syncState === 'failed' ? 'is-error' : w.syncState === 'saving' ? 'is-saving' : 'is-on'}>{w.syncState === 'saving' ? 'Salvando alterações…' : w.syncState === 'failed' ? 'Falha ao salvar' : 'Alterações confirmadas'}</span>
     </div>
 
-    {newest ? <section className="artemis-order-alert" role="alert" aria-live="assertive">
+    {(deliveryEnabled || pickupEnabled) && <div className="artemis-online-control">
+      <div><strong>{paused ? 'Pedidos online pausados' : 'Recebendo pedidos online'}</strong><small>{paused ? (w.data.settings.onlinePausedUntil ? \`Retomada prevista: \${new Date(w.data.settings.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\` : 'Retomada manual') : 'Delivery e retirada usam o mesmo controle.'}</small></div>
+      {paused ? <Button onClick={resumeOrders}>Retomar agora</Button> : <><select value={pauseMinutes} onChange={event => setPauseMinutes(event.target.value)} aria-label="Tempo da pausa"><option value="30">30 min</option><option value="60">1 hora</option><option value="120">2 horas</option><option value="0">Até eu retomar</option></select><Button variant="secondary" onClick={pauseOrders}>Pausar pedidos</Button></>}
+    </div>}
+
+    {nextWaiting ? <section className="artemis-order-alert" role="alert" aria-live="assertive">
       <div className="artemis-alert-icon"><BellRing size={26} /></div>
       <div className="artemis-alert-copy">
-        <span>Novo pedido recebido</span>
-        <strong>#{String(newest.number).padStart(3, '0')} · {newest.channel}</strong>
-        <small>{newest.customerName || 'Cliente não identificado'} · {newest.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(newest))}</small>
+        <span>{waiting.length} aguardando · mais antigo há {age(oldestWaiting?.createdAt)}</span>
+        <strong>Próximo: #{String(nextWaiting.number).padStart(3, '0')} · {nextWaiting.channel}{nextWaiting.priorityAt ? ' · prioridade manual' : ''}</strong>
+        <small>{nextWaiting.customerName || 'Cliente não identificado'} · {nextWaiting.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(nextWaiting))}{nextWaiting.priorityReason ? \` · \${nextWaiting.priorityReason}\` : ''}</small>
       </div>
-      <div className="artemis-alert-actions"><Button onClick={acceptNewest}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNewest}>Recusar</Button></div>
+      <div className="artemis-alert-actions"><Button onClick={acceptNext}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNext}>Recusar</Button></div>
     </section> : <div className="artemis-no-alert"><BellRing size={18} /><span>Nenhum pedido aguardando confirmação.</span></div>}
 
     <div className="artemis-demand-summary">
-      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Demandas</span><strong>{activeOrders.length}</strong><small>{activeOrders.filter(order => order.status === 'Novo').length} aguardando confirmação</small></button>
-      {physicalEnabled && <button className={view === 'mesas' ? 'active' : ''} onClick={() => setView('mesas')}><span>Loja física</span><strong>{w.data.tables.filter(table => table.openedAt).length}</strong><small>mesas/comandas abertas</small></button>}
-      {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Preparo</span><strong>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</strong><small>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</small></button>}
+      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><strong>{activeOrders.length}</strong><small>{waiting.length ? \`\${waiting.length} aguardando · mais antigo \${age(oldestWaiting?.createdAt)}\` : 'sem fila de confirmação'}</small></button>
+      {physicalEnabled && <button className={view === 'mesas' ? 'active' : ''} onClick={() => setView('mesas')}><span>Mesas</span><strong>{w.data.tables.filter(table => table.openedAt).length}</strong><small>mesas/comandas abertas</small></button>}
+      {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Cozinha</span><strong>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</strong><small>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</small></button>}
     </div>
 
-    <div className="artemis-operation-body"><Artemis key={view} w={w} page={view} /></div>
+    <div className={\`artemis-operation-body \${rushMode ? 'is-rush' : ''}\`}><Artemis key={view} w={w} page={view} embedded rushMode={rushMode} publicSlug={cloud.slug} /></div>
   </>;
 }
