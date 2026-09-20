@@ -29,7 +29,7 @@ type Draft = {
   dailyLimit: string;
 };
 
-type VariantDraft = { id: string; name: string; price: string; available: boolean; free: boolean };
+type VariantDraft = { id: string; name: string; price: string; available: boolean; free: boolean; soldOutUntil: string };
 
 type AISuggestionState = {
   interactionId: string;
@@ -87,6 +87,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
     price: String(item.price / 100),
     available: item.available !== false,
     free: item.price === 0,
+    soldOutUntil: item.soldOutUntil || '',
   })));
   const originalKey = product ? productWithImage(product).imageObjectKey || '' : '';
   const [preview, setPreview] = useState('');
@@ -98,7 +99,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
   const [appliedAI, setAppliedAI] = useState<{ interactionId: string; fields: string[] } | null>(null);
 
   const set = (name: keyof Draft, value: string | boolean) => setDraft(current => ({ ...current, [name]: value }));
-  const addVariant = () => setVariants(current => [...current, { id: uid(), name: '', price: '', available: true, free: false }]);
+  const addVariant = () => setVariants(current => [...current, { id: uid(), name: '', price: '', available: true, free: false, soldOutUntil: '' }]);
   const updateVariant = (id: string, patch: Partial<VariantDraft>) => setVariants(current => current.map(item => item.id === id ? { ...item, ...patch } : item));
   const removeVariant = (id: string) => setVariants(current => current.filter(item => item.id !== id));
 
@@ -240,7 +241,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
         setTab('tamanhos');
         return null;
       }
-      output.push({ id: row.id, name: row.name.trim(), price: cents(value), available: row.available });
+      output.push({ id: row.id, name: row.name.trim(), price: cents(value), available: row.available, soldOutUntil: row.soldOutUntil || undefined });
     }
     return output;
   };
@@ -343,6 +344,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
           <label><span>Preço (R$)</span><input type="number" min="0" step="0.01" value={row.price} disabled={row.free} onChange={event => updateVariant(row.id, { price: event.target.value })} placeholder={row.free ? '0,00' : 'Obrigatório'} /></label>
           <label className="artemis-check"><input type="checkbox" checked={row.free} onChange={event => updateVariant(row.id, { free: event.target.checked, price: event.target.checked ? '0' : row.price })} /><span>Grátis</span></label>
           <label className="artemis-check"><input type="checkbox" checked={row.available} onChange={event => updateVariant(row.id, { available: event.target.checked })} /><span>Disponível</span></label>
+          <label className="artemis-check"><input type="checkbox" checked={row.soldOutUntil === localDay()} onChange={event => updateVariant(row.id, { soldOutUntil: event.target.checked ? localDay() : '' })} /><span>Esgotado hoje</span></label>
           <button className="op-icon" type="button" onClick={() => removeVariant(row.id)} aria-label={`Remover ${row.name || 'opção'}`}><Trash2 size={17} /></button>
         </div>)}
         {!variants.length && <p className="op-muted">Sem variações. O produto será vendido apenas pelo preço base.</p>}
@@ -368,7 +370,7 @@ function ProductEditor({ w, product, onClose }: { w: Workspace; product?: Produc
     <div className="op-form-footer"><Button variant="secondary" disabled={saving} onClick={() => void close()}>Cancelar</Button><Button disabled={saving || uploading} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar produto'}</Button></div>
 
     <style jsx>{`
-      .artemis-product-editor{display:grid;gap:18px}.artemis-product-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--op-line);padding-bottom:10px}.artemis-product-tabs button{border:0;background:transparent;color:var(--op-muted);padding:9px 11px;border-radius:9px}.artemis-product-tabs button.active{background:var(--op-soft);color:var(--op-ink);font-weight:700}.artemis-product-image-field{display:grid;align-content:start;gap:10px;max-width:520px}.artemis-product-image-preview{aspect-ratio:4/3;border:1px solid var(--op-line);border-radius:14px;overflow:hidden;background:var(--op-soft)}.artemis-product-image-preview :global(img){width:100%;height:100%;object-fit:cover}.artemis-product-image-empty{height:100%;display:grid;place-items:center;align-content:center;gap:8px;color:var(--op-muted)}.artemis-product-fields{display:grid;gap:14px}.artemis-ai-action{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:4px}.artemis-ai-action small{color:var(--op-muted)}.artemis-ai-suggestions{display:grid;gap:14px;padding:16px;border:1px solid var(--op-line);border-radius:14px;background:var(--op-soft)}.artemis-ai-suggestions-head{display:flex;justify-content:space-between;gap:12px}.artemis-ai-suggestions-head h3{margin:4px 0}.artemis-ai-suggestion-list{display:grid;gap:8px}.artemis-ai-suggestion-list label{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:11px;border:1px solid var(--op-line);border-radius:10px;background:var(--op-paper)}.artemis-ai-suggestion-list small{display:block;margin-top:4px;line-height:1.45}.artemis-variant-editor{display:grid;gap:14px}.artemis-variant-list{display:grid;gap:10px}.artemis-variant-row{display:grid;grid-template-columns:minmax(150px,1fr) 160px auto auto 42px;gap:10px;align-items:end}.artemis-variant-row label{display:grid;gap:6px}.artemis-variant-row label>span{font-size:12px;color:var(--op-muted)}.artemis-variant-row input{width:100%}.artemis-check{display:flex!important;align-items:center;gap:7px;padding-bottom:9px}.artemis-check input{width:auto}.disabled{pointer-events:none;opacity:.6}@media(max-width:760px){.artemis-variant-row{grid-template-columns:1fr 1fr}.artemis-variant-row .op-icon{grid-column:2;justify-self:end}}
+      .artemis-product-editor{display:grid;gap:18px}.artemis-product-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--op-line);padding-bottom:10px}.artemis-product-tabs button{border:0;background:transparent;color:var(--op-muted);padding:9px 11px;border-radius:9px}.artemis-product-tabs button.active{background:var(--op-soft);color:var(--op-ink);font-weight:700}.artemis-product-image-field{display:grid;align-content:start;gap:10px;max-width:520px}.artemis-product-image-preview{aspect-ratio:4/3;border:1px solid var(--op-line);border-radius:14px;overflow:hidden;background:var(--op-soft)}.artemis-product-image-preview :global(img){width:100%;height:100%;object-fit:cover}.artemis-product-image-empty{height:100%;display:grid;place-items:center;align-content:center;gap:8px;color:var(--op-muted)}.artemis-product-fields{display:grid;gap:14px}.artemis-ai-action{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:4px}.artemis-ai-action small{color:var(--op-muted)}.artemis-ai-suggestions{display:grid;gap:14px;padding:16px;border:1px solid var(--op-line);border-radius:14px;background:var(--op-soft)}.artemis-ai-suggestions-head{display:flex;justify-content:space-between;gap:12px}.artemis-ai-suggestions-head h3{margin:4px 0}.artemis-ai-suggestion-list{display:grid;gap:8px}.artemis-ai-suggestion-list label{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:11px;border:1px solid var(--op-line);border-radius:10px;background:var(--op-paper)}.artemis-ai-suggestion-list small{display:block;margin-top:4px;line-height:1.45}.artemis-variant-editor{display:grid;gap:14px}.artemis-variant-list{display:grid;gap:10px}.artemis-variant-row{display:grid;grid-template-columns:minmax(150px,1fr) 160px auto auto auto 42px;gap:10px;align-items:end}.artemis-variant-row label{display:grid;gap:6px}.artemis-variant-row label>span{font-size:12px;color:var(--op-muted)}.artemis-variant-row input{width:100%}.artemis-check{display:flex!important;align-items:center;gap:7px;padding-bottom:9px}.artemis-check input{width:auto}.disabled{pointer-events:none;opacity:.6}@media(max-width:760px){.artemis-variant-row{grid-template-columns:1fr 1fr}.artemis-variant-row .op-icon{grid-column:2;justify-self:end}}
     `}</style>
   </div>;
 }
