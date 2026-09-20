@@ -140,26 +140,23 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
   })}</div> : <Empty icon={<Wrench size={28} />}>{query ? 'Nenhum atendimento encontrado.' : 'As ordens de serviço aparecerão aqui.'}</Empty>;
 
   const startHomeJobs = [...d.jobs.filter(activeJob)].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const startAttention = startHomeJobs.filter(job =>
-    (job.due && job.due.slice(0, 10) < localDay()) ||
-    ['Pausado', 'Aguardando peça'].includes(job.status)
-  );
-  const startAttentionIds = new Set(startAttention.map(job => job.id));
+  const startStopped = startHomeJobs.filter(job => ['Pausado', 'Aguardando peça'].includes(job.status));
+  const startStoppedIds = new Set(startStopped.map(job => job.id));
   const startReady = startHomeJobs.filter(job =>
-    !startAttentionIds.has(job.id) &&
+    !startStoppedIds.has(job.id) &&
     (job.status === 'Pronto para retirada' || job.stage === 'Entrega')
   );
   const startReadyIds = new Set(startReady.map(job => job.id));
-  const startWaiting = startHomeJobs.filter(job =>
-    !startAttentionIds.has(job.id) &&
+  const startIdentification = startHomeJobs.filter(job =>
+    !startStoppedIds.has(job.id) &&
     !startReadyIds.has(job.id) &&
-    /^Aguardando/i.test(job.status)
+    job.stage === 'Identificação'
   );
-  const startWaitingIds = new Set(startWaiting.map(job => job.id));
+  const startIdentificationIds = new Set(startIdentification.map(job => job.id));
   const startWorking = startHomeJobs.filter(job =>
-    !startAttentionIds.has(job.id) &&
+    !startStoppedIds.has(job.id) &&
     !startReadyIds.has(job.id) &&
-    !startWaitingIds.has(job.id)
+    !startIdentificationIds.has(job.id)
   );
   const startHomeSection = (title: string, list: Job[]) => list.length ? (
     <Section
@@ -177,9 +174,9 @@ export function Zeus({ w, page, recordId = '' }: { w: Workspace; page: string; r
       {s.scheduleEnabled && operation.actionVisible('module:agendamentos') && canViewAppointments && <Section title="Agendamentos de hoje" action={<Link href="/zeus/agendamentos" className="op-text-link">Ver semana <ArrowRight size={15} /></Link>}>{appointmentList(d.appointments.filter(appointment => appointment.at.slice(0, 10) === localDay() && appointment.status === 'Agendado'))}</Section>}
       {canViewJobs && simpleFlow ? <>
         {!startHomeJobs.length && <Empty icon={<Wrench size={28} />}>Nenhum atendimento em aberto. Use <strong>Novo atendimento</strong> para começar.</Empty>}
-        {startHomeSection('Precisa de atenção', startAttention)}
+        {startHomeSection('Em identificação', startIdentification)}
         {startHomeSection('Em andamento', startWorking)}
-        {startHomeSection('Aguardando', startWaiting)}
+        {startHomeSection('Parados', startStopped)}
         {startHomeSection('Prontos para entregar', startReady)}
       </> : <>
         {zeusViewHasFeature(s, 'checklist') && d.jobs.some(job => job.status === 'Aguardando checklist') && <Section title="Aguardando checklist">{jobList(searchedJobs.filter(job => job.status === 'Aguardando checklist'))}</Section>}
