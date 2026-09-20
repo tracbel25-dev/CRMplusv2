@@ -16,7 +16,7 @@ export function validateZeusPlanTransition(current: Data | null, next: Data, pla
     for (const job of next.jobs) {
       const previous = before.get(job.id);
       if (previous && stable(jobQuote(previous)) !== stable(jobQuote(job))) throw new Error('PLAN_FEATURE_REQUIRED: orçamentos');
-      if (!previous && (job.quote.lines.length > 0 || job.quote.status !== 'Rascunho' || job.quote.versions.length > 0 || job.quote.discount > 0)) {
+      if (!previous && (job.quote.lines.length > 0 || job.quote.status !== 'Rascunho' || (job.quote.versions?.length || 0) > 0 || job.quote.discount > 0)) {
         throw new Error('PLAN_FEATURE_REQUIRED: orçamentos');
       }
     }
