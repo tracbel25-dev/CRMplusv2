@@ -136,14 +136,14 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
 
   const acceptNext = () => {
     if (!nextWaiting) return;
-    void w.mutate(data => advanceOrder(data, nextWaiting.id, 'Novo'), \`Pedido #\${nextWaiting.number} confirmado.\`);
+    void w.mutate(data => advanceOrder(data, nextWaiting.id, 'Novo'), `Pedido #${nextWaiting.number} confirmado.`);
   };
 
   const rejectNext = () => {
     if (!nextWaiting) return;
     const reason = window.prompt('Motivo da recusa do pedido:')?.trim() || '';
     if (!reason) return;
-    void w.mutate(data => cancelOrder(data, nextWaiting.id, reason), \`Pedido #\${nextWaiting.number} recusado.\`);
+    void w.mutate(data => cancelOrder(data, nextWaiting.id, reason), `Pedido #${nextWaiting.number} recusado.`);
   };
 
   const paused = orderingPaused(w.data.settings);
@@ -152,7 +152,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     void w.mutate(data => {
       data.settings.onlinePaused = true;
       data.settings.onlinePausedUntil = Number.isFinite(minutes) && minutes > 0 ? new Date(Date.now() + minutes * 60000).toISOString() : '';
-    }, Number.isFinite(minutes) && minutes > 0 ? \`Pedidos pausados por \${minutes} minutos.\` : 'Pedidos pausados até retomada manual.');
+    }, Number.isFinite(minutes) && minutes > 0 ? `Pedidos pausados por ${minutes} minutos.` : 'Pedidos pausados até retomada manual.');
   };
   const resumeOrders = () => void w.mutate(data => {
     data.settings.onlinePaused = false;
@@ -183,7 +183,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     </div>
 
     {(deliveryEnabled || pickupEnabled) && <div className="artemis-online-control">
-      <div><strong>{paused ? 'Pedidos online pausados' : 'Recebendo pedidos online'}</strong><small>{paused ? (w.data.settings.onlinePausedUntil ? \`Retomada prevista: \${new Date(w.data.settings.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}\` : 'Retomada manual') : 'Delivery e retirada usam o mesmo controle.'}</small></div>
+      <div><strong>{paused ? 'Pedidos online pausados' : 'Recebendo pedidos online'}</strong><small>{paused ? (w.data.settings.onlinePausedUntil ? `Retomada prevista: ${new Date(w.data.settings.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Retomada manual') : 'Delivery e retirada usam o mesmo controle.'}</small></div>
       {paused ? <Button onClick={resumeOrders}>Retomar agora</Button> : <><select value={pauseMinutes} onChange={event => setPauseMinutes(event.target.value)} aria-label="Tempo da pausa"><option value="30">30 min</option><option value="60">1 hora</option><option value="120">2 horas</option><option value="0">Até eu retomar</option></select><Button variant="secondary" onClick={pauseOrders}>Pausar pedidos</Button></>}
     </div>}
 
@@ -192,17 +192,17 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
       <div className="artemis-alert-copy">
         <span>{waiting.length} aguardando · mais antigo há {age(oldestWaiting?.createdAt)}</span>
         <strong>Próximo: #{String(nextWaiting.number).padStart(3, '0')} · {nextWaiting.channel}{nextWaiting.priorityAt ? ' · prioridade manual' : ''}</strong>
-        <small>{nextWaiting.customerName || 'Cliente não identificado'} · {nextWaiting.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(nextWaiting))}{nextWaiting.priorityReason ? \` · \${nextWaiting.priorityReason}\` : ''}</small>
+        <small>{nextWaiting.customerName || 'Cliente não identificado'} · {nextWaiting.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(nextWaiting))}{nextWaiting.priorityReason ? ` · ${nextWaiting.priorityReason}` : ''}</small>
       </div>
       <div className="artemis-alert-actions"><Button onClick={acceptNext}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNext}>Recusar</Button></div>
     </section> : <div className="artemis-no-alert"><BellRing size={18} /><span>Nenhum pedido aguardando confirmação.</span></div>}
 
     <div className="artemis-demand-summary">
-      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><strong>{activeOrders.length}</strong><small>{waiting.length ? \`\${waiting.length} aguardando · mais antigo \${age(oldestWaiting?.createdAt)}\` : 'sem fila de confirmação'}</small></button>
+      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><strong>{activeOrders.length}</strong><small>{waiting.length ? `${waiting.length} aguardando · mais antigo ${age(oldestWaiting?.createdAt)}` : 'sem fila de confirmação'}</small></button>
       {physicalEnabled && <button className={view === 'mesas' ? 'active' : ''} onClick={() => setView('mesas')}><span>Mesas</span><strong>{w.data.tables.filter(table => table.openedAt).length}</strong><small>mesas/comandas abertas</small></button>}
       {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Cozinha</span><strong>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</strong><small>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</small></button>}
     </div>
 
-    <div className={\`artemis-operation-body \${rushMode ? 'is-rush' : ''}\`}><Artemis key={view} w={w} page={view} embedded rushMode={rushMode} publicSlug={cloud.slug} /></div>
+    <div className={`artemis-operation-body ${rushMode ? 'is-rush' : ''}`}><Artemis key={view} w={w} page={view} embedded rushMode={rushMode} publicSlug={cloud.slug} /></div>
   </>;
 }
