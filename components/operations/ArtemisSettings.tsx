@@ -26,7 +26,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
   const [deliveryAreas, setDeliveryAreas] = useState(w.data.settings.deliveryAreas);
   const [deliveryFee, setDeliveryFee] = useState(String(w.data.settings.deliveryFee / 100));
   const [minimumOrder, setMinimumOrder] = useState(String(w.data.settings.minimumOrder / 100));
-  const [onlinePaused, setOnlinePaused] = useState(w.data.settings.onlinePaused);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => setPreferences(operation.preferences), [operation.preferences]);
@@ -69,7 +68,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       data.settings.deliveryAreas = deliveryAreas.trim();
       data.settings.deliveryFee = fee;
       data.settings.minimumOrder = minimum;
-      data.settings.onlinePaused = onlinePaused;
     }, 'Configurações do Artemis salvas.');
     if (!ok) return;
     saveOperationPreferences('artemis', preferences);
