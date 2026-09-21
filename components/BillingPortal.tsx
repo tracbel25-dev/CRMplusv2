@@ -151,6 +151,35 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
     finally{setBusy('');}
   }
 
+  async function endTrial(appId:string){
+    if(!accountId||busy)return;
+    const appName=apps.find(item=>item.slug===appId)?.name||'aplicativo';
+    if(!window.confirm(`Encerrar agora o teste grátis do ${appName}? O acesso será removido imediatamente e este teste não poderá ser iniciado novamente.`))return;
+    const key=`trial:${appId}`;
+    setBusy(key);
+    setError('');
+    setNotice('');
+    try{
+      const {data,error:sessionError}=await createStoreClient().auth.getSession();
+      if(sessionError||!data.session)throw new Error('Entre novamente para continuar.');
+      const response=await fetch('/api/billing/trial',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          Authorization:`Bearer ${data.session.access_token}`,
+          'x-crmplus-account-id':accountId,
+        },
+        body:JSON.stringify({appId}),
+      });
+      const result=await response.json().catch(()=>({})) as {error?:string};
+      if(!response.ok)throw new Error(result.error||'Não foi possível encerrar o teste.');
+      await access.refresh();
+      await load();
+      setNotice(`Teste grátis do ${appName} encerrado. O acesso foi removido.`);
+    }catch(reason){setError((reason as Error).message||'Não foi possível encerrar o teste.');}
+    finally{setBusy('');}
+  }
+
   if(!access.ready||loading)return <div className="billing-portal-loading">Carregando sua central de cobrança…</div>;
   if(!access.user)return <section className="billing-portal-empty"><span className="account-kicker">Área protegida</span><h2>Entre para gerenciar suas assinaturas.</h2><p>A cobrança pertence à sua conta CRM PLUS.</p><Link className="primary" href="/login?redirect=%2Fassinaturas">Entrar</Link></section>;
   if(access.error||!access.account)return <section className="billing-portal-empty"><h2>Não foi possível carregar sua conta.</h2><p>{access.error||'Conta não encontrada.'}</p><Link className="ghost" href="/conta">Voltar para minha conta</Link></section>;
@@ -248,7 +277,10 @@ export function BillingPortal({returned=false}:{returned?:boolean}){
             <div><span>Período</span><strong>{trialActive?`Teste até ${date(entitlement.currentPeriodEnd)}`:entitlement.currentPeriodEnd?`Até ${date(entitlement.currentPeriodEnd)}`:'Ativo'}</strong></div>
             <div><span>Próximo passo</span><strong>{trialActive?'Assinar após o teste':'Nenhuma ação necessária'}</strong></div>
           </div>
-          <div className="billing-product-actions"><Link className="ghost" href={`/${entitlement.appId}`}>Abrir aplicativo <ArrowRight size={14}/></Link></div>
+          <div className="billing-product-actions">
+            {trialActive&&<button className="text-danger" disabled={!!busy} onClick={()=>void endTrial(entitlement.appId)}>{busy===`trial:${entitlement.appId}`?'Encerrando…':'Encerrar teste'}</button>}
+            <Link className="ghost" href={`/${entitlement.appId}`}>Abrir aplicativo <ArrowRight size={14}/></Link>
+          </div>
         </article>;
       })}</div>}
     </section>
