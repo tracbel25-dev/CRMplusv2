@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   try {
     const settings = await artemisRest(`tenant_settings?${query({ select: 'public_slug', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ public_slug?: string }>;
     const orders = await artemisRest(`orders?${query({
-      select: 'id,number,customer_name,phone,address,channel,table_id,table_session_started_at,notes,status,delivery_status,fee_cents,discount_cents,created_at,stock_consumed,reserved,requested_payment_method,order_lines(id,product_id,variant_id,position,description,quantity,price_cents,done,note,prep_minutes),order_events(id,at,text)',
+      select: 'id,number,customer_name,phone,address,channel,table_id,table_session_started_at,notes,status,delivery_status,fee_cents,discount_cents,cancel_reason,created_at,stock_consumed,reserved,requested_payment_method,order_lines(id,product_id,variant_id,position,description,quantity,price_cents,done,note,prep_minutes),order_events(id,at,text)',
       tenant_key: `eq.${access.accountId}`,
       status: 'in.(Novo,Aceito,Em preparo,Pronto)',
       order: 'created_at.asc',
