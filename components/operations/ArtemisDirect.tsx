@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, Bike, ChefHat, Copy, Flame, Link2, Maximize2, QrCode } from 'lucide-react';
-import { advanceOrder, cancelOrder, money, orderTotal } from '@/lib/operations/model';
+import { Bike, ChefHat, Copy, Flame, Link2, Maximize2 } from 'lucide-react';
+
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
 import { Artemis } from './Artemis';
@@ -12,6 +12,7 @@ import { ArtemisMenuImport } from './ArtemisMenuImport';
 import { ArtemisMenuIntelligence } from './ArtemisMenuIntelligence';
 import { Badge, Button, Title } from './ui';
 import { useArtemisCloud } from './useArtemisCloud';
+import { ArtemisPendingDecisions } from './ArtemisPendingDecisions';
 import './artemis-direct.css';
 
 type ServiceView = 'pedidos' | 'mesas' | 'caixa';
@@ -76,18 +77,8 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     () => w.data.orders.filter(order => !['Concluído', 'Cancelado'].includes(order.status)),
     [w.data.orders]
   );
-  const waiting = useMemo(() => [...activeOrders].filter(order => order.status === 'Novo').sort((a, b) => {
-    if (!!a.priorityAt !== !!b.priorityAt) return a.priorityAt ? -1 : 1;
-    if (a.priorityAt && b.priorityAt && a.priorityAt !== b.priorityAt) return b.priorityAt.localeCompare(a.priorityAt);
-    return a.createdAt.localeCompare(b.createdAt);
-  }), [activeOrders]);
-  const nextWaiting = waiting[0];
-  const oldestWaiting = useMemo(() => [...waiting].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0], [waiting]);
-  const age = (createdAt?: string) => {
-    if (!createdAt) return '0 min';
-    const minutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000));
-    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}min`;
-  };
+  const serviceWaiting = useMemo(() => activeOrders.filter(order => order.status === 'Novo' && (order.channel !== 'Delivery' || (w.data.settings.deliveryAcceptanceView || 'atendimento') === 'atendimento')), [activeOrders, w.data.settings.deliveryAcceptanceView]);
+  const nextWaiting = serviceWaiting[0];
 
   const physicalEnabled = operation.actionVisible('dineIn') || operation.actionVisible('counter');
   const deliveryEnabled = operation.actionVisible('delivery');
@@ -121,18 +112,6 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     </section>;
   }
 
-  const acceptNext = () => {
-    if (!nextWaiting) return;
-    void w.mutate(data => advanceOrder(data, nextWaiting.id, 'Novo'), `Pedido #${nextWaiting.number} confirmado.`);
-  };
-
-  const rejectNext = () => {
-    if (!nextWaiting) return;
-    const reason = window.prompt('Motivo da recusa do pedido:')?.trim() || '';
-    if (!reason) return;
-    void w.mutate(data => cancelOrder(data, nextWaiting.id, reason), `Pedido #${nextWaiting.number} recusado.`);
-  };
-
   const fullscreenKitchen = async () => {
     setRushMode(true);
     try {
@@ -151,6 +130,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
         {preparing} em preparo{ready ? ` · ${ready} pronto(s) para saída` : ''}.
       </Title>
       {w.syncState === 'failed' && <div className="artemis-sync-warning" role="alert">Falha ao salvar alterações. Verifique a conexão antes de continuar.</div>}
+      <ArtemisPendingDecisions w={w} view="cozinha" />
       <div className={`artemis-operation-body ${rushMode ? 'is-rush' : ''}`}><Artemis key="cozinha" w={w} page="cozinha" embedded rushMode={rushMode} publicSlug={cloud.slug}/></div>
     </>;
   }
@@ -162,18 +142,10 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
 
     {w.syncState === 'failed' && <div className="artemis-sync-warning" role="alert">Falha ao salvar alterações. Verifique a conexão antes de continuar.</div>}
 
-    {nextWaiting ? <section className="artemis-order-alert" role="alert" aria-live="assertive">
-      <div className="artemis-alert-icon"><BellRing size={26}/></div>
-      <div className="artemis-alert-copy">
-        <span>{waiting.length} aguardando · mais antigo há {age(oldestWaiting?.createdAt)}</span>
-        <strong>Próximo: #{String(nextWaiting.number).padStart(3, '0')} · {nextWaiting.channel}{nextWaiting.priorityAt ? ' · prioridade manual' : ''}</strong>
-        <small>{nextWaiting.customerName || 'Cliente não identificado'} · {nextWaiting.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(nextWaiting))}{nextWaiting.priorityReason ? ` · ${nextWaiting.priorityReason}` : ''}</small>
-      </div>
-      <div className="artemis-alert-actions"><Button onClick={acceptNext}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNext}>Recusar</Button></div>
-    </section> : null}
+    <ArtemisPendingDecisions w={w} view="atendimento" />
 
     <nav className="artemis-view-tabs" aria-label="Atendimento">
-      <button className={serviceView === 'pedidos' ? 'active' : ''} onClick={() => setServiceView('pedidos')}><span>Pedidos</span><b>{activeOrders.length}</b>{waiting.length > 0 && <em>{waiting.length} novo(s)</em>}</button>
+      <button className={serviceView === 'pedidos' ? 'active' : ''} onClick={() => setServiceView('pedidos')}><span>Pedidos</span><b>{activeOrders.length}</b>{serviceWaiting.length > 0 && <em>{serviceWaiting.length} novo(s)</em>}</button>
       {physicalEnabled && <button className={serviceView === 'mesas' ? 'active' : ''} onClick={() => setServiceView('mesas')}><span>Mesas</span><b>{w.data.tables.filter(table => table.openedAt).length}</b></button>}
       {cashEnabled && <button className={serviceView === 'caixa' ? 'active' : ''} onClick={() => setServiceView('caixa')}><span>Caixa</span></button>}
     </nav>
