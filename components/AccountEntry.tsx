@@ -41,10 +41,11 @@ export function AccountEntry(){
   const contractedIds=new Set(activeRows.map(item=>item.appId));
   const contracted=apps.filter(app=>contractedIds.has(app.slug as AppId));
   const trials=activeRows.filter(item=>item.status==='trialing').length;
-  const firstName=String(access.member.displayName||'Cliente').trim().split(/\s+/)[0]||'Cliente';
+  const displayName=String(access.member.displayName||'Cliente').trim()||'Cliente';
+  const firstName=displayName.split(/\s+/)[0]||'Cliente';
   const isPJ=access.account.personType==='pj';
   const missingData=[
-    ...(access.identityStatus?.registered===true?[]:['CPF do titular']),
+    ...(access.isOwner&&access.identityStatus?.registered!==true?['CPF do titular']:[]),
     ...(isPJ&&access.account.cnpj?[]:isPJ?['CNPJ da empresa']:[]),
   ];
 
@@ -63,7 +64,7 @@ export function AccountEntry(){
     </section>}
 
     <section className="account-hero">
-      <div className="account-hero-copy"><span className="account-kicker">Área do cliente</span><h1>Olá, {firstName}.</h1><p>Central da conta <strong>{access.account.name}</strong>.</p></div>
+      <div className="account-hero-copy"><span className="account-kicker">Área do cliente</span><h1>Olá, {firstName}.</h1><p>{isPJ?<>Central da empresa <strong>{access.account.name}</strong>.</>:<>Conta do titular <strong>{displayName}</strong>.</>}</p></div>
       <div className="account-status"><ShieldCheck size={18}/><div><small>Status do cadastro</small><strong>{access.account.status==='active'?'Concluído':access.account.status==='suspended'?'Suspenso':'Encerrado'}</strong></div></div>
     </section>
 
