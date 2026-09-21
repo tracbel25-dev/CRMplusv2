@@ -15,11 +15,14 @@ import { SettingsSection } from './SettingsSection';
 type PermissionKey =
   | 'dashboard_view'|'appointments_view'|'appointments_manage'|'jobs_view'|'jobs_create'|'jobs_edit'|'jobs_advance'
   | 'quotes_view'|'quotes_manage'|'quotes_share'|'billing_view'|'billing_manage'|'billing_collect'|'reports_export'
-  | 'attachments_manage'|'ai_use'|'settings_fields'|'settings_operation'|'settings_access'|'customers_manage';
+  | 'attachments_manage'|'ai_use'|'settings_fields'|'settings_operation'|'settings_access'|'customers_manage'
+  | 'artemis_service'|'artemis_kitchen'|'artemis_manage';
 
 type DetailMember={userId:string;displayName:string;role:string;jobTitle:string;enabled:boolean;canConfigure:boolean;permissions:Record<PermissionKey,boolean>};
 
-const GROUPS:{title:string;items:{key:PermissionKey;label:string;help:string}[]}[]=[
+type PermissionGroup={title:string;items:{key:PermissionKey;label:string;help:string}[]};
+
+const ZEUS_GROUPS:PermissionGroup[]=[
   {title:'Visualização',items:[
     {key:'dashboard_view',label:'Ver dashboard',help:'Indicadores e relatórios da oficina.'},
     {key:'appointments_view',label:'Ver agendamentos',help:'Consulta a agenda.'},
@@ -52,19 +55,35 @@ const GROUPS:{title:string;items:{key:PermissionKey;label:string;help:string}[]}
   ]},
 ];
 
-const ALL_KEYS=GROUPS.flatMap(group=>group.items.map(item=>item.key));
-const blankPermissions=()=>Object.fromEntries(ALL_KEYS.map(key=>[key,false])) as Record<PermissionKey,boolean>;
-const presets:Record<string,Record<PermissionKey,boolean>>={
-  'Somente consulta':{...blankPermissions(),dashboard_view:true,appointments_view:true,jobs_view:true,quotes_view:true},
-  'Técnico':{...blankPermissions(),appointments_view:true,jobs_view:true,jobs_edit:true,jobs_advance:true,attachments_manage:true,ai_use:true,reports_export:true},
-  'Atendimento':{...blankPermissions(),dashboard_view:true,appointments_view:true,appointments_manage:true,jobs_view:true,jobs_create:true,jobs_edit:true,quotes_view:true,quotes_manage:true,quotes_share:true,attachments_manage:true,ai_use:true,reports_export:true},
-  'Financeiro':{...blankPermissions(),dashboard_view:true,jobs_view:true,quotes_view:true,billing_view:true,billing_manage:true,billing_collect:true,reports_export:true},
-  'Gestor':Object.fromEntries(ALL_KEYS.map(key=>[key,key!=='settings_access'])) as Record<PermissionKey,boolean>,
+const ARTEMIS_GROUPS:PermissionGroup[]=[
+  {title:'Visões do Artemis',items:[
+    {key:'artemis_service',label:'Atendimento',help:'Pedidos, mesas, comandas e caixa.'},
+    {key:'artemis_kitchen',label:'Cozinha',help:'Fila de preparo, itens e pedidos prontos.'},
+    {key:'artemis_manage',label:'Gestão',help:'Cardápio, delivery, estoque, clientes, relatórios, equipe e configurações.'},
+  ]},
+];
+
+const keysOf=(groups:PermissionGroup[])=>groups.flatMap(group=>group.items.map(item=>item.key));
+const ZEUS_KEYS=keysOf(ZEUS_GROUPS);
+const ARTEMIS_KEYS=keysOf(ARTEMIS_GROUPS);
+const blankPermissions=(keys:PermissionKey[])=>Object.fromEntries(keys.map(key=>[key,false])) as Record<PermissionKey,boolean>;
+
+const ZEUS_PRESETS:Record<string,Record<PermissionKey,boolean>>={
+  'Somente consulta':{...blankPermissions(ZEUS_KEYS),dashboard_view:true,appointments_view:true,jobs_view:true,quotes_view:true},
+  'Técnico':{...blankPermissions(ZEUS_KEYS),appointments_view:true,jobs_view:true,jobs_edit:true,jobs_advance:true,attachments_manage:true,ai_use:true,reports_export:true},
+  'Atendimento':{...blankPermissions(ZEUS_KEYS),dashboard_view:true,appointments_view:true,appointments_manage:true,jobs_view:true,jobs_create:true,jobs_edit:true,quotes_view:true,quotes_manage:true,quotes_share:true,attachments_manage:true,ai_use:true,reports_export:true},
+  'Financeiro':{...blankPermissions(ZEUS_KEYS),dashboard_view:true,jobs_view:true,quotes_view:true,billing_view:true,billing_manage:true,billing_collect:true,reports_export:true},
+  'Gestor':Object.fromEntries(ZEUS_KEYS.map(key=>[key,key!=='settings_access'])) as Record<PermissionKey,boolean>,
+};
+const ARTEMIS_PRESETS:Record<string,Record<PermissionKey,boolean>>={
+  'Atendimento':{...blankPermissions(ARTEMIS_KEYS),artemis_service:true},
+  'Cozinha':{...blankPermissions(ARTEMIS_KEYS),artemis_kitchen:true},
+  'Gerente':{...blankPermissions(ARTEMIS_KEYS),artemis_service:true,artemis_kitchen:true,artemis_manage:true},
 };
 
-const permissionCount=(value:Record<PermissionKey,boolean>)=>ALL_KEYS.filter(key=>value[key]).length;
-const samePermissions=(a:Record<PermissionKey,boolean>,b:Record<PermissionKey,boolean>)=>ALL_KEYS.every(key=>!!a[key]===!!b[key]);
-const presetFor=(value:Record<PermissionKey,boolean>)=>Object.entries(presets).find(([,preset])=>samePermissions(value,preset))?.[0]||'Personalizado';
+const permissionCount=(value:Record<PermissionKey,boolean>,keys:PermissionKey[])=>keys.filter(key=>value[key]).length;
+const samePermissions=(a:Record<PermissionKey,boolean>,b:Record<PermissionKey,boolean>,keys:PermissionKey[])=>keys.every(key=>!!a[key]===!!b[key]);
+const presetFor=(value:Record<PermissionKey,boolean>,presets:Record<string,Record<PermissionKey,boolean>>,keys:PermissionKey[])=>Object.entries(presets).find(([,preset])=>samePermissions(value,preset,keys))?.[0]||'Personalizado';
 
 async function detailRequest<T>(accountId:string,payload:Record<string,unknown>):Promise<T>{
   const {data}=await createStoreClient().auth.getSession();
@@ -81,6 +100,9 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   const appId=useMemo<AppId>(()=>(pathname.split('/').filter(Boolean)[0] as AppId)||'zeus',[pathname]);
   const app=apps.find(item=>item.slug===appId);
   const appName=app?.name||appId;
+  const permissionGroups=appId==='artemis'?ARTEMIS_GROUPS:ZEUS_GROUPS;
+  const permissionKeys=appId==='artemis'?ARTEMIS_KEYS:ZEUS_KEYS;
+  const presets=appId==='artemis'?ARTEMIS_PRESETS:ZEUS_PRESETS;
   const [members,setMembers]=useState<DetailMember[]>([]);
   const [open,setOpen]=useState('');
   const [busy,setBusy]=useState('');
@@ -92,6 +114,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   const [inviteTitle,setInviteTitle]=useState('');
   const [invitePreset,setInvitePreset]=useState('Atendimento');
   const [invitePermissions,setInvitePermissions]=useState<Record<PermissionKey,boolean>>({...presets.Atendimento});
+  useEffect(()=>{setInvitePreset('Atendimento');setInvitePermissions({...presets.Atendimento});},[appId]);
 
   const load=async()=>{
     if(!access.ready||!access.user||!access.account||!access.isOwner) return;
@@ -141,9 +164,9 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
     if(!inviteName.trim()||!inviteEmail.trim()){setError('Informe nome e e-mail.');return;}
     setBusy('invite');
     try{
-      const canConfigure=granularPermissions&&(invitePermissions.settings_fields||invitePermissions.settings_operation||invitePermissions.settings_access||invitePermissions.customers_manage);
+      const canConfigure=granularPermissions&&(appId==='artemis'?!!invitePermissions.artemis_manage:!!(invitePermissions.settings_fields||invitePermissions.settings_operation||invitePermissions.settings_access||invitePermissions.customers_manage));
       await access.inviteMember(inviteName.trim(),inviteEmail.trim(),[{appId,canConfigure}]);
-      if(granularPermissions||inviteTitle.trim()) await detailRequest(access.account!.id,{action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:granularPermissions?invitePermissions:blankPermissions()});
+      if(granularPermissions||inviteTitle.trim()) await detailRequest(access.account!.id,{action:'update',appId,email:inviteEmail.trim(),jobTitle:inviteTitle.trim(),permissions:granularPermissions?invitePermissions:blankPermissions(permissionKeys)});
       setInviteName('');setInviteEmail('');setInviteTitle('');setInvitePreset('Atendimento');setInvitePermissions({...presets.Atendimento});setInviteOpen(false);
       setMessage(granularPermissions?'Convite enviado com cargo e permissões definidos.':'Convite enviado. O acesso usa as funções disponíveis no plano atual.');
       await access.refresh();await load();
@@ -158,7 +181,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   };
 
   const ownApp=access.member.apps.find(item=>item.appId===appId);
-  const ownPermissions=(ownApp?.permissions||blankPermissions()) as Record<PermissionKey,boolean>;
+  const ownPermissions=(ownApp?.permissions||blankPermissions(permissionKeys)) as Record<PermissionKey,boolean>;
 
   return <SettingsSection title={`Equipe e acessos · ${appName}`} description="Veja a equipe primeiro; abra somente a pessoa que quiser configurar.">
     <div className="access-overview">
@@ -166,7 +189,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
       {access.isOwner&&<Button variant="secondary" disabled={teamFull||!appActive} onClick={()=>{clear();setInviteOpen(value=>!value);}}><UserPlus size={16}/>{inviteOpen?'Fechar':'Adicionar pessoa'}</Button>}
     </div>
 
-    {!access.isOwner&&<div className="access-self-card"><div><strong>Seu acesso</strong><small>{granularPermissions?`${permissionCount(ownPermissions)} permissões liberadas`:'Funções definidas pelo plano contratado'}</small></div>{granularPermissions&&<PermissionGrid value={ownPermissions} disabled/>}</div>}
+    {!access.isOwner&&<div className="access-self-card"><div><strong>Seu acesso</strong><small>{granularPermissions?`${permissionCount(ownPermissions,permissionKeys)} permissões liberadas`:'Funções definidas pelo plano contratado'}</small></div>{granularPermissions&&<PermissionGrid groups={permissionGroups} value={ownPermissions} disabled/>}</div>}
 
     {access.isOwner&&inviteOpen&&!teamFull&&<div className="access-editor access-invite">
       <div className="access-editor-head"><div><span>Novo integrante</span><strong>Defina o acesso antes de enviar o convite</strong></div><Badge>{appName}</Badge></div>
@@ -176,7 +199,7 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
         <label className="op-field"><span>Cargo / função</span><input value={inviteTitle} onChange={e=>setInviteTitle(e.target.value)} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
         {granularPermissions&&<label className="op-field"><span>Perfil de acesso</span><select value={invitePreset} onChange={e=>{setInvitePreset(e.target.value);if(presets[e.target.value])setInvitePermissions({...presets[e.target.value]});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>}
       </div>
-      {granularPermissions?<PermissionGrid value={invitePermissions} onChange={next=>{setInvitePermissions(next);setInvitePreset('Personalizado');}}/>:<p className="op-muted">Este plano libera os acessos contratados com as funções do próprio plano. Permissões individuais ficam disponíveis nos planos que incluem esse controle.</p>}
+      {granularPermissions?<PermissionGrid groups={permissionGroups} value={invitePermissions} onChange={next=>{setInvitePermissions(next);setInvitePreset('Personalizado');}}/>:<p className="op-muted">Este plano libera os acessos contratados com as funções do próprio plano. Permissões individuais ficam disponíveis nos planos que incluem esse controle.</p>}
       <div className="op-form-footer"><Button variant="secondary" onClick={()=>setInviteOpen(false)}>Cancelar</Button><Button disabled={busy==='invite'} onClick={()=>void invite()}>{busy==='invite'?'Enviando…':'Enviar convite'}</Button></div>
     </div>}
 
@@ -186,8 +209,8 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
     {access.isOwner&&<div className="access-member-list">{members.map(member=>{
       const owner=member.role==='owner';
       const expanded=!owner&&open===member.userId;
-      const count=owner?ALL_KEYS.length:permissionCount(member.permissions);
-      const profile=owner?'Titular':granularPermissions?presetFor(member.permissions):'Acesso do plano';
+      const count=owner?permissionKeys.length:permissionCount(member.permissions,permissionKeys);
+      const profile=owner?'Titular':granularPermissions?presetFor(member.permissions,presets,permissionKeys):'Acesso do plano';
       return <article className={`access-member-card${expanded?' is-open':''}`} key={member.userId}>
         <div className="access-member-head">
           <div className="access-person"><strong>{member.displayName}{owner&&<Badge>Titular</Badge>}</strong><span>{owner?'Acesso total':member.jobTitle||'Cargo não informado'}</span><small>{owner?'Todas as áreas liberadas.':granularPermissions?`${profile} · ${count} permissões`:'Acesso conforme o plano contratado'}</small></div>
@@ -200,9 +223,9 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
         {expanded&&<div className="access-member-body">
           <div className="access-editor-top">
             <label className="op-field"><span>Cargo / função</span><input value={member.jobTitle} onChange={e=>updateLocal(member.userId,{jobTitle:e.target.value})} placeholder="Ex.: Técnico, Consultor, Financeiro"/></label>
-            <label className="op-field"><span>Perfil de acesso</span><select value={presetFor(member.permissions)} onChange={e=>{if(presets[e.target.value])updateLocal(member.userId,{permissions:{...presets[e.target.value]}});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
+            <label className="op-field"><span>Perfil de acesso</span><select value={presetFor(member.permissions,presets,permissionKeys)} onChange={e=>{if(presets[e.target.value])updateLocal(member.userId,{permissions:{...presets[e.target.value]}});}}>{Object.keys(presets).map(name=><option key={name}>{name}</option>)}<option>Personalizado</option></select></label>
           </div>
-          <PermissionGrid value={member.permissions} disabled={!member.enabled} onChange={permissions=>updateLocal(member.userId,{permissions})}/>
+          <PermissionGrid groups={permissionGroups} value={member.permissions} disabled={!member.enabled} onChange={permissions=>updateLocal(member.userId,{permissions})}/>
           <div className="op-form-footer"><Button disabled={!member.enabled||busy===`${member.userId}:save`} onClick={()=>void saveMember(member)}><Save size={16}/>{busy===`${member.userId}:save`?'Salvando…':'Salvar alterações'}</Button></div>
         </div>}
       </article>;
@@ -223,13 +246,14 @@ export function LocalAccountSettings({ w }: { w?: Workspace } = {}){
   </SettingsSection>;
 }
 
-function PermissionGrid({value,onChange,disabled=false}:{value:Record<PermissionKey,boolean>;onChange?:(value:Record<PermissionKey,boolean>)=>void;disabled?:boolean}){
-  const [activeGroup,setActiveGroup]=useState(GROUPS[0].title);
-  const group=GROUPS.find(item=>item.title===activeGroup)||GROUPS[0];
+function PermissionGrid({groups,value,onChange,disabled=false}:{groups:PermissionGroup[];value:Record<PermissionKey,boolean>;onChange?:(value:Record<PermissionKey,boolean>)=>void;disabled?:boolean}){
+  const [activeGroup,setActiveGroup]=useState(groups[0].title);
+  useEffect(()=>{if(!groups.some(item=>item.title===activeGroup))setActiveGroup(groups[0].title);},[groups,activeGroup]);
+  const group=groups.find(item=>item.title===activeGroup)||groups[0];
   const toggle=(key:PermissionKey,checked:boolean)=>onChange?.({...value,[key]:checked});
   return <>
     <div className="access-permission-tabs" role="tablist" aria-label="Filtrar permissões">
-      {GROUPS.map(item=>{
+      {groups.map(item=>{
         const enabled=item.items.filter(permission=>value[permission.key]).length;
         const active=item.title===activeGroup;
         return <button type="button" role="tab" aria-selected={active} className={active?'is-active':''} onClick={()=>setActiveGroup(item.title)} key={item.title}><span>{item.title}</span><small>{enabled}/{item.items.length}</small></button>;
