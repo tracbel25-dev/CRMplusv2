@@ -5,6 +5,7 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 import { type Event, type Line, type Order } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 import { useArtemisBootstrap } from './useArtemisBootstrap';
 
 type RemoteLine = {
@@ -102,6 +103,8 @@ function mapRemoteOrder(remote: RemoteOrder): Order {
 export function useArtemisCloud(w: Workspace) {
   useArtemisBootstrap('artemis');
   const operation = useOperationPreferences('artemis');
+  const access = useStoreAccess();
+  const canPublish = !access.account || access.hasPermission('artemis','artemis_manage');
   const [slug, setSlug] = useState('');
   const [connected, setConnected] = useState(false);
   const [cloudError, setCloudError] = useState('');
@@ -128,7 +131,7 @@ export function useArtemisCloud(w: Workspace) {
   }), [w.data.settings, w.data.products, w.data.tables, operation.preferences]);
 
   useEffect(() => {
-    if (!w.ready || !w.accountId || w.accountId === 'guest') return;
+    if (!canPublish || !w.ready || !w.accountId || w.accountId === 'guest') return;
     const timer = window.setTimeout(async () => {
       const token = await sessionToken();
       if (!token) { setConnected(false); return; }
@@ -150,7 +153,7 @@ export function useArtemisCloud(w: Workspace) {
       }
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [w.ready, w.accountId, publishSignature]);
+  }, [canPublish, w.ready, w.accountId, publishSignature]);
 
   useEffect(() => {
     if (!w.ready || !w.accountId || w.accountId === 'guest') return;
