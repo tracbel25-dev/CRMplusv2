@@ -6,6 +6,15 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { clientMessage } from '@/lib/clientMessage';
 import { createStoreClient } from '@/lib/supabase/storeClient';
+import { precheckSignupIdentity, releaseSignupIdentity } from '@/lib/antifraud';
+
+function formatCpf(value:string){
+  const digits=value.replace(/\D/g,'').slice(0,11);
+  return digits
+    .replace(/^(\d{3})(\d)/,'$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/,'.$1-$2');
+}
 
 function formatCnpj(value:string){
   const digits=value.replace(/\D/g,'').slice(0,14);
@@ -37,6 +46,8 @@ export function AccountInformation(){
   const access=useStoreAccess();
   const [displayName,setDisplayName]=useState('');
   const [phone,setPhone]=useState('');
+  const [cpf,setCpf]=useState('');
+  const [birthDate,setBirthDate]=useState('');
   const [companyName,setCompanyName]=useState('');
   const [cnpj,setCnpj]=useState('');
   const [loadingProfile,setLoadingProfile]=useState(false);
@@ -76,7 +87,7 @@ export function AccountInformation(){
   const isPJ=currentAccount.personType==='pj';
   const cpfRegistered=access.identityStatus?.registered===true;
   const pendingItems=[
-    ...(!cpfRegistered?['CPF do titular']:[]),
+    ...(access.isOwner&&!cpfRegistered?['CPF do titular']:[]),
     ...(isPJ&&!currentAccount.cnpj?['CNPJ da empresa']:[]),
   ];
 
@@ -86,15 +97,39 @@ export function AccountInformation(){
     setError('');
     const cleanName=displayName.trim();
     const cleanPhone=phone.trim();
+    const cleanCpf=cpf.replace(/\D/g,'');
     const cleanCompany=companyName.trim();
     const cleanCnpj=cnpj.replace(/\D/g,'');
     if(!cleanName){setError('Informe seu nome.');return;}
+    if(access.isOwner&&!cpfRegistered&&cleanCpf.length!==11){setError('Informe seu CPF com 11 dígitos.');return;}
+    if(access.isOwner&&!cpfRegistered&&!birthDate){setError('Informe sua data de nascimento para validar o CPF.');return;}
     if(access.isOwner&&!cleanCompany){setError(isPJ?'Informe o nome da empresa.':'Informe o nome do negócio.');return;}
     if(access.isOwner&&isPJ&&!cleanCnpj){setError('Informe o CNPJ da empresa.');return;}
     if(access.isOwner&&isPJ&&!validCnpj(cleanCnpj)){setError('Informe um CNPJ válido.');return;}
     setSaving(true);
     try{
       const supabase=createStoreClient();
+
+      if(access.isOwner&&!cpfRegistered){
+        if(!currentUser.email)throw new Error('Sua conta precisa ter um e-mail válido para cadastrar o CPF.');
+        const identity=await precheckSignupIdentity({
+          cpf:cleanCpf,
+          name:cleanName,
+          birthDate,
+          email:currentUser.email,
+          personType:currentAccount.personType,
+          cnpj:isPJ?cleanCnpj||currentAccount.cnpj||undefined:undefined,
+        });
+        const {error:identityError}=await supabase.rpc('finalize_signup_identity',{
+          reservation_token:identity.reservationToken,
+          target_account:currentAccount.id,
+        });
+        if(identityError){
+          await releaseSignupIdentity(identity.reservationToken).catch(()=>false);
+          throw identityError;
+        }
+      }
+
       const {error:authError}=await supabase.auth.updateUser({data:{name:cleanName}});
       if(authError)throw authError;
 
@@ -116,7 +151,8 @@ export function AccountInformation(){
 
       await access.refresh();
       if(isPJ)setCnpj(formatCnpj(cleanCnpj));
-      setMessage('Informações atualizadas.');
+      if(!cpfRegistered){setCpf('');setBirthDate('');}
+      setMessage(!cpfRegistered&&access.isOwner?'CPF validado e informações atualizadas.':'Informações atualizadas.');
     }catch(reason){
       setError(clientMessage(reason,'Não foi possível salvar suas informações.'));
     }finally{setSaving(false);}
@@ -133,7 +169,8 @@ export function AccountInformation(){
       <section className="account-details-card">
         <div className="account-details-heading"><UserRound size={19}/><div><h2>Informações pessoais</h2><p>Dados usados para identificar você dentro da conta.</p></div></div>
         <label><span>Nome</span><input value={displayName} onChange={event=>setDisplayName(event.target.value)} autoComplete="name" required/></label>
-        <label><span>CPF</span><div className="account-input-icon is-readonly"><IdCard size={16}/><input value={cpfRegistered?(access.identityStatus?.verified?'CPF validado':'CPF cadastrado'):'CPF pendente'} readOnly aria-readonly="true"/></div><small>{cpfRegistered?'CPF vinculado ao titular da conta.':'CPF não localizado no cadastro. Entre em contato com o suporte para regularizar.'}</small></label>
+        <label><span>CPF</span>{cpfRegistered?<><div className="account-input-icon is-readonly"><IdCard size={16}/><input value={access.identityStatus?.verified?'CPF validado':'CPF cadastrado'} readOnly aria-readonly="true"/></div><small>CPF vinculado ao seu cadastro e protegido por segurança.</small></>:access.isOwner?<><div className="account-input-icon"><IdCard size={16}/><input value={cpf} onChange={event=>setCpf(formatCpf(event.target.value))} placeholder="000.000.000-00" inputMode="numeric" autoComplete="off" maxLength={14} required/></div><small>Informe o CPF do titular. Ele será validado e, depois do cadastro, ficará protegido.</small></>:<><div className="account-input-icon is-readonly"><IdCard size={16}/><input value="CPF do titular pendente" readOnly aria-readonly="true"/></div><small>Somente o titular da conta pode cadastrar o CPF.</small></>}</label>
+        {!cpfRegistered&&access.isOwner&&<label><span>Data de nascimento</span><input type="date" value={birthDate} onChange={event=>setBirthDate(event.target.value)} autoComplete="bday" required/><small>Usada somente para validar os dados do titular.</small></label>}
         <label><span>Telefone</span><div className="account-input-icon"><Phone size={16}/><input value={phone} onChange={event=>setPhone(event.target.value)} placeholder="(00) 00000-0000" autoComplete="tel" disabled={loadingProfile}/></div></label>
         <label><span>E-mail</span><div className="account-input-icon is-readonly"><Mail size={16}/><input value={currentUser.email||''} readOnly aria-readonly="true"/></div><small>Este é o e-mail usado para entrar na sua conta.</small></label>
       </section>
