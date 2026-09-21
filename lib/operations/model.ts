@@ -162,6 +162,7 @@ export type Settings = {
   onlinePaused: boolean;
   onlinePausedUntil?: string;
   staffViewSwitchEnabled: boolean;
+  deliveryAcceptanceView: 'atendimento' | 'cozinha' | 'gestao';
   deliveryFee: number;
   minimumOrder: number;
   deliveryAreas: string;
@@ -200,7 +201,7 @@ export const initialData = (): Data => ({
   settings: {
     business: '', phone: '', email: '', address: '', operator: '', theme: 'light', collapsed: false,
     identifierLabel: 'Placa', assetLabel: 'Veículo', meterLabel: 'Quilometragem', budgetEnabled: true,
-    scheduleEnabled: true, diagnosisEnabled: true, onlinePaused: false, onlinePausedUntil: '', staffViewSwitchEnabled: false, deliveryFee: 0, minimumOrder: 0,
+    scheduleEnabled: true, diagnosisEnabled: true, onlinePaused: false, onlinePausedUntil: '', staffViewSwitchEnabled: false, deliveryAcceptanceView: 'atendimento', deliveryFee: 0, minimumOrder: 0,
     deliveryAreas: '', hours: '', salesStages: ['Novo contato', 'Contato realizado', 'Proposta', 'Negociação']
   },
   customers: [], assets: [], jobs: [], appointments: [], products: [], orders: [], tables: [], payments: [],
