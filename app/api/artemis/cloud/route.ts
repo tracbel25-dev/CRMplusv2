@@ -71,8 +71,11 @@ export async function POST(request: NextRequest) {
   if (!business) return NextResponse.json({ error: 'Informe o nome do restaurante antes de publicar.' }, { status: 400 });
 
   try {
-    const current = await artemisRest(`tenant_settings?${query({ select: 'public_slug', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ public_slug?: string }>;
+    const current = await artemisRest(`tenant_settings?${query({ select: 'public_slug,allow_staff_view_switch', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ public_slug?: string; allow_staff_view_switch?: boolean }>;
     const slug = current?.[0]?.public_slug || artemisSlug(business, access.accountId);
+    const allowStaffViewSwitch = access.role === 'owner'
+      ? Boolean(settings.staffViewSwitchEnabled)
+      : Boolean(current?.[0]?.allow_staff_view_switch);
 
     await artemisRest('tenants?on_conflict=tenant_key', {
       method: 'POST',
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
         pickup_enabled: actions.pickup !== false,
         loyalty_enabled: false,
         new_order_sound_enabled: actions.newOrderSound !== false,
+        allow_staff_view_switch: allowStaffViewSwitch,
         updated_at: new Date().toISOString(),
       }),
     });
