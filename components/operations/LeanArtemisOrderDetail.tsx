@@ -15,7 +15,7 @@ import { WorkflowControl } from './WorkflowControl';
 
 const paymentMethods = ['Dinheiro', 'Pix', 'Cartão de débito', 'Cartão de crédito'];
 
-export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId: string }) {
+export function LeanArtemisOrderDetail({ w, recordId, testMode = false }: { w: Workspace; recordId: string; testMode?: boolean }) {
   const router = useRouter();
   const operation = useOperationPreferences('artemis');
   const [cancel, setCancel] = useState(false);
@@ -30,7 +30,7 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   const order = d.orders.find(item => item.id === recordId);
 
   if (!order) return <>
-    <Button variant="text" onClick={() => router.push('/artemis/pedidos')}><ArrowLeft size={17} />Voltar aos pedidos</Button>
+    {!testMode && <Button variant="text" onClick={() => router.push('/artemis/pedidos')}><ArrowLeft size={17} />Voltar aos pedidos</Button>}
     <Empty>Este pedido não foi encontrado.</Empty>
   </>;
 
@@ -71,9 +71,9 @@ export function LeanArtemisOrderDetail({ w, recordId }: { w: Workspace; recordId
   }
 
   return <>
-    <Button variant="text" onClick={() => router.push('/artemis/pedidos')}><ArrowLeft size={17} />Voltar aos pedidos</Button>
-    <Title eyebrow={`${order.channel}${order.channel === 'Mesa' ? ` · ${d.tables.find(table => table.id === order.tableId)?.name}` : ''}`} title={`Pedido #${String(order.number).padStart(3, '0')}`}>
-      {order.customerName || 'Atendimento de balcão'} · {date(order.createdAt, true)}
+    {!testMode && <Button variant="text" onClick={() => router.push('/artemis/pedidos')}><ArrowLeft size={17} />Voltar aos pedidos</Button>}
+    <Title eyebrow={testMode ? `Simulação isolada · ${order.channel}` : `${order.channel}${order.channel === 'Mesa' ? ` · ${d.tables.find(table => table.id === order.tableId)?.name}` : ''}`} title={testMode ? 'Pedido de teste' : `Pedido #${String(order.number).padStart(3, '0')}`}>
+      {testMode && <Badge>Não será salvo</Badge>} {order.customerName || 'Atendimento de balcão'} · {date(order.createdAt, true)}
     </Title>
 
     <WorkflowControl label="Fluxo do pedido" steps={steps} current={steps.includes(order.status) ? order.status : 'Concluído'} status={order.status === 'Pronto' && order.channel === 'Delivery' ? order.delivery : order.status} nextLabel={nextLabel} onNext={onNext} />
