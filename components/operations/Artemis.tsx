@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, ChefHat, Copy, FileDown, Minus, Plus, ShoppingBa
 import {
   Line, Order, Product, advanceDelivery, advanceOrder, balance, cancelOrder, cashExpected,
   cents, closeTable, customValues, date, event, localDay, money, nextNumber, now,
-  orderTotal, paid, receivePayment, receiveTablePayment, reserved, setCustomValues,
+  orderTotal, paid, receivePayment, receiveTablePayment, reserved, normalizeDailyStock, setCustomValues,
   tableBalance, tableOrders, uid, productAvailableForSale, variantAvailableForSale
 } from '@/lib/operations/model';
 import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
@@ -302,6 +302,17 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
         const description = currentVariant ? `${currentProduct.name} · ${currentVariant.name}` : currentProduct.name;
         return { id: uid(), kind: 'Produto', description, brand: '', quantity: cartLine.quantity, price: currentPrice, productId: currentProduct.id, variantId: currentVariant?.id, done: false, note: cartLine.note.trim(), prepMinutes: currentProduct.preparation || 0 };
       });
+      const requiredByProduct = new Map<string, number>();
+      for (const line of lines) {
+        if (!line.productId) continue;
+        requiredByProduct.set(line.productId, (requiredByProduct.get(line.productId) || 0) + line.quantity);
+      }
+      for (const [productId, quantity] of requiredByProduct) {
+        const productItem = data.products.find(item => item.id === productId);
+        if (!productItem?.stockControlled) continue;
+        normalizeDailyStock(productItem);
+        if (productItem.stock - reserved(data, productItem.id) < quantity) throw new Error(`Estoque insuficiente: ${productItem.name}.`);
+      }
       const subtotal = lines.reduce((totalValue, line) => totalValue + line.price * line.quantity, 0);
       if (channel === 'Delivery' && subtotal < data.settings.minimumOrder) throw new Error(`Pedido mínimo: ${money(data.settings.minimumOrder)}.`);
       const order: Order = { id: uid(), number: nextNumber(data.orders), customerId: resolved?.id || '', customerName: resolved?.name || values.name || '', phone: resolved?.phone || values.phone || '', address: values.address || '', channel, tableId: channel === 'Mesa' ? table : '', tableSession: channel === 'Mesa' ? data.tables.find(item => item.id === table)!.openedAt : undefined, lines, notes: values.notes || '', status: 'Novo', delivery: channel === 'Delivery' ? 'Aguardando saída' : '', fee: channel === 'Delivery' ? data.settings.deliveryFee : 0, discount: 0, createdAt: now(), events: [event('Pedido criado pelo atendimento')], stockConsumed: false, reserved: false };
