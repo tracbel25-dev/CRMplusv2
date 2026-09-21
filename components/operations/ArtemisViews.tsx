@@ -1,12 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { BarChart3, BookOpen, Box, ChefHat, ChevronRight, Settings2, ShoppingBag, Store, Truck, Users } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Workspace } from '@/lib/operations/storage';
 import { ArtemisGuidedTest } from './ArtemisGuidedTest';
+import { ArtemisPendingDecisions } from './ArtemisPendingDecisions';
 import { Title } from './ui';
 
 const viewCards = [
@@ -38,7 +37,6 @@ const viewCards = [
 
 export function ArtemisViewHome({ w }: { w: Workspace }) {
   const access = useStoreAccess();
-  const router = useRouter();
   const service = access.hasPermission('artemis','artemis_service');
   const kitchen = access.hasPermission('artemis','artemis_kitchen');
   const temporarySwitch = !access.isOwner && !!w.data.settings.staffViewSwitchEnabled && (service || kitchen);
@@ -47,14 +45,8 @@ export function ArtemisViewHome({ w }: { w: Workspace }) {
     if (view.permission === 'artemis_service') return service || temporarySwitch;
     return kitchen || temporarySwitch;
   });
-  const onlyHref = available.length === 1 ? available[0].href : '';
-  useEffect(() => {
-    if (onlyHref) router.replace(onlyHref);
-  }, [onlyHref, router]);
-
-  if (available.length === 1) return <section className="artemis-role-empty"><span><Store size={24}/></span><div><strong>Abrindo sua área</strong><p>Seu acesso está configurado para {available[0].title}.</p></div></section>;
-
   return <>
+    <ArtemisPendingDecisions w={w} view="inicio" />
     <Title eyebrow="Artemis" title="Onde você vai trabalhar agora?">
       Escolha a área em que vai trabalhar agora. A troca não altera seu perfil permanente.
     </Title>
@@ -83,6 +75,7 @@ const managementCards = [
 
 export function ArtemisManagementHome({ w }: { w: Workspace }) {
   return <>
+    <ArtemisPendingDecisions w={w} view="gestao" />
     <Title eyebrow="Gestão" title="Administração do restaurante">
       Configure o Artemis fora da rotina de atendimento e da cozinha.
     </Title>
