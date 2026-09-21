@@ -5,7 +5,8 @@ import { STORE_SUPABASE } from '@/lib/supabase/fixedProjects';
 const ALLOWED = new Set([
   'dashboard_view','appointments_view','appointments_manage','jobs_view','jobs_create','jobs_edit','jobs_advance',
   'quotes_view','quotes_manage','quotes_share','billing_view','billing_manage','billing_collect','reports_export',
-  'attachments_manage','ai_use','settings_fields','settings_operation','settings_access','customers_manage'
+  'attachments_manage','ai_use','settings_fields','settings_operation','settings_access','customers_manage',
+  'artemis_service','artemis_kitchen','artemis_manage'
 ]);
 
 function fail(status:number,error:string){ return NextResponse.json({error},{status}); }
@@ -134,7 +135,7 @@ export async function POST(request:NextRequest){
 
     const granularPermissions=body.appId!=='zeus'||await zeusGranularPermissionsEnabled(service,accountId);
     const permissions=granularPermissions?sanitizePermissions(body.permissions):sanitizePermissions({});
-    const canConfigure=granularPermissions&&(permissions.settings_fields||permissions.settings_operation||permissions.settings_access);
+    const canConfigure=granularPermissions&&(permissions.settings_fields||permissions.settings_operation||permissions.settings_access||permissions.artemis_manage);
     const title=(body.jobTitle||'').trim().replace(/\s+/g,' ').slice(0,80);
     const {error:titleError}=await service.from('account_members').update({job_title:title||null}).eq('account_id',accountId).eq('user_id',targetId);
     if(titleError) throw titleError;
