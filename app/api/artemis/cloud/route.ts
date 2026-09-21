@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authorizeAppRequest } from '@/lib/server/appAccess';
+import { authorizeAppRequest, serverPermissionGranted } from '@/lib/server/appAccess';
 import { artemisRest, artemisSlug } from '@/lib/artemis/cloudServer';
 
 export const runtime = 'nodejs';
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const access = await authorizeAppRequest(request, 'artemis');
+  const access = await authorizeAppRequest(request, 'artemis', 'artemis_manage');
   if (!access) return NextResponse.json({ error: 'Entre na CRM PLUS Store para publicar o cardápio.' }, { status: 401 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
@@ -189,6 +189,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'artemis');
   if (!access) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 });
+  const canOperate = serverPermissionGranted(access.role, access.permissions, 'artemis_service') || serverPermissionGranted(access.role, access.permissions, 'artemis_kitchen');
+  if (!canOperate) return NextResponse.json({ error: 'Seu perfil não possui acesso ao atendimento ou à cozinha.' }, { status: 403 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = text(body?.id, 64);
   if (!uuidPattern.test(id)) return NextResponse.json({ error: 'Pedido inválido.' }, { status: 400 });
