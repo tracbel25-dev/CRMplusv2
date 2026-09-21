@@ -211,7 +211,7 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
         <small>{nextWaiting.customerName || 'Cliente não identificado'} · {nextWaiting.lines.reduce((sum, line) => sum + line.quantity, 0)} item(ns) · {money(orderTotal(nextWaiting))}{nextWaiting.priorityReason ? ` · ${nextWaiting.priorityReason}` : ''}</small>
       </div>
       <div className="artemis-alert-actions"><Button onClick={acceptNext}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNext}>Recusar</Button></div>
-    </section> : <div className="artemis-no-alert"><BellRing size={18} /><span>Nenhum pedido aguardando confirmação.</span></div>}
+    </section> : null}
 
     <nav className="artemis-view-tabs" aria-label="Áreas da operação">
       <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><b>{activeOrders.length}</b>{waiting.length > 0 && <em>{waiting.length} novo(s)</em>}</button>
