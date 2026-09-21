@@ -10,6 +10,7 @@ import { useArtemisBootstrap } from './useArtemisBootstrap';
 type RemoteLine = {
   id: string;
   product_id: string | null;
+  variant_id: string | null;
   position: number;
   description: string;
   quantity: number | string;
@@ -61,6 +62,7 @@ function mapRemoteOrder(remote: RemoteOrder): Order {
       price: Number(line.price_cents),
       done: !!line.done,
       productId: line.product_id || undefined,
+      variantId: line.variant_id || undefined,
       note: line.note || '',
       prepMinutes: Number(line.prep_minutes || 0),
     }));
@@ -168,7 +170,7 @@ export function useArtemisCloud(w: Workspace) {
           delivery: order.delivery,
           reserved: order.reserved,
           stockConsumed: order.stockConsumed,
-          lines: order.lines.map(line => [line.id, line.quantity, line.price, !!line.done, line.note, line.description]),
+          lines: order.lines.map(line => [line.id, line.productId, line.variantId, line.quantity, line.price, !!line.done, line.note, line.description]),
           events: order.events.map(item => [item.id, item.at, item.text]),
         });
         const changed = incoming.filter(remote => {
