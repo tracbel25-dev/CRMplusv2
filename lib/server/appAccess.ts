@@ -34,6 +34,7 @@ export function serverPermissionGranted(role: string, permissions: ServerPermiss
   if (!permission || role === 'owner') return true;
   const keys = Object.keys(permissions || {});
   if (!keys.length) return true;
+  if (permission.startsWith('artemis_') && !keys.some(key => key.startsWith('artemis_'))) return true;
   return permissions[permission] === true;
 }
 
