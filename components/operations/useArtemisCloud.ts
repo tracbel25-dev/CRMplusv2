@@ -120,6 +120,7 @@ export function useArtemisCloud(w: Workspace) {
       operator: w.data.settings.operator,
       onlinePaused: w.data.settings.onlinePaused,
       onlinePausedUntil: w.data.settings.onlinePausedUntil || '',
+      staffViewSwitchEnabled: !!w.data.settings.staffViewSwitchEnabled,
       deliveryFee: w.data.settings.deliveryFee,
       minimumOrder: w.data.settings.minimumOrder,
       deliveryAreas: w.data.settings.deliveryAreas,
