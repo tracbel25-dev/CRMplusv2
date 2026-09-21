@@ -43,10 +43,19 @@ function validateArtemisTransition(current: Data | null, next: Data, role: strin
     return;
   }
 
+  const currentStaffSwitch = Boolean(current.settings.staffViewSwitchEnabled);
+  const nextStaffSwitch = Boolean(next.settings.staffViewSwitchEnabled);
+  if (currentStaffSwitch !== nextStaffSwitch && role !== 'owner') {
+    throw new Error('ARTEMIS_OWNER_REQUIRED: somente o titular pode decidir se a equipe pode trocar de visão.');
+  }
+
   const manage = serverPermissionGranted(role, permissions, 'artemis_manage');
   if (manage) return;
-  const service = serverPermissionGranted(role, permissions, 'artemis_service');
-  const kitchen = serverPermissionGranted(role, permissions, 'artemis_kitchen');
+  const permanentService = serverPermissionGranted(role, permissions, 'artemis_service');
+  const permanentKitchen = serverPermissionGranted(role, permissions, 'artemis_kitchen');
+  const temporarySwitch = currentStaffSwitch && (permanentService || permanentKitchen);
+  const service = permanentService || temporarySwitch;
+  const kitchen = permanentKitchen || temporarySwitch;
   if (!service && !kitchen) throw new Error('ARTEMIS_VIEW_REQUIRED: seu perfil não possui uma visão operacional liberada.');
 
   const allowed = new Set<keyof Data>(['version','revision','orders','products','stockMovements']);
@@ -308,6 +317,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (message.startsWith('CUSTOMER_RELATION_INVALID:')) return NextResponse.json({ error: message.replace('CUSTOMER_RELATION_INVALID: ', '') }, { status: 400 });
     if (message.startsWith('ARTEMIS_MANAGEMENT_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_MANAGEMENT_REQUIRED: ', '') }, { status: 403 });
     if (message.startsWith('ARTEMIS_VIEW_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_VIEW_REQUIRED: ', '') }, { status: 403 });
+    if (message.startsWith('ARTEMIS_OWNER_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_OWNER_REQUIRED: ', '') }, { status: 403 });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
