@@ -198,18 +198,37 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const access = await authorizeAppRequest(request, 'artemis');
   if (!access) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 });
-  const canOperate = serverPermissionGranted(access.role, access.permissions, 'artemis_service') || serverPermissionGranted(access.role, access.permissions, 'artemis_kitchen');
-  if (!canOperate) return NextResponse.json({ error: 'Seu perfil não possui acesso ao atendimento ou à cozinha.' }, { status: 403 });
+  const permanentService = serverPermissionGranted(access.role, access.permissions, 'artemis_service');
+  const permanentKitchen = serverPermissionGranted(access.role, access.permissions, 'artemis_kitchen');
+  const canManage = serverPermissionGranted(access.role, access.permissions, 'artemis_manage');
+  if (!permanentService && !permanentKitchen && !canManage) return NextResponse.json({ error: 'Seu perfil não possui acesso operacional ao Artemis.' }, { status: 403 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = text(body?.id, 64);
   if (!uuidPattern.test(id)) return NextResponse.json({ error: 'Pedido inválido.' }, { status: 400 });
 
   try {
-    const found = await artemisRest(`orders?${query({ select: 'id,status,delivery_status', tenant_key: `eq.${access.accountId}`, id: `eq.${id}`, limit: '1' })}`) as Array<{ id: string; status: string; delivery_status: string }>;
+    const found = await artemisRest(`orders?${query({ select: 'id,status,delivery_status,channel', tenant_key: `eq.${access.accountId}`, id: `eq.${id}`, limit: '1' })}`) as Array<{ id: string; status: string; delivery_status: string; channel: string }>;
     const remote = found?.[0];
     if (!remote) return NextResponse.json({ error: 'Pedido não pertence a esta conta.' }, { status: 404 });
     const nextStatus = text(body?.status, 40) || remote.status;
     if (!(transitions[remote.status] || []).includes(nextStatus)) return NextResponse.json({ error: `Transição inválida: ${remote.status} → ${nextStatus}.` }, { status: 409 });
+
+    if (remote.status === 'Novo' && nextStatus !== 'Novo') {
+      const settingsRows = await artemisRest(`tenant_settings?${query({ select: 'allow_staff_view_switch,delivery_acceptance_view', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ allow_staff_view_switch?: boolean; delivery_acceptance_view?: string }>;
+      const allowTemporarySwitch = Boolean(settingsRows?.[0]?.allow_staff_view_switch) && (permanentService || permanentKitchen);
+      const canService = permanentService || allowTemporarySwitch;
+      const canKitchen = permanentKitchen || allowTemporarySwitch;
+      const configured = settingsRows?.[0]?.delivery_acceptance_view;
+      const target = remote.channel === 'Delivery' && ['atendimento','cozinha','gestao'].includes(String(configured))
+        ? String(configured)
+        : 'atendimento';
+      const allowed = target === 'gestao' ? canManage : target === 'cozinha' ? canKitchen : canService;
+      if (!allowed) {
+        const label = target === 'gestao' ? 'Gestão' : target === 'cozinha' ? 'Cozinha' : 'Atendimento';
+        return NextResponse.json({ error: `Este pedido deve ser aceito ou recusado pela visão ${label}.` }, { status: 403 });
+      }
+    }
+
     const delivery = text(body?.delivery, 60) || remote.delivery_status;
 
     await artemisRest(`orders?${query({ tenant_key: `eq.${access.accountId}`, id: `eq.${id}` })}`, {
