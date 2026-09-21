@@ -13,6 +13,13 @@ import { createStoreClient } from '@/lib/supabase/storeClient';
 
 type PersonType='pf'|'pj';
 const onlyDigits=(value:string)=>value.replace(/\D/g,'');
+const formatCpf=(value:string)=>{
+  const digits=onlyDigits(value).slice(0,11);
+  return digits
+    .replace(/^(\d{3})(\d)/,'$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/,'.$1-$2');
+};
 
 export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppId;redirectTo?:string}){
   const signup=mode==='signup';
@@ -176,7 +183,7 @@ export function AuthShell({mode,app,redirectTo}:{mode:'login'|'signup';app?:AppI
           </div>
           <label>Seu nome<input type="text" value={name} onChange={event=>setName(event.target.value)} placeholder="Nome completo do titular" autoComplete="name" required/></label>
           <div className="auth-inline-fields">
-            <label>CPF do titular<input type="text" inputMode="numeric" value={cpf} onChange={event=>setCpf(event.target.value.replace(/[^0-9.-]/g,''))} placeholder="000.000.000-00" autoComplete="off" maxLength={14} required/></label>
+            <label>CPF do titular<input type="text" inputMode="numeric" value={cpf} onChange={event=>setCpf(formatCpf(event.target.value))} placeholder="000.000.000-00" autoComplete="off" maxLength={14} required/></label>
             <label>Data de nascimento<input type="date" value={birthDate} onChange={event=>setBirthDate(event.target.value)} autoComplete="bday" required/></label>
           </div>
           <small className="auth-privacy-note">O CPF identifica o titular da conta. Ele é necessário tanto para pessoa física quanto para o responsável por uma pessoa jurídica.</small>
