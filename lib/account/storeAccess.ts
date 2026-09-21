@@ -229,6 +229,7 @@ function useStoreAccessState(disabled=false) {
     if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return true;
     const keys = Object.keys(row.permissions || {});
     if (!keys.length) return true;
+    if (app === 'artemis' && !keys.some(key => key.startsWith('artemis_'))) return true;
     return row.permissions[permission] === true;
   };
   const canConfigureApp = (app: AppId) => {
@@ -240,7 +241,7 @@ function useStoreAccessState(disabled=false) {
     const contracted = account.apps.find(item => item.appId === app && activeApps.has(item.appId));
     if (app === 'zeus' && !['plus','premium'].includes(String(contracted?.planCode || 'start'))) return false;
     const p = row.permissions || {};
-    return row.canConfigure || p.settings_fields === true || p.settings_operation === true || p.settings_access === true;
+    return row.canConfigure || p.artemis_manage === true || p.settings_fields === true || p.settings_operation === true || p.settings_access === true;
   };
 
   const setMemberAppAccess = async (userId: string, app: AppId, enabled: boolean, canConfigure = false) => {
