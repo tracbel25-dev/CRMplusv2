@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authorizeAppRequest } from '@/lib/server/appAccess';
+import { authorizeAppRequest, serverPermissionGranted } from '@/lib/server/appAccess';
 import { operationalRest, operationalRpc, type CloudOperationalApp } from '@/lib/server/operationalWorkspace';
 import { initialData, type Data } from '@/lib/operations/model';
 import { zeusChecklistState } from '@/lib/operations/zeusChecklist';
@@ -13,6 +13,64 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ZEUS_TERMINAL_STATUSES = new Set(['Encerrado', 'Cancelado', 'Reprovado']);
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+function artemisProductOperationalShape(product: Data['products'][number]) {
+  const copy = structuredClone(product) as Data['products'][number];
+  copy.stock = 0;
+  copy.stockControlled = false;
+  copy.dailyStockDate = '';
+  copy.soldOutUntil = '';
+  copy.variants = (copy.variants || []).map(variant => ({ ...variant, soldOutUntil: '' }));
+  return copy;
+}
+
+function validateArtemisProductOperationalChanges(current: Data, next: Data) {
+  if (current.products.length !== next.products.length) throw new Error('ARTEMIS_MANAGEMENT_REQUIRED: somente a gestão pode adicionar ou remover produtos.');
+  const before = new Map(current.products.map(product => [product.id, product]));
+  for (const product of next.products) {
+    const previous = before.get(product.id);
+    if (!previous || !sameJson(artemisProductOperationalShape(previous), artemisProductOperationalShape(product))) {
+      throw new Error('ARTEMIS_MANAGEMENT_REQUIRED: somente a gestão pode alterar o cardápio.');
+    }
+  }
+}
+
+function validateArtemisTransition(current: Data | null, next: Data, role: string, permissions: Record<string, boolean>) {
+  if (!current) {
+    if (!serverPermissionGranted(role, permissions, 'artemis_manage')) throw new Error('ARTEMIS_MANAGEMENT_REQUIRED: somente a gestão pode iniciar o workspace do restaurante.');
+    return;
+  }
+
+  const manage = serverPermissionGranted(role, permissions, 'artemis_manage');
+  if (manage) return;
+  const service = serverPermissionGranted(role, permissions, 'artemis_service');
+  const kitchen = serverPermissionGranted(role, permissions, 'artemis_kitchen');
+  if (!service && !kitchen) throw new Error('ARTEMIS_VIEW_REQUIRED: seu perfil não possui uma visão operacional liberada.');
+
+  const allowed = new Set<keyof Data>(['version','revision','orders','products','stockMovements']);
+  if (service) {
+    for (const key of ['customers','tables','payments','shifts','movements','customFieldValues'] as (keyof Data)[]) allowed.add(key);
+  }
+
+  for (const key of Object.keys(current) as (keyof Data)[]) {
+    if (key === 'settings') continue;
+    if (!allowed.has(key) && !sameJson(current[key], next[key])) {
+      throw new Error('ARTEMIS_MANAGEMENT_REQUIRED: esta alteração pertence à visão de Gestão.');
+    }
+  }
+
+  const currentSettings = structuredClone(current.settings);
+  const nextSettings = structuredClone(next.settings);
+  currentSettings.theme = nextSettings.theme;
+  currentSettings.collapsed = nextSettings.collapsed;
+  if (!sameJson(currentSettings, nextSettings)) {
+    throw new Error('ARTEMIS_MANAGEMENT_REQUIRED: somente a gestão pode alterar as configurações do restaurante.');
+  }
+
+  validateArtemisProductOperationalChanges(current, next);
+}
 
 
 function validateZeusCustomerOwnership(next: Data) {
@@ -214,6 +272,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       writeData = prepareZeusWriteData(body.data as unknown as Data, current, entitlements.plan);
       validateZeusPlanTransition(current, writeData, entitlements.plan);
       validateZeusTransition(current, writeData, entitlements.plan);
+    } else {
+      const rows = await operationalRest('artemis', `workspace_state?${query({ select: 'data', tenant_key: `eq.${access.accountId}`, limit: '1' })}`) as Array<{ data: unknown }>;
+      const current = rows?.[0]?.data && validWorkspace(rows[0].data) ? rows[0].data as unknown as Data : null;
+      validateArtemisTransition(current, body.data as unknown as Data, access.role, access.permissions);
     }
 
     const result = await operationalRpc(app, 'save_workspace_state', {
@@ -244,6 +306,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (message.startsWith('TERMINAL_JOB_IMMUTABLE:')) return NextResponse.json({ error: message.replace('TERMINAL_JOB_IMMUTABLE: ', '') }, { status: 409 });
     if (message.startsWith('RELATED_JOB_INVALID:')) return NextResponse.json({ error: message.replace('RELATED_JOB_INVALID: ', '') }, { status: 400 });
     if (message.startsWith('CUSTOMER_RELATION_INVALID:')) return NextResponse.json({ error: message.replace('CUSTOMER_RELATION_INVALID: ', '') }, { status: 400 });
+    if (message.startsWith('ARTEMIS_MANAGEMENT_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_MANAGEMENT_REQUIRED: ', '') }, { status: 403 });
+    if (message.startsWith('ARTEMIS_VIEW_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_VIEW_REQUIRED: ', '') }, { status: 403 });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
