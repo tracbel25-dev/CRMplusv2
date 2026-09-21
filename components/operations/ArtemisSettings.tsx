@@ -75,8 +75,8 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
   };
 
   return <>
-    <Title eyebrow="Sua operação" title="Configurações do Artemis">
-      Ative apenas o que seu restaurante realmente usa. O menu e a operação se ajustam a essas escolhas.
+    <Title eyebrow="Gestão" title="Configurações do Artemis">
+      Defina canais, regras e acessos sem misturar essas decisões com Atendimento ou Cozinha.
     </Title>
 
     <CompactTabs label="Configurações do restaurante" tabs={[{id:'dados',label:'Dados'},{id:'canais',label:'Canais e delivery'},{id:'operacao',label:'Operação'},{id:'pagamentos',label:'Pagamentos'},{id:'cardapio',label:'Cardápio'},{id:'acessos',label:'Acessos'}]}>
@@ -90,7 +90,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
     </Section>
 
     </CompactPanel><CompactPanel value="canais"><Section title="De onde chegam seus pedidos?">
-      <p className="op-muted">Esses canais não criam sistemas separados. Todos os pedidos chegam na mesma tela de Operação.</p>
+      <p className="op-muted">Delivery, retirada, balcão e salão alimentam a mesma base. A equipe acompanha os pedidos na visão Atendimento e o preparo na visão Cozinha.</p>
       <div className="op-config-groups"><div className="op-config-group">
         <Choice checked={enabled('dineIn')} onChange={value => setEnabled('dineIn', value)} title="Loja física — QR Code e salão" description="Cliente consulta o cardápio e o restaurante pode trabalhar com mesas/comandas." icon={<Store size={19} />} />
         <Choice checked={enabled('counter')} onChange={value => setEnabled('counter', value)} title="Balcão" description="Pedido presencial sem necessidade de mesa." icon={<QrCode size={19} />} />
@@ -109,7 +109,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
     </Section>}
     </CompactPanel><CompactPanel value="operacao"><Section title="Como a equipe opera?">
       <div className="op-config-groups"><div className="op-config-group">
-        <Choice checked={enabled('kitchenView')} onChange={value => setEnabled('kitchenView', value)} title="Visão de preparo" description="Mostra a visão focada da cozinha dentro da mesma Operação." icon={<ChefHat size={19} />} />
+        <Choice checked={enabled('kitchenView')} onChange={value => setEnabled('kitchenView', value)} title="Visão Cozinha" description="Libera uma área própria para preparo, separada do Atendimento e da Gestão." icon={<ChefHat size={19} />} />
         <Choice checked={enabled('newOrderSound')} onChange={value => setEnabled('newOrderSound', value)} title="Alerta sonoro de novo pedido" description="Tenta emitir um aviso sonoro quando um pedido novo entra, respeitando as permissões do navegador." icon={<BellRing size={19} />} />
         <Choice checked={enabled('module:caixa')} onChange={value => setEnabled('module:caixa', value)} title="Caixa" description="Recebimentos, abertura e fechamento de caixa." icon={<Wallet size={19} />} />
         <Choice checked={enabled('module:estoque')} onChange={value => setEnabled('module:estoque', value)} title="Estoque" description="Só aparece para restaurantes que realmente controlam saldo e reposição." icon={<Box size={19} />} />
