@@ -201,3 +201,18 @@ test('signup CPF stays editable and formats digits', () => {
   assert.match(auth, /setCpf\(formatCpf\(event\.target\.value\)\)/);
   assert.doesNotMatch(auth, /CPF do titular<input[^>]*(?:readOnly|disabled)/);
 });
+
+
+test('Artemis operation keeps the first fold focused on active work', () => {
+  const direct = readFileSync(join(root, 'components', 'operations', 'ArtemisDirect.tsx'), 'utf8');
+  const css = readFileSync(join(root, 'components', 'operations', 'artemis-direct.css'), 'utf8');
+
+  assert.match(direct, /Mais ações/);
+  assert.match(direct, /artemis-view-tabs/);
+  assert.match(direct, /Pedidos online pausados/);
+  assert.doesNotMatch(direct, /artemis-channel-strip/);
+  assert.doesNotMatch(direct, /artemis-demand-summary/);
+  assert.doesNotMatch(direct, /Nenhum pedido aguardando confirmação/);
+  assert.match(css, /\.artemis-more-menu/);
+  assert.match(css, /\.artemis-view-tabs/);
+});
