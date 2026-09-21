@@ -194,3 +194,10 @@ test('account information lets the owner complete a pending CPF and keeps regist
   assert.match(entry, /Conta do titular/);
   assert.match(entry, /Central da empresa/);
 });
+
+
+test('signup CPF stays editable and formats digits', () => {
+  const auth = readFileSync(join(root, 'components', 'AuthShell.tsx'), 'utf8');
+  assert.match(auth, /setCpf\(formatCpf\(event\.target\.value\)\)/);
+  assert.doesNotMatch(auth, /CPF do titular<input[^>]*(?:readOnly|disabled)/);
+});
