@@ -166,3 +166,16 @@ test('Zeus exposes payment collection inside the OS for every plan, including St
   assert.match(payments, /amountCents: manualAmountCents, items: effectiveItems/);
   assert.match(payments, /onApproved\?\.\(charge\.amount_cents\)/);
 });
+
+
+test('billing center exposes a real action to end an active direct trial', () => {
+  const billing = readFileSync(join(root, 'components', 'BillingPortal.tsx'), 'utf8');
+  const route = readFileSync(join(root, 'app', 'api', 'billing', 'trial', 'route.ts'), 'utf8');
+
+  assert.match(billing, /Encerrar teste/);
+  assert.match(billing, /\/api\/billing\/trial/);
+  assert.match(billing, /endTrial\(entitlement\.appId\)/);
+  assert.match(route, /manage_billing/);
+  assert.match(route, /entitlement\?\.status!==['"]trialing['"]/);
+  assert.match(route, /current_period_end:now/);
+});
