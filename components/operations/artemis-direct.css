@@ -107,3 +107,40 @@
   .artemis-management-test{align-items:stretch;flex-direction:column}
   .artemis-management-test .op-button{width:100%}
 }
+
+
+.artemis-pending-decisions{margin:0 0 18px;border:1px solid color-mix(in srgb,var(--op-accent) 28%,var(--op-line));border-radius:16px;background:var(--op-paper);overflow:hidden}
+.artemis-pending-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-bottom:1px solid var(--op-line)}
+.artemis-pending-head>div{display:flex;align-items:center;gap:10px}
+.artemis-pending-head>div>span:last-child{display:grid;gap:2px}
+.artemis-pending-head small{color:var(--op-muted)}
+.artemis-pending-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:color-mix(in srgb,var(--op-accent) 12%,var(--op-soft));color:var(--op-accent)}
+.artemis-pending-list{display:grid}
+.artemis-pending-list>article+article{border-top:1px solid var(--op-line)}
+.artemis-pending-summary{width:100%;display:grid;grid-template-columns:150px minmax(160px,1fr) auto auto;align-items:center;gap:12px;padding:13px 16px;border:0;background:transparent;color:var(--op-ink);font:inherit;text-align:left;cursor:pointer}
+.artemis-pending-summary:hover,.artemis-pending-list>article.is-open>.artemis-pending-summary{background:var(--op-soft)}
+.artemis-pending-summary>span:first-child{display:flex;align-items:center;gap:8px}
+.artemis-pending-customer{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.artemis-pending-meta{color:var(--op-muted);font-size:12px;white-space:nowrap}
+.artemis-pending-list>article.is-open .artemis-pending-summary>svg{transform:rotate(180deg)}
+.artemis-pending-popover{display:grid;gap:13px;padding:16px;border-top:1px solid var(--op-line);background:var(--op-surface)}
+.artemis-pending-detail{display:grid;gap:5px}
+.artemis-pending-detail>span{display:flex;align-items:center;gap:7px;font-size:13px}
+.artemis-pending-detail>small{color:var(--op-muted)}
+.artemis-pending-items{display:grid;border:1px solid var(--op-line);border-radius:11px;overflow:hidden;background:var(--op-paper)}
+.artemis-pending-items>div{display:flex;justify-content:space-between;gap:16px;padding:9px 11px;font-size:13px}
+.artemis-pending-items>div+div{border-top:1px solid var(--op-line)}
+.artemis-pending-note{display:flex;align-items:flex-start;gap:7px;margin:0;padding:10px 11px;border-radius:10px;background:var(--op-soft);font-size:12px}
+.artemis-pending-actions{display:flex;justify-content:flex-end;gap:8px}
+.artemis-reject-box{display:grid;gap:10px}
+.artemis-reject-box label{display:grid;gap:6px}
+.artemis-reject-box label>span{font-size:12px;font-weight:800}
+.artemis-reject-box textarea{width:100%;resize:vertical}
+.artemis-reject-box>div{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:760px){
+  .artemis-pending-summary{grid-template-columns:1fr auto}
+  .artemis-pending-customer,.artemis-pending-meta{grid-column:1/-1}
+  .artemis-pending-summary>svg{grid-column:2;grid-row:1}
+  .artemis-pending-actions,.artemis-reject-box>div{display:grid;grid-template-columns:1fr 1fr}
+  .artemis-pending-actions .op-button,.artemis-reject-box .op-button{width:100%}
+}
