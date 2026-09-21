@@ -71,14 +71,14 @@ export function Artemis({ w, page, recordId = '', embedded = false, rushMode = f
   const kitchenAction = (order: Order) => {
     if (order.status === 'Aceito') return <Button onClick={() => { void w.mutate(data => advanceOrder(data, order.id, 'Aceito'), 'Preparo iniciado.'); }}>Iniciar preparo</Button>;
     if (order.status === 'Em preparo') return <Button disabled={order.lines.some(line => !line.done)} onClick={() => { void w.mutate(data => advanceOrder(data, order.id, 'Em preparo'), 'Pedido pronto.'); }}>Finalizar preparo</Button>;
-    return <Button variant="secondary" onClick={() => setSelected(order.id)}>Abrir pedido <ArrowRight size={16} /></Button>;
+    return <Badge>Pronto para saída</Badge>;
   };
 
   const orderCard = (order: Order, kitchen = false) => {
     const estimated = Math.max(0, ...order.lines.map(line => line.prepMinutes || 0));
     return <article key={order.id} className={`artemis-ticket status-${order.status.replaceAll(' ', '-')}`}>
       <div className="ticket-top"><strong>#{String(order.number).padStart(3, '0')}</strong><Badge>{order.channel === 'Mesa' ? d.tables.find(table => table.id === order.tableId)?.name : order.channel}</Badge><small>{new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small></div>
-      <button className="ticket-main" onClick={() => setSelected(order.id)}>
+      <button className="ticket-main" onClick={() => { if (!kitchen) setSelected(order.id); }} aria-disabled={kitchen}>
         <strong>{order.customerName || 'Atendimento de balcão'}</strong>
         {order.lines.map(line => <span key={line.id}><b>{line.quantity}×</b> {line.description}{line.note ? ` · ${line.note}` : ''}{line.done && ' · Pronto'}</span>)}
         {order.notes && <p className="ticket-note">Pedido: {order.notes}</p>}
@@ -130,7 +130,7 @@ export function Artemis({ w, page, recordId = '', embedded = false, rushMode = f
         </Section> : <div className="artemis-kitchen">{['Aceito', 'Em preparo', 'Pronto'].map(status => <section key={status}><div className="artemis-lane-title"><h2>{status === 'Aceito' ? 'A preparar' : status}</h2><span>{active.filter(order => order.status === status).length}</span></div>{active.filter(order => order.status === status).map(order => orderCard(order, true))}{!active.some(order => order.status === status) && <Empty>Sem pedidos nesta etapa.</Empty>}</section>)}</div>}
       </>}
 
-      {page === 'mesas' && <>{!embedded && <Title eyebrow="Salão" title="Mesas e comandas" action={<Button onClick={() => setNewTable(true)}><Plus size={18} />Cadastrar mesa</Button>} />}{embedded && <div className="op-actions"><Button onClick={() => setNewTable(true)}><Plus size={18} />Cadastrar mesa</Button></div>}<div className="op-inline-legend"><span>Livre</span><Badge>Comanda aberta</Badge></div><div className="artemis-tables">{d.tables.map(table => {
+      {page === 'mesas' && <>{!embedded && <Title eyebrow="Salão" title="Mesas e comandas" action={<Button onClick={() => setNewTable(true)}><Plus size={18} />Cadastrar mesa</Button>} />}<div className="op-inline-legend"><span>Livre</span><Badge>Comanda aberta</Badge></div><div className="artemis-tables">{d.tables.map(table => {
         const list = tableOrders(d, table);
         const amount = tableBalance(d, table);
         return <article className={`artemis-table ${table.openedAt ? 'occupied' : ''}`} key={table.id}>
