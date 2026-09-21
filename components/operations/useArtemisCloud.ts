@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
 import { type Event, type Line, type Order } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
@@ -64,7 +64,9 @@ function mapRemoteOrder(remote: RemoteOrder): Order {
       note: line.note || '',
       prepMinutes: Number(line.prep_minutes || 0),
     }));
-  const events: Event[] = [...(remote.order_events || [])].map(item => ({ id: item.id, at: item.at, text: item.text }));
+  const events: Event[] = [...(remote.order_events || [])]
+    .sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))
+    .map(item => ({ id: item.id, at: item.at, text: item.text }));
   if (remote.requested_payment_method) events.push({
     id: `payment-intent-${remote.id}`,
     at: remote.created_at,
@@ -99,6 +101,8 @@ export function useArtemisCloud(w: Workspace) {
   const [slug, setSlug] = useState('');
   const [connected, setConnected] = useState(false);
   const [cloudError, setCloudError] = useState('');
+  const ordersRef = useRef(w.data.orders);
+  useEffect(() => { ordersRef.current = w.data.orders; }, [w.data.orders]);
 
   const publishSignature = useMemo(() => JSON.stringify({
     settings: {
@@ -117,7 +121,7 @@ export function useArtemisCloud(w: Workspace) {
     products: w.data.products,
     tables: w.data.tables,
     preferences: operation.preferences,
-  }), [w.data.settings, w.data.products, w.data.orders, w.data.tables, operation.preferences]);
+  }), [w.data.settings, w.data.products, w.data.tables, operation.preferences]);
 
   useEffect(() => {
     if (!w.ready || !w.accountId || w.accountId === 'guest') return;
@@ -168,11 +172,11 @@ export function useArtemisCloud(w: Workspace) {
           events: order.events.map(item => [item.id, item.at, item.text]),
         });
         const changed = incoming.filter(remote => {
-          const local = w.data.orders.find(item => item.id === remote.id);
+          const local = ordersRef.current.find(item => item.id === remote.id);
           return !local || signature(local) !== signature(remote);
         });
         if (changed.length) {
-          const newCount = changed.filter(remote => !w.data.orders.some(local => local.id === remote.id)).length;
+          const newCount = changed.filter(remote => !ordersRef.current.some(local => local.id === remote.id)).length;
           await w.mutate(data => {
             for (const remote of changed) {
               const index = data.orders.findIndex(local => local.id === remote.id);
@@ -199,7 +203,7 @@ export function useArtemisCloud(w: Workspace) {
     void pull();
     const interval = window.setInterval(() => void pull(), 4000);
     return () => { active = false; window.clearInterval(interval); };
-  }, [w.ready, w.accountId, w.data.orders.length]);
+  }, [w.ready, w.accountId, w.mutate]);
 
   // Alterações de pedidos usam somente w.mutate -> save_workspace_state.
   // O banco projeta status/itens prontos para os pedidos públicos no mesmo caminho revisionado.
