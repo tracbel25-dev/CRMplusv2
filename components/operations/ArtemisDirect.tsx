@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, Bike, ChefHat, Copy, Flame, Link2, Maximize2, QrCode, Store, Volume2, VolumeX } from 'lucide-react';
+import { BellRing, Bike, ChefHat, Copy, Flame, Link2, Maximize2, MoreHorizontal, QrCode } from 'lucide-react';
 import { advanceOrder, cancelOrder, money, orderTotal, orderingPaused } from '@/lib/operations/model';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import type { Workspace } from '@/lib/operations/storage';
@@ -169,22 +169,38 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   };
 
   return <>
-    <Title eyebrow={rushMode ? 'Modo movimento intenso' : 'Operação'} title={rushMode ? 'Foco no que precisa sair agora' : 'Pedidos em andamento'} action={<div className="op-actions"><ArtemisGuidedTest w={w} /><Button variant={rushMode ? 'primary' : 'secondary'} onClick={() => setRushMode(value => !value)}><Flame size={16} />{rushMode ? 'Sair do modo intenso' : 'Modo intenso'}</Button>{kitchenEnabled && <Button variant="secondary" onClick={() => void fullscreenKitchen()}><Maximize2 size={16} />Cozinha em tela cheia</Button>}{!rushMode && <><Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link><Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link></>}</div>}>
-      {rushMode ? 'Aguardando, atrasados e prontos ficam em primeiro plano. Controles administrativos são reduzidos.' : 'Um fluxo para receber, confirmar, preparar e concluir pedidos — sem espalhar a rotina em várias telas.'}
+    <Title
+      eyebrow={rushMode ? 'Modo movimento intenso' : 'Operação'}
+      title={rushMode ? 'Foco no que precisa sair agora' : 'Pedidos em andamento'}
+      action={<div className="artemis-primary-actions">
+        <Button variant={rushMode ? 'primary' : 'secondary'} onClick={() => setRushMode(value => !value)}>
+          <Flame size={16} />{rushMode ? 'Sair do modo intenso' : 'Modo intenso'}
+        </Button>
+        {!rushMode && <details className="artemis-more-actions">
+          <summary><MoreHorizontal size={17} />Mais ações</summary>
+          <div className="artemis-more-menu">
+            <ArtemisGuidedTest w={w} />
+            {kitchenEnabled && <Button variant="secondary" onClick={() => void fullscreenKitchen()}><Maximize2 size={16} />Cozinha em tela cheia</Button>}
+            <Link className="op-button secondary" href="/artemis/cardapio">Cardápio</Link>
+            <Link className="op-button secondary" href="/artemis/configuracoes">Ajustar operação</Link>
+            {(deliveryEnabled || pickupEnabled) && <div className="artemis-more-online">
+              <span>Pedidos online</span>
+              {paused
+                ? <Button onClick={resumeOrders}>Retomar agora</Button>
+                : <><select value={pauseMinutes} onChange={event => setPauseMinutes(event.target.value)} aria-label="Tempo da pausa"><option value="30">30 min</option><option value="60">1 hora</option><option value="120">2 horas</option><option value="0">Até eu retomar</option></select><Button variant="secondary" onClick={pauseOrders}>Pausar pedidos</Button></>}
+            </div>}
+          </div>
+        </details>}
+      </div>}
+    >
+      {rushMode ? 'Aguardando, atrasados e prontos ficam em primeiro plano.' : 'Receba, confirme, prepare e conclua pedidos em um só fluxo.'}
     </Title>
 
-    <div className="artemis-channel-strip" aria-label="Canais ativos">
-      {!rushMode && physicalEnabled && <span><Store size={16} />Loja física</span>}
-      {!rushMode && deliveryEnabled && <span><Bike size={16} />Delivery</span>}
-      {!rushMode && pickupEnabled && <span><QrCode size={16} />Retirada</span>}
-      {!rushMode && <span className={soundEnabled ? 'is-on' : ''}>{soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}{soundEnabled ? 'Alerta sonoro ativo' : 'Alerta sonoro desativado'}</span>}
-      {cloud.connected && <span className="is-on"><Link2 size={16} />Online conectado</span>}
-      <span className={w.syncState === 'failed' ? 'is-error' : w.syncState === 'saving' ? 'is-saving' : 'is-on'}>{w.syncState === 'saving' ? 'Salvando alterações…' : w.syncState === 'failed' ? 'Falha ao salvar' : 'Alterações confirmadas'}</span>
-    </div>
+    {w.syncState === 'failed' && <div className="artemis-sync-warning" role="alert">Falha ao salvar alterações. Verifique a conexão antes de continuar.</div>}
 
-    {(deliveryEnabled || pickupEnabled) && <div className="artemis-online-control">
-      <div><strong>{paused ? 'Pedidos online pausados' : 'Recebendo pedidos online'}</strong><small>{paused ? (w.data.settings.onlinePausedUntil ? `Retomada prevista: ${new Date(w.data.settings.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Retomada manual') : 'Delivery e retirada usam o mesmo controle.'}</small></div>
-      {paused ? <Button onClick={resumeOrders}>Retomar agora</Button> : <><select value={pauseMinutes} onChange={event => setPauseMinutes(event.target.value)} aria-label="Tempo da pausa"><option value="30">30 min</option><option value="60">1 hora</option><option value="120">2 horas</option><option value="0">Até eu retomar</option></select><Button variant="secondary" onClick={pauseOrders}>Pausar pedidos</Button></>}
+    {paused && (deliveryEnabled || pickupEnabled) && <div className="artemis-online-paused">
+      <div><strong>Pedidos online pausados</strong><small>{w.data.settings.onlinePausedUntil ? `Retomada prevista: ${new Date(w.data.settings.onlinePausedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'Retomada manual'}</small></div>
+      <Button onClick={resumeOrders}>Retomar agora</Button>
     </div>}
 
     {nextWaiting ? <section className="artemis-order-alert" role="alert" aria-live="assertive">
@@ -197,11 +213,11 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
       <div className="artemis-alert-actions"><Button onClick={acceptNext}>Confirmar pedido</Button><Button variant="secondary" onClick={rejectNext}>Recusar</Button></div>
     </section> : <div className="artemis-no-alert"><BellRing size={18} /><span>Nenhum pedido aguardando confirmação.</span></div>}
 
-    <div className="artemis-demand-summary">
-      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><strong>{activeOrders.length}</strong><small>{waiting.length ? `${waiting.length} aguardando · mais antigo ${age(oldestWaiting?.createdAt)}` : 'sem fila de confirmação'}</small></button>
-      {physicalEnabled && <button className={view === 'mesas' ? 'active' : ''} onClick={() => setView('mesas')}><span>Mesas</span><strong>{w.data.tables.filter(table => table.openedAt).length}</strong><small>mesas/comandas abertas</small></button>}
-      {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Cozinha</span><strong>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</strong><small>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</small></button>}
-    </div>
+    <nav className="artemis-view-tabs" aria-label="Áreas da operação">
+      <button className={view === 'pedidos' ? 'active' : ''} onClick={() => setView('pedidos')}><span>Pedidos</span><b>{activeOrders.length}</b>{waiting.length > 0 && <em>{waiting.length} novo(s)</em>}</button>
+      {physicalEnabled && <button className={view === 'mesas' ? 'active' : ''} onClick={() => setView('mesas')}><span>Mesas</span><b>{w.data.tables.filter(table => table.openedAt).length}</b></button>}
+      {kitchenEnabled && <button className={view === 'cozinha' ? 'active' : ''} onClick={() => setView('cozinha')}><span>Cozinha</span><b>{activeOrders.filter(order => ['Aceito', 'Em preparo'].includes(order.status)).length}</b>{activeOrders.some(order => order.status === 'Pronto') && <em>{activeOrders.filter(order => order.status === 'Pronto').length} pronto(s)</em>}</button>}
+    </nav>
 
     <div className={`artemis-operation-body ${rushMode ? 'is-rush' : ''}`}><Artemis key={view} w={w} page={view} embedded rushMode={rushMode} publicSlug={cloud.slug} /></div>
   </>;
