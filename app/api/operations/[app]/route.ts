@@ -72,6 +72,8 @@ function validateArtemisTransition(current: Data | null, next: Data, role: strin
 
   const currentSettings = structuredClone(current.settings);
   const nextSettings = structuredClone(next.settings);
+  currentSettings.staffViewSwitchEnabled = currentStaffSwitch;
+  nextSettings.staffViewSwitchEnabled = nextStaffSwitch;
   currentSettings.theme = nextSettings.theme;
   currentSettings.collapsed = nextSettings.collapsed;
   if (!sameJson(currentSettings, nextSettings)) {
