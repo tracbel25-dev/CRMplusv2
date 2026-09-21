@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
 import {
   Order, advanceDelivery, advanceOrder, balance, cancelOrder, cents, customValues,
-  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid, variantAvailableForSale
+  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid, productAvailableForSale, variantAvailableForSale
 } from '@/lib/operations/model';
 import { learnProductSuggestions } from '@/lib/operations/learning';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -161,7 +161,7 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
   const learned = learnProductSuggestions(w.data, order.customerId, 8);
   const orderedProducts = [
     ...learned.map(item => item.product).filter(Boolean),
-    ...w.data.products.filter(product => product.available && !learned.some(item => item.productId === product.id))
+    ...w.data.products.filter(product => productAvailableForSale(product) && !learned.some(item => item.productId === product.id))
   ].filter((product, index, list) => product && list.findIndex(item => item?.id === product.id) === index);
   const [productId, setProductId] = useState(orderedProducts[0]?.id || '');
   const [variantId, setVariantId] = useState('');
@@ -183,7 +183,7 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
     const ok = await w.mutate(data => {
       const current = data.orders.find(item => item.id === order.id)!;
       if (!['Aceito', 'Em preparo'].includes(current.status)) throw new Error('Acréscimos são permitidos apenas antes de o pedido ficar pronto.');
-      const product = data.products.find(item => item.id === productId && item.available);
+      const product = data.products.find(item => item.id === productId && productAvailableForSale(item));
       if (!product) throw new Error('Produto indisponível.');
       const availableVariants = (product.variants || []).filter(item => variantAvailableForSale(item));
       const variant = availableVariants.length ? availableVariants.find(item => item.id === (variantId || selectedVariant?.id)) : undefined;
