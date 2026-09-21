@@ -35,6 +35,7 @@ type RemoteOrder = {
   delivery_status: string;
   fee_cents: number | string;
   discount_cents: number | string;
+  cancel_reason?: string;
   created_at: string;
   stock_consumed: boolean;
   reserved: boolean;
@@ -90,6 +91,7 @@ function mapRemoteOrder(remote: RemoteOrder): Order {
     delivery: remote.delivery_status || '',
     fee: Number(remote.fee_cents || 0),
     discount: Number(remote.discount_cents || 0),
+    cancelReason: remote.cancel_reason || undefined,
     createdAt: remote.created_at,
     events,
     stockConsumed: !!remote.stock_consumed,
@@ -171,7 +173,7 @@ export function useArtemisCloud(w: Workspace) {
           reserved: order.reserved,
           stockConsumed: order.stockConsumed,
           lines: order.lines.map(line => [line.id, line.productId, line.variantId, line.quantity, line.price, !!line.done, line.note, line.description]),
-          events: order.events.map(item => [item.id, item.at, item.text]),
+          events: [...order.events].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id)).map(item => [item.id, item.at, item.text]),
         });
         const changed = incoming.filter(remote => {
           const local = ordersRef.current.find(item => item.id === remote.id);
