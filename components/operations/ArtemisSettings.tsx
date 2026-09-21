@@ -9,6 +9,7 @@ import { LocalAccountSettings } from './LocalAccountSettings';
 import { PaymentIntegrationSetting } from './PaymentIntegrationSetting';
 import { Badge, Button, Section, Title } from './ui';
 import { useArtemisBootstrap } from './useArtemisBootstrap';
+import { useStoreAccess } from '@/lib/account/storeAccess';
 
 function Choice({ checked, onChange, title, description, icon }: { checked: boolean; onChange: (value: boolean) => void; title: string; description: string; icon: ReactNode }) {
   return <label className="op-module-choice"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} /><span className="op-config-choice-icon">{icon}</span><span><strong>{title}</strong><small>{description}</small></span><Badge>{checked ? 'Ativo' : 'Desativado'}</Badge></label>;
@@ -16,6 +17,7 @@ function Choice({ checked, onChange, title, description, icon }: { checked: bool
 
 export function ArtemisSettings({ w }: { w: Workspace }) {
   useArtemisBootstrap('artemis');
+  const access = useStoreAccess();
   const operation = useOperationPreferences('artemis');
   const [preferences, setPreferences] = useState<OperationPreferences>(() => defaultOperationPreferences('artemis'));
   const [business, setBusiness] = useState(w.data.settings.business);
@@ -26,6 +28,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
   const [deliveryAreas, setDeliveryAreas] = useState(w.data.settings.deliveryAreas);
   const [deliveryFee, setDeliveryFee] = useState(String(w.data.settings.deliveryFee / 100));
   const [minimumOrder, setMinimumOrder] = useState(String(w.data.settings.minimumOrder / 100));
+  const [staffViewSwitchEnabled, setStaffViewSwitchEnabled] = useState(!!w.data.settings.staffViewSwitchEnabled);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => setPreferences(operation.preferences), [operation.preferences]);
@@ -68,6 +71,7 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       data.settings.deliveryAreas = deliveryAreas.trim();
       data.settings.deliveryFee = fee;
       data.settings.minimumOrder = minimum;
+      if (access.isOwner) data.settings.staffViewSwitchEnabled = staffViewSwitchEnabled;
     }, 'Configurações do Artemis salvas.');
     if (!ok) return;
     saveOperationPreferences('artemis', preferences);
@@ -129,7 +133,20 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       <p className="op-callout">A assistência de IA do Artemis pode ser usada para acelerar descrições e preenchimentos; ela não substitui a confirmação do restaurante.</p>
     </Section>
 
-    </CompactPanel><CompactPanel value="acessos"><LocalAccountSettings /></CompactPanel>
+    </CompactPanel><CompactPanel value="acessos">
+      {access.isOwner && <Section title="Troca temporária de visão">
+        <div className="op-config-groups"><div className="op-config-group">
+          <Choice
+            checked={staffViewSwitchEnabled}
+            onChange={value => { setStaffViewSwitchEnabled(value); setSaved(false); }}
+            title="Permitir que a equipe troque entre Atendimento e Cozinha"
+            description="Útil para cobrir outra função sem alterar o perfil permanente. Gestão continua exigindo permissão própria."
+            icon={<Users size={19} />}
+          />
+        </div></div>
+      </Section>}
+      <LocalAccountSettings />
+    </CompactPanel>
     </CompactTabs>
     <div className="op-form-footer op-settings-actions"><Button onClick={save}>Salvar configurações</Button>{saved && <Badge>Salvo</Badge>}</div>
   </>;
