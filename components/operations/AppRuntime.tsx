@@ -43,6 +43,7 @@ import { AppSettings } from './Settings';
 import { ArtemisSettings } from './ArtemisSettings';
 import { ErrorContext } from './errors';
 import { ExternalShare } from './ExternalShare';
+import { ArtemisViewSwitcher } from './ArtemisViewSwitcher';
 
 const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
@@ -80,11 +81,19 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const [mobile, setMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(w.data.settings.collapsed);
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
+  const permanentArtemisService = app === 'artemis' && access.hasPermission('artemis','artemis_service');
+  const permanentArtemisKitchen = app === 'artemis' && access.hasPermission('artemis','artemis_kitchen');
+  const temporaryArtemisSwitch = app === 'artemis' && !access.isOwner && !!w.data.settings.staffViewSwitchEnabled && (permanentArtemisService || permanentArtemisKitchen);
+  const artemisPermissionGranted = (permission?: string) => {
+    if (!permission || !access.account) return true;
+    if (access.hasPermission('artemis', permission)) return true;
+    return temporaryArtemisSwitch && (permission === 'artemis_service' || permission === 'artemis_kitchen');
+  };
   const artemisRequiredPermission = app === 'artemis' ? artemisPagePermissions[page] : undefined;
   const canUsePage = app === 'zeus'
     ? (!access.account || page === 'inicio' || page === 'configuracoes' || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]))
     : app === 'artemis'
-      ? (!access.account || page === 'inicio' || !artemisRequiredPermission || access.hasPermission('artemis', artemisRequiredPermission))
+      ? (!access.account || page === 'inicio' || artemisPermissionGranted(artemisRequiredPermission))
       : true;
   const planFeature = app === 'zeus' ? ZEUS_PAGE_FEATURE[page] : undefined;
   const canUsePlanPage = !planFeature || zeusViewHasFeature(w.data.settings, planFeature);
@@ -105,7 +114,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
     if (section.path === 'historico') return false;
     if (app === 'zeus' && access.account && zeusPagePermissions[section.path] && !access.hasPermission(app, zeusPagePermissions[section.path])) return false;
-    if (app === 'artemis' && access.account && artemisPagePermissions[section.path] && !access.hasPermission('artemis', artemisPagePermissions[section.path])) return false;
+    if (app === 'artemis' && access.account && artemisPagePermissions[section.path] && !artemisPermissionGranted(artemisPagePermissions[section.path])) return false;
     if (app === 'zeus') {
       const feature = ZEUS_PAGE_FEATURE[section.path];
       if (feature && !zeusViewHasFeature(w.data.settings, feature)) return false;
@@ -173,7 +182,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           </nav>
 
           <div className="op-sidebar-bottom">
-            {canConfigure && (app !== 'artemis' || access.hasPermission('artemis','artemis_manage')) ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
+            {canConfigure && (app !== 'artemis' || artemisPermissionGranted('artemis_manage')) ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
             <button onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>{sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}</span></button>
           </div>
           <Link className="op-sidebar-credit" href="/" aria-label="Ir para a home da CRM PLUS">CRM PLUS <span>Store</span></Link>
@@ -183,7 +192,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <header className="op-header">
             <button className="op-icon op-mobile-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir navegação"><Menu size={22} /></button>
             <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong></div>
-            <div className="op-header-tools"><span className="op-business-name">{w.data.settings.business}</span>{(app !== 'artemis' || artemisManagementPages.has(page)) && <ExternalShare w={w} app={app} page={page} recordId={recordId} />}<button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>{canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}</div>
+            <div className="op-header-tools"><span className="op-business-name">{w.data.settings.business}</span>{app === 'artemis' && <ArtemisViewSwitcher w={w} page={page} />}{(app !== 'artemis' || artemisManagementPages.has(page)) && <ExternalShare w={w} app={app} page={page} recordId={recordId} />}<button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>{canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}</div>
           </header>
 
           <main id="op-main" className="op-main">
