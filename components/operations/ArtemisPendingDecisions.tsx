@@ -6,6 +6,7 @@ import { advanceOrder, cancelOrder, money, orderTotal, type Order } from '@/lib/
 import type { Workspace } from '@/lib/operations/storage';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import { Badge, Button } from './ui';
+import './artemis-direct.css';
 
 type ArtemisView = 'inicio' | 'atendimento' | 'cozinha' | 'gestao';
 
@@ -50,8 +51,6 @@ export function ArtemisPendingDecisions({ w, view = 'inicio' }: { w: Workspace; 
     ]);
 
   if(!pending.length)return null;
-  const current=pending.find(order=>order.id===selected)||null;
-
   const accept=async(order:Order)=>{
     const ok=await w.mutate(data=>advanceOrder(data,order.id,'Novo'),\`Pedido #\${order.number} aceito.\`);
     if(ok){setSelected('');setRejecting(false);setReason('');}
