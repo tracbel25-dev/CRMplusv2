@@ -248,3 +248,30 @@ test('Artemis lets the owner control temporary switching between service and kit
   assert.match(cloud, /allow_staff_view_switch/);
   assert.match(migration, /allow_staff_view_switch boolean not null default false/);
 });
+
+
+test('Artemis assigns delivery acceptance and keeps quick decisions inline', () => {
+  const settings = readFileSync(join(root, 'components', 'operations', 'ArtemisSettings.tsx'), 'utf8');
+  const pending = readFileSync(join(root, 'components', 'operations', 'ArtemisPendingDecisions.tsx'), 'utf8');
+  const views = readFileSync(join(root, 'components', 'operations', 'ArtemisViews.tsx'), 'utf8');
+  const direct = readFileSync(join(root, 'components', 'operations', 'ArtemisDirect.tsx'), 'utf8');
+  const operations = readFileSync(join(root, 'app', 'api', 'operations', '[app]', 'route.ts'), 'utf8');
+  const cloudApi = readFileSync(join(root, 'app', 'api', 'artemis', 'cloud', 'route.ts'), 'utf8');
+  const migration = readFileSync(join(root, 'supabase', 'artemis', 'migrations', '20260921024500_artemis_delivery_acceptance_view.sql'), 'utf8');
+
+  assert.match(settings, /Quem aceita ou recusa o Delivery/);
+  assert.match(settings, /Atendimento \/ garçom/);
+  assert.match(settings, /Gestão \/ gerente/);
+  assert.match(pending, /Pedidos aguardando decisão/);
+  assert.match(pending, /Aceitar pedido/);
+  assert.match(pending, /Confirmar recusa/);
+  assert.match(pending, /order\.channel === 'Delivery'/);
+  assert.doesNotMatch(pending, /router\.push|href=.*pedidos/);
+  assert.match(views, /ArtemisPendingDecisions w=\{w\} view="inicio"/);
+  assert.match(views, /ArtemisPendingDecisions w=\{w\} view="gestao"/);
+  assert.match(direct, /ArtemisPendingDecisions w=\{w\} view="cozinha"/);
+  assert.match(direct, /ArtemisPendingDecisions w=\{w\} view="atendimento"/);
+  assert.match(operations, /ARTEMIS_ACCEPTANCE_REQUIRED/);
+  assert.match(cloudApi, /delivery_acceptance_view/);
+  assert.match(migration, /delivery_acceptance_view text not null default 'atendimento'/);
+});
