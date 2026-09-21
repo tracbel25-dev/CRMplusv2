@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { BarChart3, BookOpen, Box, ChefHat, ChevronRight, Settings2, ShoppingBag, Store, Truck, Users, Wallet } from 'lucide-react';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { BarChart3, BookOpen, Box, ChefHat, ChevronRight, Settings2, ShoppingBag, Store, Truck, Users } from 'lucide-react';
 import { useStoreAccess } from '@/lib/account/storeAccess';
 import type { Workspace } from '@/lib/operations/storage';
 import { ArtemisGuidedTest } from './ArtemisGuidedTest';
@@ -36,7 +38,13 @@ const viewCards = [
 
 export function ArtemisViewHome({ w }: { w: Workspace }) {
   const access = useStoreAccess();
+  const router = useRouter();
   const available = viewCards.filter(view => access.hasPermission('artemis', view.permission));
+  useEffect(() => {
+    if (available.length === 1) router.replace(available[0].href);
+  }, [available, router]);
+
+  if (available.length === 1) return <section className="artemis-role-empty"><span><Store size={24}/></span><div><strong>Abrindo sua área</strong><p>Seu acesso está configurado para {available[0].title}.</p></div></section>;
 
   return <>
     <Title eyebrow="Artemis" title="Onde você vai trabalhar agora?">
