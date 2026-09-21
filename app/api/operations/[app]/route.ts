@@ -50,12 +50,28 @@ function validateArtemisTransition(current: Data | null, next: Data, role: strin
   }
 
   const manage = serverPermissionGranted(role, permissions, 'artemis_manage');
-  if (manage) return;
   const permanentService = serverPermissionGranted(role, permissions, 'artemis_service');
   const permanentKitchen = serverPermissionGranted(role, permissions, 'artemis_kitchen');
   const temporarySwitch = currentStaffSwitch && (permanentService || permanentKitchen);
   const service = permanentService || temporarySwitch;
   const kitchen = permanentKitchen || temporarySwitch;
+  const currentDeliveryAcceptance = ['atendimento','cozinha','gestao'].includes(current.settings.deliveryAcceptanceView)
+    ? current.settings.deliveryAcceptanceView
+    : 'atendimento';
+
+  const previousOrders = new Map(current.orders.map(order => [order.id, order]));
+  for (const order of next.orders) {
+    const previous = previousOrders.get(order.id);
+    if (!previous || previous.status !== 'Novo' || order.status === 'Novo') continue;
+    const target = previous.channel === 'Delivery' ? currentDeliveryAcceptance : 'atendimento';
+    const allowed = target === 'gestao' ? manage : target === 'cozinha' ? kitchen : service;
+    if (!allowed) {
+      const label = target === 'gestao' ? 'Gestão' : target === 'cozinha' ? 'Cozinha' : 'Atendimento';
+      throw new Error(`ARTEMIS_ACCEPTANCE_REQUIRED: este pedido deve ser aceito ou recusado pela visão ${label}.`);
+    }
+  }
+
+  if (manage) return;
   if (!service && !kitchen) throw new Error('ARTEMIS_VIEW_REQUIRED: seu perfil não possui uma visão operacional liberada.');
 
   const allowed = new Set<keyof Data>(['version','revision','orders','products','stockMovements']);
@@ -74,6 +90,8 @@ function validateArtemisTransition(current: Data | null, next: Data, role: strin
   const nextSettings = structuredClone(next.settings);
   currentSettings.staffViewSwitchEnabled = currentStaffSwitch;
   nextSettings.staffViewSwitchEnabled = nextStaffSwitch;
+  currentSettings.deliveryAcceptanceView = currentDeliveryAcceptance;
+  nextSettings.deliveryAcceptanceView = ['atendimento','cozinha','gestao'].includes(nextSettings.deliveryAcceptanceView) ? nextSettings.deliveryAcceptanceView : 'atendimento';
   currentSettings.theme = nextSettings.theme;
   currentSettings.collapsed = nextSettings.collapsed;
   if (!sameJson(currentSettings, nextSettings)) {
@@ -320,6 +338,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (message.startsWith('ARTEMIS_MANAGEMENT_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_MANAGEMENT_REQUIRED: ', '') }, { status: 403 });
     if (message.startsWith('ARTEMIS_VIEW_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_VIEW_REQUIRED: ', '') }, { status: 403 });
     if (message.startsWith('ARTEMIS_OWNER_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_OWNER_REQUIRED: ', '') }, { status: 403 });
+    if (message.startsWith('ARTEMIS_ACCEPTANCE_REQUIRED:')) return NextResponse.json({ error: message.replace('ARTEMIS_ACCEPTANCE_REQUIRED: ', '') }, { status: 403 });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
