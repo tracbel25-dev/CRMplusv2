@@ -203,16 +203,29 @@ test('signup CPF stays editable and formats digits', () => {
 });
 
 
-test('Artemis operation keeps the first fold focused on active work', () => {
+test('Artemis separates management, service and kitchen views', () => {
   const direct = readFileSync(join(root, 'components', 'operations', 'ArtemisDirect.tsx'), 'utf8');
-  const css = readFileSync(join(root, 'components', 'operations', 'artemis-direct.css'), 'utf8');
+  const views = readFileSync(join(root, 'components', 'operations', 'ArtemisViews.tsx'), 'utf8');
+  const runtime = readFileSync(join(root, 'components', 'operations', 'AppRuntime.tsx'), 'utf8');
+  const navigation = readFileSync(join(root, 'lib', 'operations', 'navigation.ts'), 'utf8');
+  const team = readFileSync(join(root, 'app', 'api', 'team', 'detail', 'route.ts'), 'utf8');
+  const operations = readFileSync(join(root, 'app', 'api', 'operations', '[app]', 'route.ts'), 'utf8');
+  const cloud = readFileSync(join(root, 'components', 'operations', 'useArtemisCloud.ts'), 'utf8');
 
-  assert.match(direct, /Mais ações/);
-  assert.match(direct, /artemis-view-tabs/);
-  assert.match(direct, /Pedidos online pausados/);
-  assert.doesNotMatch(direct, /artemis-channel-strip/);
-  assert.doesNotMatch(direct, /artemis-demand-summary/);
-  assert.doesNotMatch(direct, /Nenhum pedido aguardando confirmação/);
-  assert.match(css, /\.artemis-more-menu/);
-  assert.match(css, /\.artemis-view-tabs/);
+  assert.match(navigation, /path:'atendimento',label:'Atendimento'/);
+  assert.match(navigation, /path:'cozinha',label:'Cozinha'/);
+  assert.match(navigation, /path:'gestao',label:'Gestão'/);
+  assert.match(runtime, /artemis_service/);
+  assert.match(runtime, /artemis_kitchen/);
+  assert.match(runtime, /artemis_manage/);
+  assert.match(direct, /type ServiceView = 'pedidos' \| 'mesas' \| 'caixa'/);
+  assert.match(direct, /if \(kitchenMode\)/);
+  assert.doesNotMatch(direct, /ArtemisGuidedTest/);
+  assert.match(views, /Administração do restaurante/);
+  assert.match(views, /Testar meu restaurante/);
+  assert.match(team, /'artemis_service','artemis_kitchen','artemis_manage'/);
+  assert.match(operations, /validateArtemisTransition/);
+  assert.match(operations, /ARTEMIS_MANAGEMENT_REQUIRED/);
+  assert.match(cloud, /canPublish/);
+  assert.match(cloud, /artemis_manage/);
 });
