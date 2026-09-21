@@ -39,16 +39,24 @@ const viewCards = [
 export function ArtemisViewHome({ w }: { w: Workspace }) {
   const access = useStoreAccess();
   const router = useRouter();
-  const available = viewCards.filter(view => access.hasPermission('artemis', view.permission));
+  const service = access.hasPermission('artemis','artemis_service');
+  const kitchen = access.hasPermission('artemis','artemis_kitchen');
+  const temporarySwitch = !access.isOwner && !!w.data.settings.staffViewSwitchEnabled && (service || kitchen);
+  const available = viewCards.filter(view => {
+    if (view.permission === 'artemis_manage') return access.hasPermission('artemis','artemis_manage');
+    if (view.permission === 'artemis_service') return service || temporarySwitch;
+    return kitchen || temporarySwitch;
+  });
+  const onlyHref = available.length === 1 ? available[0].href : '';
   useEffect(() => {
-    if (available.length === 1) router.replace(available[0].href);
-  }, [available, router]);
+    if (onlyHref) router.replace(onlyHref);
+  }, [onlyHref, router]);
 
   if (available.length === 1) return <section className="artemis-role-empty"><span><Store size={24}/></span><div><strong>Abrindo sua área</strong><p>Seu acesso está configurado para {available[0].title}.</p></div></section>;
 
   return <>
     <Title eyebrow="Artemis" title="Onde você vai trabalhar agora?">
-      Cada área mostra somente as ferramentas necessárias para aquela função.
+      Escolha a área em que vai trabalhar agora. A troca não altera seu perfil permanente.
     </Title>
     <section className="artemis-role-grid">
       {available.map(view => {
