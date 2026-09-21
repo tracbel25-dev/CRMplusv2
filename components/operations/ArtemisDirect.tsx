@@ -78,7 +78,9 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
     [w.data.orders]
   );
   const serviceWaiting = useMemo(() => activeOrders.filter(order => order.status === 'Novo' && (order.channel !== 'Delivery' || (w.data.settings.deliveryAcceptanceView || 'atendimento') === 'atendimento')), [activeOrders, w.data.settings.deliveryAcceptanceView]);
-  const nextWaiting = serviceWaiting[0];
+  const kitchenWaiting = useMemo(() => activeOrders.filter(order => order.status === 'Novo' && order.channel === 'Delivery' && w.data.settings.deliveryAcceptanceView === 'cozinha'), [activeOrders, w.data.settings.deliveryAcceptanceView]);
+  const audibleWaiting = serviceMode ? serviceWaiting : kitchenMode ? kitchenWaiting : [];
+  const nextWaiting = audibleWaiting[0];
 
   const physicalEnabled = operation.actionVisible('dineIn') || operation.actionVisible('counter');
   const deliveryEnabled = operation.actionVisible('delivery');
@@ -88,10 +90,10 @@ export function ArtemisDirect({ w, page, recordId = '' }: { w: Workspace; page: 
   const soundEnabled = operation.actionVisible('newOrderSound');
 
   useEffect(() => {
-    if (!serviceMode || !nextWaiting || !soundEnabled || nextWaiting.id === lastAlerted.current) return;
+    if ((!serviceMode && !kitchenMode) || !nextWaiting || !soundEnabled || nextWaiting.id === lastAlerted.current) return;
     lastAlerted.current = nextWaiting.id;
     tryOrderSound();
-  }, [serviceMode, nextWaiting, soundEnabled]);
+  }, [serviceMode, kitchenMode, nextWaiting, soundEnabled]);
 
   useEffect(() => {
     if (serviceView === 'mesas' && !physicalEnabled) setServiceView('pedidos');
