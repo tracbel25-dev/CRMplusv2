@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createStoreClient } from '@/lib/supabase/storeClient';
-import { reserved, type Event, type Line, type Order } from '@/lib/operations/model';
+import { type Event, type Line, type Order } from '@/lib/operations/model';
 import type { Workspace } from '@/lib/operations/storage';
 import { useOperationPreferences } from '@/lib/operations/configuration';
 import { useArtemisBootstrap } from './useArtemisBootstrap';
@@ -114,7 +114,7 @@ export function useArtemisCloud(w: Workspace) {
       deliveryAreas: w.data.settings.deliveryAreas,
       hours: w.data.settings.hours,
     },
-    products: w.data.products.map(product => ({ ...product, stock: product.stockControlled ? Math.max(0, product.stock - reserved(w.data, product.id)) : product.stock })),
+    products: w.data.products,
     tables: w.data.tables,
     preferences: operation.preferences,
   }), [w.data.settings, w.data.products, w.data.orders, w.data.tables, operation.preferences]);
