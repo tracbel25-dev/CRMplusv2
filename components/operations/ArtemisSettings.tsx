@@ -26,7 +26,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
   const [deliveryAreas, setDeliveryAreas] = useState(w.data.settings.deliveryAreas);
   const [deliveryFee, setDeliveryFee] = useState(String(w.data.settings.deliveryFee / 100));
   const [minimumOrder, setMinimumOrder] = useState(String(w.data.settings.minimumOrder / 100));
-  const [onlinePaused, setOnlinePaused] = useState(w.data.settings.onlinePaused);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => setPreferences(operation.preferences), [operation.preferences]);
@@ -69,7 +68,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
       data.settings.deliveryAreas = deliveryAreas.trim();
       data.settings.deliveryFee = fee;
       data.settings.minimumOrder = minimum;
-      data.settings.onlinePaused = onlinePaused;
     }, 'Configurações do Artemis salvas.');
     if (!ok) return;
     saveOperationPreferences('artemis', preferences);
@@ -108,7 +106,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
         <label className="op-field span-full"><span>Bairros / áreas atendidas</span><textarea rows={3} value={deliveryAreas} onChange={event => { setDeliveryAreas(event.target.value); setSaved(false); }} placeholder="Ex.: Centro, Umarizal, Marco" /></label>
         <label className="op-field span-full"><span>Horários de atendimento</span><textarea rows={3} value={hours} onChange={event => { setHours(event.target.value); setSaved(false); }} placeholder="Ex.: Seg–Sáb 18h às 23h" /></label>
       </div>
-      <label className="op-module-choice"><input type="checkbox" checked={onlinePaused} onChange={event => { setOnlinePaused(event.target.checked); setSaved(false); }} /><span><strong>Pausar pedidos online</strong><small>Use quando o restaurante precisar parar temporariamente de receber delivery/retirada.</small></span><Badge>{onlinePaused ? 'Pausado' : 'Recebendo'}</Badge></label>
     </Section>}
     </CompactPanel><CompactPanel value="operacao"><Section title="Como a equipe opera?">
       <div className="op-config-groups"><div className="op-config-group">
@@ -117,7 +114,6 @@ export function ArtemisSettings({ w }: { w: Workspace }) {
         <Choice checked={enabled('module:caixa')} onChange={value => setEnabled('module:caixa', value)} title="Caixa" description="Recebimentos, abertura e fechamento de caixa." icon={<Wallet size={19} />} />
         <Choice checked={enabled('module:estoque')} onChange={value => setEnabled('module:estoque', value)} title="Estoque" description="Só aparece para restaurantes que realmente controlam saldo e reposição." icon={<Box size={19} />} />
         <Choice checked={enabled('module:clientes')} onChange={value => setEnabled('module:clientes', value)} title="Clientes" description="Histórico de consumidores e relacionamento." icon={<Users size={19} />} />
-        <Choice checked={enabled('loyalty')} onChange={value => setEnabled('loyalty', value)} title="Fidelidade por pontos" description="Reserva a fidelidade como recurso da operação; regras de pontuação e resgate ficam separadas da rotina de pedidos." icon={<Users size={19} />} />
         <Choice checked={enabled('module:relatorios')} onChange={value => setEnabled('module:relatorios', value)} title="Relatórios" description="Mantém relatórios fora da rotina de quem não precisa deles." icon={<Users size={19} />} />
       </div></div>
     </Section>

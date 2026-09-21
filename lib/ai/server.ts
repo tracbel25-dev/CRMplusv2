@@ -124,6 +124,42 @@ export async function getAIInteraction(app: AIApp, tenantKey: string, interactio
   };
 }
 
+export const GROQ_VISION_MODEL = 'qwen/qwen3.8-27b';
+
+export async function groqVisionResponse(app: AIApp, prompt: string, imageDataUrl: string, options?: { maxOutputTokens?: number }) {
+  const response = await fetch('https://api.groq.com/openai/v1/responses', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${readGroqKey(app)}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: GROQ_VISION_MODEL,
+      input: [{
+        role: 'user',
+        content: [
+          { type: 'input_text', text: prompt },
+          { type: 'input_image', image_url: imageDataUrl, detail: 'high' },
+        ],
+      }],
+      max_output_tokens: options?.maxOutputTokens ?? 1800,
+      store: false,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error?.message || 'A Groq não conseguiu analisar a imagem.');
+  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text.trim();
+  const parts: string[] = [];
+  for (const item of payload?.output || []) {
+    for (const content of item?.content || []) {
+      if (content?.type === 'output_text' && typeof content.text === 'string') parts.push(content.text);
+    }
+  }
+  const text = parts.join('\n').trim();
+  if (!text) throw new Error('A Groq não retornou uma leitura utilizável da imagem.');
+  return text;
+}
+
 export async function groqResponse(app: AIApp, prompt: string, options?: { maxOutputTokens?: number; temperature?: number }) {
   const response = await fetch('https://api.groq.com/openai/v1/responses', {
     method: 'POST',

@@ -160,6 +160,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
   const [ready, setReady] = useState(() => !!cachedAtMount);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [syncState, setSyncState] = useState<'idle' | 'saving' | 'confirmed' | 'failed'>('idle');
   const ref = useRef(data);
   const confirmedRef = useRef(data);
   const blocked = useRef(false);
@@ -183,6 +184,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
   const flushCloudQueue = useCallback(async () => {
     if (savingCloud.current || !cloudApp(app) || !accountId || accountId === 'guest') return;
     savingCloud.current = true;
+    setSyncState('saving');
     try {
       while (pendingCloud.current.length) {
         const mutation = pendingCloud.current[0];
@@ -207,12 +209,14 @@ export function useWorkspace(app: AppId, accountId?: string) {
           pendingCloud.current = pendingCloud.current.filter(item => item.id !== mutation.id);
           rebuildVisible();
           setError('');
+          setSyncState('confirmed');
           if (mutation.message) setNotice(mutation.message);
           mutation.resolve(true);
         } catch (reason) {
           pendingCloud.current = pendingCloud.current.filter(item => item.id !== mutation.id);
           try { rebuildVisible(); } catch { publish(confirmedRef.current); }
           setError(clientMessage(reason, 'Não foi possível salvar agora. Tente novamente.'));
+          setSyncState('failed');
           mutation.resolve(false);
         }
       }
@@ -235,6 +239,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
       setData(cached);
       blocked.current = false;
       setError('');
+      setSyncState('confirmed');
       setReady(true);
     } else {
       setReady(false);
@@ -268,10 +273,12 @@ export function useWorkspace(app: AppId, accountId?: string) {
           publish(next);
           blocked.current = false;
           setError('');
+          setSyncState('confirmed');
         } catch (e) {
           if (cancelled) return;
           blocked.current = true;
           setError(clientMessage(e, 'Não foi possível carregar suas informações. Tente novamente.'));
+          setSyncState('failed');
         } finally {
           if (!cancelled) setReady(true);
         }
@@ -316,6 +323,31 @@ export function useWorkspace(app: AppId, accountId?: string) {
   }, [key, accountId, app, publish]);
 
   useEffect(() => {
+    if (!cloudApp(app) || !accountId || accountId === 'guest' || !ready) return;
+    let active = true;
+    const refresh = async () => {
+      if (!active || savingCloud.current || pendingCloud.current.length) return;
+      try {
+        const remote = await cloudRequest(app, accountId, 'GET');
+        if (!active || !remote.data) return;
+        const latest = decodeData(JSON.stringify(remote.data));
+        if (latest.revision <= confirmedRef.current.revision) return;
+        confirmedRef.current = latest;
+        publish(latest);
+        blocked.current = false;
+        setError('');
+        setSyncState('confirmed');
+      } catch (reason) {
+        if (!active) return;
+        setError(clientMessage(reason, 'Não foi possível atualizar as alterações de outro dispositivo.'));
+        setSyncState('failed');
+      }
+    };
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [app, accountId, ready, publish]);
+
+  useEffect(() => {
     if (!notice) return;
     const id = setTimeout(() => setNotice(''), 4000);
     return () => clearTimeout(id);
@@ -336,6 +368,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
         });
         publish(after);
         setError('');
+        setSyncState('saving');
         void flushCloudQueue();
         return await result;
       } catch (e) {
@@ -356,9 +389,11 @@ export function useWorkspace(app: AppId, accountId?: string) {
         publish(next);
         setError('');
         setNotice(message);
+        setSyncState('confirmed');
         return true;
       } catch (e) {
         setError((e as Error).name === 'QuotaExceededError' ? 'Não há espaço suficiente para salvar agora. Faça uma cópia dos seus dados e remova anexos que não precisa.' : clientMessage(e, 'Não foi possível salvar agora. Tente novamente.'));
+        setSyncState('failed');
         return false;
       }
     };
@@ -392,7 +427,7 @@ export function useWorkspace(app: AppId, accountId?: string) {
     }
   };
 
-  return { app, accountId: accountId || '', data, ready, error, notice, mutate, restore, setError, setNotice };
+  return { app, accountId: accountId || '', data, ready, error, notice, syncState, mutate, restore, setError, setNotice };
 }
 
 export type Workspace = ReturnType<typeof useWorkspace>;
