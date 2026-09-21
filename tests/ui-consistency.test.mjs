@@ -179,3 +179,18 @@ test('billing center exposes a real action to end an active direct trial', () =>
   assert.match(route, /entitlement\?\.status!==['"]trialing['"]/);
   assert.match(route, /current_period_end:now/);
 });
+
+
+test('account information lets the owner complete a pending CPF and keeps registered CPF protected', () => {
+  const information = readFileSync(join(root, 'components', 'AccountInformation.tsx'), 'utf8');
+  const entry = readFileSync(join(root, 'components', 'AccountEntry.tsx'), 'utf8');
+
+  assert.match(information, /precheckSignupIdentity/);
+  assert.match(information, /finalize_signup_identity/);
+  assert.match(information, /setCpf\(formatCpf\(event\.target\.value\)\)/);
+  assert.match(information, /Data de nascimento/);
+  assert.match(information, /Somente o titular da conta pode cadastrar o CPF/);
+  assert.doesNotMatch(information, /Entre em contato com o suporte para regularizar/);
+  assert.match(entry, /Conta do titular/);
+  assert.match(entry, /Central da empresa/);
+});
