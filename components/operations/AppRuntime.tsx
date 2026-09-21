@@ -33,6 +33,8 @@ const ZeusServiceTypesCloudBridge = dynamic(() => import('./ZeusServiceTypesClou
 const LeanBudgetDetail = dynamic(() => import('./LeanBudgetDetail').then(module => module.LeanBudgetDetail));
 const LeanArtemisOrderDetail = dynamic(() => import('./LeanArtemisOrderDetail').then(module => module.LeanArtemisOrderDetail));
 const ArtemisDirect = dynamic(() => import('./ArtemisDirect').then(module => module.ArtemisDirect));
+const ArtemisViewHome = dynamic(() => import('./ArtemisViews').then(module => module.ArtemisViewHome));
+const ArtemisManagementHome = dynamic(() => import('./ArtemisViews').then(module => module.ArtemisManagementHome));
 const Research = dynamic(() => import('./Athena').then(module => module.Research));
 const Budgets = dynamic(() => import('./AthenaBudgets').then(module => module.Budgets));
 const Kronos = dynamic(() => import('./Kronos').then(module => module.Kronos));
@@ -46,13 +48,22 @@ const icons = {
   home: Home, calendar: CalendarDays, wrench: Wrench, users: Users, history: History,
   bag: ShoppingBag, utensils: UtensilsCrossed, chef: ChefHat, book: BookOpen,
   wallet: Wallet, box: Box, chart: BarChart3, message: MessageSquareText,
-  inbox: Inbox, target: Target, file: FileText, checklist: ClipboardCheck
+  inbox: Inbox, target: Target, file: FileText, checklist: ClipboardCheck, settings: Settings2
 };
 
 const zeusPagePermissions: Record<string,string> = {
   dashboard:'dashboard_view', agendamentos:'appointments_view', checklist:'jobs_view', atendimentos:'jobs_view',
   historico:'jobs_view', orcamentos:'quotes_view', faturamento:'billing_view', clientes:'customers_manage'
 };
+
+const artemisPagePermissions: Record<string,string> = {
+  atendimento:'artemis_service', pedidos:'artemis_service', mesas:'artemis_service', caixa:'artemis_service',
+  cozinha:'artemis_kitchen',
+  gestao:'artemis_manage', cardapio:'artemis_manage', estoque:'artemis_manage', clientes:'artemis_manage',
+  relatorios:'artemis_manage', configuracoes:'artemis_manage', 'cardapio-digital':'artemis_manage'
+};
+const artemisManagementPages = new Set(['gestao','cardapio','estoque','clientes','relatorios','configuracoes','cardapio-digital']);
+const artemisServicePages = new Set(['atendimento','pedidos','mesas','caixa']);
 
 const zeusNavigationGroups = [
   { label: 'Ordens de serviço', paths: ['agendamentos', 'atendimentos', 'checklist', 'orcamentos'] },
@@ -69,8 +80,12 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const [mobile, setMobile] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(w.data.settings.collapsed);
   const canConfigure = access.ready && (!access.account || access.canConfigureApp(app));
-  const canUsePage = app !== 'zeus' || !access.account || page === 'inicio' || page === 'configuracoes'
-    || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]);
+  const artemisRequiredPermission = app === 'artemis' ? artemisPagePermissions[page] : undefined;
+  const canUsePage = app === 'zeus'
+    ? (!access.account || page === 'inicio' || page === 'configuracoes' || !zeusPagePermissions[page] || access.hasPermission(app, zeusPagePermissions[page]))
+    : app === 'artemis'
+      ? (!access.account || page === 'inicio' || !artemisRequiredPermission || access.hasPermission('artemis', artemisRequiredPermission))
+      : true;
   const planFeature = app === 'zeus' ? ZEUS_PAGE_FEATURE[page] : undefined;
   const canUsePlanPage = !planFeature || zeusViewHasFeature(w.data.settings, planFeature);
 
@@ -90,6 +105,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     if (app === 'zeus' && section.path === 'orcamentos' && !w.data.settings.budgetEnabled) return false;
     if (section.path === 'historico') return false;
     if (app === 'zeus' && access.account && zeusPagePermissions[section.path] && !access.hasPermission(app, zeusPagePermissions[section.path])) return false;
+    if (app === 'artemis' && access.account && artemisPagePermissions[section.path] && !access.hasPermission('artemis', artemisPagePermissions[section.path])) return false;
     if (app === 'zeus') {
       const feature = ZEUS_PAGE_FEATURE[section.path];
       if (feature && !zeusViewHasFeature(w.data.settings, feature)) return false;
@@ -97,16 +113,26 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
     return operation.actionVisible(`module:${section.path}`);
   });
 
-  const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'cozinha'].includes(page);
+  const legacyArtemisOperation = app === 'artemis' && ['pedidos', 'mesas', 'caixa'].includes(page);
   const navigationPage = page === 'historico' ? (app === 'zeus' ? 'atendimentos' : app === 'kronos' ? 'oportunidades' : page) : page;
   const zeusClientsLabel = `Clientes e ${w.data.settings.assetLabel.toLowerCase()}s`;
-  const pageLabel = page === 'configuracoes' ? corporateUi.settingsLabel : legacyArtemisOperation ? 'Operação' : app === 'zeus' && navigationPage === 'clientes' ? zeusClientsLabel : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
+  const artemisArea = app === 'artemis'
+    ? (artemisManagementPages.has(page) ? 'gestao' : artemisServicePages.has(page) ? 'atendimento' : page)
+    : '';
+  const artemisPageLabel: Record<string,string> = { inicio:'Início', atendimento:'Atendimento', cozinha:'Cozinha', gestao:'Gestão', cardapio:'Cardápio', estoque:'Estoque', clientes:'Clientes', relatorios:'Relatórios', configuracoes:'Configurações', caixa:'Caixa', pedidos:'Atendimento', mesas:'Atendimento' };
+  const pageLabel = app === 'artemis'
+    ? (artemisPageLabel[page] || 'Artemis')
+    : page === 'configuracoes' ? corporateUi.settingsLabel
+    : app === 'zeus' && navigationPage === 'clientes' ? zeusClientsLabel
+    : nav.find(section => section.path === navigationPage)?.label || 'Área do aplicativo';
 
   const settingsBody = app === 'artemis' ? <ArtemisSettings w={w} /> : <AppSettings key={app} w={w} app={app} />;
   const restricted = <section className="op-section"><div className="op-section-head"><h2>Acesso não liberado</h2></div><p className="op-muted">Seu perfil não possui permissão para abrir esta área. O titular da conta pode alterar isso em Configurações → Acessos.</p><div className="op-actions"><Link className="op-button secondary" href={`/${app}/inicio`}>Voltar ao início</Link></div></section>;
   const planRestricted = <section className="op-section"><div className="op-section-head"><h2>Recurso não incluído no plano</h2></div><p className="op-muted">Os dados existentes permanecem preservados. Faça upgrade do Zeus para voltar a usar este módulo.</p><div className="op-actions"><Link className="op-button secondary" href="/zeus/inicio">Voltar ao início</Link><Link className="op-button" href="/planos?app=zeus">Ver planos</Link></div></section>;
 
-  const body = page === 'configuracoes' ? (canConfigure ? settingsBody : restricted)
+  const body = app === 'artemis' && page === 'inicio' ? <ArtemisViewHome w={w} />
+    : app === 'artemis' && page === 'gestao' ? (canUsePage ? <ArtemisManagementHome w={w} /> : restricted)
+    : page === 'configuracoes' ? (canConfigure && canUsePage ? settingsBody : restricted)
     : !canUsePlanPage ? planRestricted
     : !canUsePage ? restricted
     : app === 'zeus' && page === 'dashboard' ? <ZeusDashboard w={w} />
@@ -125,7 +151,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
   const renderNavItem = (item: (typeof config.sections)[number]) => {
     const Icon = icons[item.icon as keyof typeof icons];
     const label = app === 'zeus' && item.path === 'clientes' ? zeusClientsLabel : item.label;
-    const active = navigationPage === item.path || (app === 'artemis' && item.path === 'inicio' && legacyArtemisOperation);
+    const active = app === 'artemis' ? artemisArea === item.path : navigationPage === item.path;
     return <Link prefetch key={item.path} href={`/${app}/${item.path}`} title={label} onClick={() => setMobile(false)} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}><Icon size={20} /><span>{label}</span></Link>;
   };
 
@@ -141,13 +167,13 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
             <span className="op-brand-symbol" style={{background:'transparent',color:'var(--op-nav-ink)',overflow:'hidden'}}><AppAsset app={app} kind="icon" alt="" fallback={config.short} style={{width:'100%',height:'100%',display:'grid',placeItems:'center',objectFit:'contain'}} /></span>
             <div><strong>{config.name}</strong><small>{config.subtitle}</small></div>
           </Link>
-          {app !== 'zeus' && <span className="op-nav-label">Sua operação</span>}
+          {app === 'artemis' ? <span className="op-nav-label">Visões</span> : app !== 'zeus' && <span className="op-nav-label">Sua operação</span>}
           <nav aria-label={`Navegação ${config.name}`}>
             {app === 'zeus' ? <>{nav.filter(item => item.path === 'inicio').map(renderNavItem)}{zeusNavigationGroups.map(group => { const items = nav.filter(item => group.paths.includes(item.path)); if (!items.length) return null; return <div className="zeus-nav-group" key={group.label}><span className="op-nav-label zeus-nav-group-label">{group.label}</span>{items.map(renderNavItem)}</div>; })}</> : nav.map(renderNavItem)}
           </nav>
 
           <div className="op-sidebar-bottom">
-            {canConfigure ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
+            {canConfigure && (app !== 'artemis' || access.hasPermission('artemis','artemis_manage')) ? <Link href={`/${app}/configuracoes`} title={corporateUi.settingsLabel} className={page === 'configuracoes' ? 'active' : ''} aria-current={page === 'configuracoes' ? 'page' : undefined}><Settings2 size={20} /><span>{corporateUi.settingsLabel}</span></Link> : null}
             <button onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>{sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}</span></button>
           </div>
           <Link className="op-sidebar-credit" href="/" aria-label="Ir para a home da CRM PLUS">CRM PLUS <span>Store</span></Link>
@@ -157,7 +183,7 @@ export function AppRuntime({ app, page, recordId = '' }: { app: AppId; page: str
           <header className="op-header">
             <button className="op-icon op-mobile-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir navegação"><Menu size={22} /></button>
             <div className="op-breadcrumb"><span>{config.name}</span><i>/</i><strong>{pageLabel}</strong></div>
-            <div className="op-header-tools"><span className="op-business-name">{w.data.settings.business}</span><ExternalShare w={w} app={app} page={page} recordId={recordId} /><button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>{canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}</div>
+            <div className="op-header-tools"><span className="op-business-name">{w.data.settings.business}</span>{(app !== 'artemis' || artemisManagementPages.has(page)) && <ExternalShare w={w} app={app} page={page} recordId={recordId} />}<button className="op-icon" onClick={() => w.mutate(data => { data.settings.theme = data.settings.theme === 'light' ? 'dark' : 'light'; }, '')} aria-label={w.data.settings.theme === 'light' ? 'Usar tema escuro' : 'Usar tema claro'}>{w.data.settings.theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}</button>{canConfigure ? <Link className="op-user" href={`/${app}/configuracoes`} aria-label="Perfil e configurações">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</Link> : <span className="op-user" aria-label="Usuário sem permissão de configuração">{w.data.settings.operator ? w.data.settings.operator.slice(0, 2).toUpperCase() : <Users size={17} />}</span>}</div>
           </header>
 
           <main id="op-main" className="op-main">
