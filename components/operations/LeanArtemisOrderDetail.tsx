@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
 import {
   Order, advanceDelivery, advanceOrder, balance, cancelOrder, cents, customValues,
-  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid, productAvailableForSale, variantAvailableForSale
+  date, event, money, now, orderTotal, paid, receivePayment, reserved, uid, normalizeDailyStock, productAvailableForSale, variantAvailableForSale
 } from '@/lib/operations/model';
 import { learnProductSuggestions } from '@/lib/operations/learning';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -190,8 +190,13 @@ function LeanOrderAdjustment({ w, order, onClose }: { w: Workspace; order: Order
       if ((product.variants || []).length && !variant) throw new Error('Selecione uma opção disponível para este produto.');
       const unitPrice = variant?.price ?? product.price;
       if (product.stockControlled) {
+        normalizeDailyStock(product);
         const available = product.stock - reserved(data, product.id, current.id);
-        if (available < qty) throw new Error(`Estoque insuficiente: ${product.name}.`);
+        const alreadyInOrder = current.lines
+          .filter(line => line.productId === product.id)
+          .reduce((sum, line) => sum + line.quantity, 0);
+        const required = current.status === 'Aceito' ? alreadyInOrder + qty : qty;
+        if (available < required) throw new Error(`Estoque insuficiente: ${product.name}.`);
         if (current.status === 'Em preparo') {
           product.stock -= qty;
           data.stockMovements.push({ id: uid(), productId: product.id, amount: -qty, note: `Acréscimo no pedido ${current.number}`, at: now() });
