@@ -7,7 +7,7 @@ import {
   Line, Order, Product, advanceDelivery, advanceOrder, balance, cancelOrder, cashExpected,
   cents, closeTable, customValues, date, event, localDay, money, nextNumber, now,
   orderTotal, paid, receivePayment, receiveTablePayment, reserved, setCustomValues,
-  tableBalance, tableOrders, uid, variantAvailableForSale
+  tableBalance, tableOrders, uid, productAvailableForSale, variantAvailableForSale
 } from '@/lib/operations/model';
 import { customerSuggestions, resolveCustomer } from '@/lib/operations/customers';
 import { useOperationPreferences } from '@/lib/operations/configuration';
@@ -148,7 +148,7 @@ export function Artemis({ w, page, recordId = '', embedded = false, rushMode = f
         <Title eyebrow={page === 'cardapio-digital' ? 'Prévia no atendimento' : 'Catálogo do restaurante'} title={page === 'cardapio-digital' ? (d.settings.business || 'Cardápio') : 'O que a casa serve'} action={page === 'cardapio' ? <><Link className="op-button secondary" href="/artemis/cardapio-digital">Ver cardápio</Link><Button onClick={() => setProduct('new')}><Plus size={18} />Novo produto</Button></> : <Button onClick={() => addOrder()}>Montar pedido <ShoppingBag size={17} /></Button>} />
         {page === 'cardapio-digital' && <p className="op-callout">Cardápio disponível neste navegador. O link público para outros dispositivos será conectado junto com o restaurante.</p>}
         <div className="op-toolbar"><SearchBox value={query} onChange={setQuery} placeholder="Buscar produto ou ingrediente" /><div className="op-tabs">{categories.map(item => <button key={item} className={item === category ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
-        <div className="artemis-menu">{d.products.filter(item => (category === 'Todos' || item.category === category) && `${item.name} ${item.description} ${item.allergens}`.toLowerCase().includes(query.toLowerCase())).map(item => <article key={item.id} className={`artemis-menu-item ${!item.available ? 'unavailable' : ''}`}><span className="op-kicker">{item.category}</span><h2>{item.name}</h2>{operation.fieldVisible('productDescription') && <p>{item.description || 'Sem descrição cadastrada.'}</p>}{operation.fieldVisible('ingredients') && item.allergens && <small>Ingredientes / alergênicos: {item.allergens}</small>}<div><strong>{money(item.price)}</strong><span className="op-muted">{operation.fieldVisible('prepTime') && item.preparation > 0 ? `${item.preparation} min` : ''}</span></div>{page === 'cardapio' ? <footer><Button variant="secondary" onClick={() => setProduct(item)}>Editar</Button><button className="op-toggle" aria-pressed={item.available} onClick={() => w.mutate(data => { const productItem = data.products.find(currentItem => currentItem.id === item.id)!; productItem.available = !productItem.available; })}><i />{item.available ? 'Disponível' : 'Indisponível'}</button></footer> : <Badge>{item.available ? 'Disponível' : 'Indisponível'}</Badge>}</article>)}</div>
+        <div className="artemis-menu">{d.products.filter(item => (category === 'Todos' || item.category === category) && `${item.name} ${item.description} ${item.allergens}`.toLowerCase().includes(query.toLowerCase())).map(item => <article key={item.id} className={`artemis-menu-item ${!item.available ? 'unavailable' : ''}`}><span className="op-kicker">{item.category}</span><h2>{item.name}</h2>{operation.fieldVisible('productDescription') && <p>{item.description || 'Sem descrição cadastrada.'}</p>}{operation.fieldVisible('ingredients') && item.allergens && <small>Ingredientes / alergênicos: {item.allergens}</small>}<div><strong>{money(item.price)}</strong><span className="op-muted">{operation.fieldVisible('prepTime') && item.preparation > 0 ? `${item.preparation} min` : ''}</span></div>{page === 'cardapio' ? <footer><Button variant="secondary" onClick={() => setProduct(item)}>Editar</Button><button className="op-toggle" aria-pressed={item.available} onClick={() => w.mutate(data => { const productItem = data.products.find(currentItem => currentItem.id === item.id)!; productItem.available = !productItem.available; })}><i />{item.available ? 'Disponível' : 'Indisponível'}</button></footer> : <Badge>{productAvailableForSale(item) ? 'Disponível' : item.soldOutUntil ? 'Esgotado hoje' : 'Indisponível'}</Badge>}</article>)}</div>
         {!d.products.length && <Empty icon={<ChefHat size={30} />}>Cadastre os produtos, preços e categorias do seu cardápio.</Empty>}
       </>}
 
@@ -242,7 +242,7 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
   const fee = channel === 'Delivery' ? w.data.settings.deliveryFee : 0;
   const customGroups = ['Cliente', 'Pedido', ...(channel === 'Delivery' ? ['Delivery'] : []), ...(channel === 'Mesa' ? ['Mesa / comanda'] : [])];
   const identityRequired = ['Delivery', 'Retirada'].includes(channel);
-  const availableProducts = w.data.products.filter(productItem => productItem.available && productItem.name.toLowerCase().includes(query.toLowerCase()));
+  const availableProducts = w.data.products.filter(productItem => productAvailableForSale(productItem) && productItem.name.toLowerCase().includes(query.toLowerCase()));
 
   return <>
     <div className="op-tabs">{availableChannels.map(value => <button className={channel === value ? 'active' : ''} onClick={() => setChannel(value)} key={value}>{value}</button>)}</div>
@@ -258,7 +258,7 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
           <button type="button" disabled={(productItem.variants || []).length > 0 && !variants.length} onClick={() => addProduct(productItem)}><span>{money(selectedPrice)}</span><Plus size={16} />Adicionar</button>
         </article>;
       })}</div>
-      {!w.data.products.some(productItem => productItem.available) && <Empty>Cadastre produtos disponíveis no cardápio antes de lançar um pedido.</Empty>}
+      {!w.data.products.some(productItem => productAvailableForSale(productItem)) && <Empty>Cadastre produtos disponíveis no cardápio antes de lançar um pedido.</Empty>}
     </div><aside className="artemis-cart"><h3>Comanda do pedido</h3>
       {cart.map(cartLine => {
         const productItem = w.data.products.find(item => item.id === cartLine.productId);
@@ -289,7 +289,7 @@ function NewOrder({ w, tableId, onCreated, onClose }: { w: Workspace; tableId: s
       const lines: Line[] = cart.map(cartLine => {
         const currentProduct = data.products.find(item => item.id === cartLine.productId);
         const visibleProduct = w.data.products.find(item => item.id === cartLine.productId);
-        if (!currentProduct?.available || !visibleProduct?.available) throw new Error('O cardápio mudou. Reabra o pedido e confira os itens.');
+        if (!currentProduct || !visibleProduct || !productAvailableForSale(currentProduct) || !productAvailableForSale(visibleProduct)) throw new Error('O cardápio mudou. Reabra o pedido e confira os itens.');
         const currentVariants = (currentProduct.variants || []).filter(variant => variant && variantAvailableForSale(variant));
         const visibleVariants = (visibleProduct.variants || []).filter(variant => variant && variantAvailableForSale(variant));
         const currentVariant = cartLine.variantId ? currentVariants.find(variant => variant.id === cartLine.variantId) : undefined;
