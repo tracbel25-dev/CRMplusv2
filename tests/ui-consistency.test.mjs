@@ -229,3 +229,22 @@ test('Artemis separates management, service and kitchen views', () => {
   assert.match(cloud, /canPublish/);
   assert.match(cloud, /artemis_manage/);
 });
+
+test('Artemis lets the owner control temporary switching between service and kitchen', () => {
+  const settings = readFileSync(join(root, 'components', 'operations', 'ArtemisSettings.tsx'), 'utf8');
+  const switcher = readFileSync(join(root, 'components', 'operations', 'ArtemisViewSwitcher.tsx'), 'utf8');
+  const runtime = readFileSync(join(root, 'components', 'operations', 'AppRuntime.tsx'), 'utf8');
+  const operations = readFileSync(join(root, 'app', 'api', 'operations', '[app]', 'route.ts'), 'utf8');
+  const cloud = readFileSync(join(root, 'app', 'api', 'artemis', 'cloud', 'route.ts'), 'utf8');
+  const migration = readFileSync(join(root, 'supabase', 'artemis', 'migrations', '20260921021500_artemis_staff_view_switch.sql'), 'utf8');
+
+  assert.match(settings, /access\.isOwner/);
+  assert.match(settings, /Permitir que a equipe troque entre Atendimento e Cozinha/);
+  assert.match(switcher, /Cobertura temporária/);
+  assert.match(switcher, /staffViewSwitchEnabled/);
+  assert.match(runtime, /temporaryArtemisSwitch/);
+  assert.match(operations, /ARTEMIS_OWNER_REQUIRED/);
+  assert.match(operations, /currentStaffSwitch && \(permanentService \|\| permanentKitchen\)/);
+  assert.match(cloud, /allow_staff_view_switch/);
+  assert.match(migration, /allow_staff_view_switch boolean not null default false/);
+});
